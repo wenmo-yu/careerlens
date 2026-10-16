@@ -343,7 +343,7 @@ export default function Home() {
       <section className="workspace dark-section" id="matching">
         <div className="section-heading light">
           <div><span>02</span><h2>岗位逐项匹配</h2></div>
-          <p>要求不是关键词命中，而是 Requirement → Evidence。</p>
+          <p>逐项识别岗位要求，与带证据引用的职业画像对照。</p>
         </div>
         <form className="jd-form" onSubmit={handleJob}>
           <div className="jd-fields">
