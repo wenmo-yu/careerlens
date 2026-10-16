@@ -45,6 +45,9 @@ export type JobAnalysis = {
     stage: number;
     skill: string;
     weeks: number;
+    start_week?: number;
+    estimated_hours?: number;
+    current_level?: number;
     goal: string;
     deliverables: string[];
   }>;
@@ -301,10 +304,15 @@ export function downloadCareerReport(reportId: string) {
   return requestText(`/reports/${encodeURIComponent(reportId)}/markdown`);
 }
 
-export function sendChat(userId: string, message: string, threadId?: string) {
+export function sendChat(userId: string, message: string, threadId?: string, jobAnalysisId?: string) {
   return request<ChatResult>("/chat", {
     method: "POST",
-    body: JSON.stringify({ user_id: userId, message, thread_id: threadId ?? null }),
+    body: JSON.stringify({
+      user_id: userId,
+      message,
+      thread_id: threadId ?? null,
+      job_analysis_id: jobAnalysisId ?? null,
+    }),
   });
 }
 

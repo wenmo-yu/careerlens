@@ -1,24 +1,30 @@
 # Agent、检索与模型路线
 
-项目使用 LangGraph 组织一个**固定三节点**的 Career Copilot 流程，而不是让模型自由调用一组 Agent。检索、画像构建和 JD 分析是不同的业务链路，不能把它们笼统地称作同一个 RAG 算法。
+项目使用 LangGraph 按问题意图做**有限条件路由**，而不是让模型自由调用一组 Agent。检索、画像构建和 JD 分析是不同的业务链路，不能把它们笼统地称作同一个 RAG 算法。
 
-## Career Copilot 的三节点
+## Career Copilot 的条件路由
 
 ```mermaid
 flowchart LR
     Q[用户问题 + 会话 ID] --> I[understand_intent]
-    I --> R[retrieve_evidence]
-    R --> A[compose_answer]
-    A --> O[回答 + Evidence 引用 + 检索/模型诊断]
+    I -->|普通问答| R[retrieve_evidence]
+    R -->|画像与证据| A[compose_answer]
+    R -->|已有岗位分析 + 缺口问题| G[compose_gap_answer]
+    I -->|画像偏好修正| H[memory_guidance]
+    A --> O[回答 + 诊断]
+    G --> O
+    H --> O
 ```
 
 | 节点 | 当前实现 | 不是 |
 | --- | --- | --- |
-| `understand_intent` | 按问题关键词识别证据解释、技能缺口、方向或画像问题 | 通用任务规划器 |
+| `understand_intent` | 按问题关键词识别证据解释、技能缺口、方向、画像或修正意图 | 通用任务规划器 |
 | `retrieve_evidence` | 限定当前用户，检索最多 5 条相关 Evidence | 跨用户全局知识搜索 |
 | `compose_answer` | 先准备确定性答案；启用模型时要求结构化 `answer` 与 `cited_evidence_ids`，过滤未检索到的 ID | 对自然语言每个断言的形式化证明 |
+| `compose_gap_answer` | 从指定或最近一次同用户的 `JobAnalysis` 回答缺口与下一步实践 | 模型自主生成的新岗位结论 |
+| `memory_guidance` | 提醒用户通过现有“草案 → 确认”接口更新长期画像 | 在聊天中静默写入长期记忆 |
 
-图在 [`graph/career.py`](../backend/app/graph/career.py)，checkpoint 可持久化多轮状态；[`api/routes/chat.py`](../backend/app/api/routes/chat.py) 管理会话用户归属。模型失败、超时或 JSON 不合法时回退到可解释的确定性回答。仅引用已检索 Evidence 是输出约束，不代表语义事实核验已经完成。
+图在 [`graph/career.py`](../backend/app/graph/career.py)，checkpoint 可持久化多轮状态；[`api/routes/chat.py`](../backend/app/api/routes/chat.py) 管理会话与岗位分析的用户归属。模型失败、超时、JSON 不合法或正文包含不属于当前检索结果的 Evidence 引用时，回退到可解释的确定性回答；报告叙述也执行同样的引用校验。画像修正仍通过独立 API 人工确认，并非 LangGraph 自动提交。引用 ID 校验不代表语义事实核验已经完成。
 
 ## Evidence 混合检索
 
@@ -34,7 +40,7 @@ flowchart LR
 ## 与其他 AI/规则链路的区别
 
 - **画像**：从用户 Evidence 提取 `ProfileItem`。Demo 模式使用别名目录等规则；真实模型路径可产出更多类别，但会校验引用 ID。人工修正另走“草案 → 确认”流程。
-- **JD 分析**：从岗位文本识别要求，与画像条目按名称/级别匹配，输出 `strong / partial / gap`、证据引用和时间估算。当前实现**不**为每项要求分别调用 Qdrant 向量检索。长尾、隐含要求和跨技能迁移可能漏判。
+- **JD 分析**：Demo 模式按技能别名和邻近关键词提取要求；配置真实模型后使用结构化抽取，并只接受能在 JD 中找到逐字引文的结果，失败时回退规则。模型提取的长尾技能也可参与规范化名称匹配。已有画像引用会再核对 Evidence 是否仍属于当前用户。匹配百分比仍来自固定权重与分级系数，**不是录用概率**；学习路线按缺口、现有等级、优先级、目标岗位与每周时间选择最多四个实践阶段。当前实现**不**为每项要求分别调用 Qdrant 语义检索或验证迁移能力；长尾、隐含要求仍可能漏判。
 - **报告**：以画像和 JD 分析为输入，固定生成八章节与历史版本。可选模型增强叙述，但存在确定性回退。
 
 ## 生成模型的两条部署路线

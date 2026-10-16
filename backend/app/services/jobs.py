@@ -1,59 +1,15 @@
-import re
-
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
 from app.models.profile import ProfileItem
-from app.profile.catalog import SKILL_ALIASES
+from app.services.job_requirements import (
+    extract_requirements_with_fallback,
+    normalize_skill,
+)
+from app.services.learning_path import build_learning_path
 from app.services.profile import read_profile
-
-
-def extract_requirements(jd_text: str) -> list[dict]:
-    lowered = jd_text.lower()
-    requirements: list[dict] = []
-    for skill, aliases in SKILL_ALIASES.items():
-        match = next(
-            (
-                re.search(
-                    rf"(?<![a-z0-9]){re.escape(alias.lower())}(?![a-z0-9])",
-                    lowered,
-                )
-                for alias in aliases
-                if re.search(
-                    rf"(?<![a-z0-9]){re.escape(alias.lower())}(?![a-z0-9])",
-                    lowered,
-                )
-            ),
-            None,
-        )
-        if match is None:
-            continue
-        position = match.start()
-        context = lowered[max(0, position - 20) : match.end() + 20]
-        priority = (
-            "preferred"
-            if any(word in context for word in ("加分", "优先", "preferred", "plus"))
-            else "required"
-        )
-        requirements.append({"name": skill, "priority": priority})
-    return requirements
-
-
-def _learning_path(gaps: list[dict], weekly_hours: int) -> list[dict]:
-    path = []
-    for index, gap in enumerate(gaps, start=1):
-        hours = 8 if gap["priority"] == "preferred" else 16
-        weeks = max(1, round(hours / weekly_hours))
-        path.append(
-            {
-                "stage": index,
-                "skill": gap["name"],
-                "weeks": weeks,
-                "goal": f"完成 {gap['name']} 基础学习、一个可演示实践和复盘记录",
-                "deliverables": ["学习笔记", "最小实践项目", "可引用的项目 Evidence"],
-            }
-        )
-    return path
 
 
 async def analyze_job(
@@ -68,10 +24,25 @@ async def analyze_job(
     if not profile:
         raise ValueError("Build the user profile before analyzing a job")
 
-    profile_by_name: dict[str, ProfileItem] = {item.name: item for item in profile}
-    requirements = extract_requirements(jd_text)
+    profile_by_name: dict[str, ProfileItem] = {
+        normalize_skill(item.name).casefold(): item for item in profile if item.category == "skill"
+    }
+    requirements, extraction = await extract_requirements_with_fallback(jd_text)
     if not requirements:
         raise ValueError("No supported technical requirements were found in the JD")
+
+    referenced_ids = {evidence_id for item in profile for evidence_id in item.evidence_ids}
+    valid_ids = (
+        set(
+            await session.scalars(
+                select(Evidence.id).where(
+                    Evidence.user_id == user_id, Evidence.id.in_(referenced_ids)
+                )
+            )
+        )
+        if referenced_ids
+        else set()
+    )
 
     matches: list[dict] = []
     gaps: list[dict] = []
@@ -80,8 +51,13 @@ async def analyze_job(
     for requirement in requirements:
         weight = 1.0 if requirement["priority"] == "required" else 0.5
         possible += weight
-        profile_item = profile_by_name.get(requirement["name"])
-        if profile_item:
+        profile_item = profile_by_name.get(requirement["name"].casefold())
+        evidence_ids = (
+            [item for item in profile_item.evidence_ids if item in valid_ids]
+            if profile_item
+            else []
+        )
+        if profile_item and evidence_ids:
             strength = "strong" if profile_item.level >= 3 else "partial"
             factor = 1.0 if strength == "strong" else 0.65
             earned += weight * factor
@@ -91,7 +67,7 @@ async def analyze_job(
                     "status": strength,
                     "level": profile_item.level,
                     "confidence": profile_item.confidence,
-                    "evidence_ids": profile_item.evidence_ids,
+                    "evidence_ids": evidence_ids,
                 }
             )
         else:
@@ -100,16 +76,18 @@ async def analyze_job(
             gaps.append(gap)
 
     score = round(100 * earned / possible, 1) if possible else 0.0
-    learning_path = _learning_path(gaps, weekly_hours)
+    learning_path = build_learning_path(matches, title=title, weekly_hours=weekly_hours)
     strengths = [item for item in matches if item["status"] in {"strong", "partial"}]
     report = {
-        "summary": f"当前与 {title} 的可验证匹配度为 {score}%。",
+        "summary": f"按当前规则计算，与 {title} 的证据支持匹配分为 {score}%；这不是录用概率。",
         "strengths": strengths,
         "gaps": gaps,
         "recommendation": (
             "建议重点投递并针对缺口准备" if score >= 70 else "建议先补齐核心缺口后再重点投递"
         ),
         "claim_policy": "所有能力结论均来自 Profile Item 关联的 Evidence；无证据项标记为 gap。",
+        "requirement_extraction": extraction,
+        "learning_path_method": "bounded_rule_plan",
     }
     analysis = JobAnalysis(
         user_id=user_id,

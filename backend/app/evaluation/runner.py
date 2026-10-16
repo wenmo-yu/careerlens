@@ -5,7 +5,7 @@ from app.profile.catalog import ROLE_ALIASES, SKILL_ALIASES
 from app.profile.extractor import extract_profile_items
 from app.retrieval.hybrid import hybrid_search
 from app.schemas.evaluation import EvaluationDataset
-from app.services.jobs import extract_requirements
+from app.services.job_requirements import extract_requirements
 
 
 def _f1(predicted: set[Any], expected: set[Any]) -> tuple[float, float, float]:

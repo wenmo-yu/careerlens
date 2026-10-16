@@ -37,7 +37,7 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="landing-rail" aria-label="架构摘要"><span>LANGGRAPH / 3-NODE FLOW</span><span>QDRANT / HYBRID SEARCH</span><span>POSTGRESQL / SOURCE OF TRUTH</span><span>MCP / OPEN INTEGRATION</span></div>
+      <div className="landing-rail" aria-label="架构摘要"><span>LANGGRAPH / INTENT ROUTING</span><span>QDRANT / HYBRID SEARCH</span><span>POSTGRESQL / SOURCE OF TRUTH</span><span>MCP / OPEN INTEGRATION</span></div>
 
       <section className="landing-section landing-problem">
         <div className="site-section-intro"><span className="site-kicker">WHY CAREERLENS / 01</span><h2>建议可以流畅，<br />依据必须清楚。</h2><p>不是把简历扔给模型后得到一段漂亮的话。CareerLens 先建立证据，再让画像、岗位判断和报告沿着同一条证据链产生。</p></div>

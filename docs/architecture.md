@@ -12,7 +12,7 @@ flowchart LR
     MCP --> Services
     Services --> PG[(PostgreSQL：业务真相源)]
     Services --> Q[(Qdrant：派生检索索引)]
-    Services --> Graph[LangGraph 三节点对话]
+    Services --> Graph[LangGraph 条件路由对话]
     Services --> Provider[Demo / API / 本地兼容模型]
     Graph --> PG
     Graph --> Q
@@ -25,7 +25,7 @@ flowchart LR
 | Web | 演示导入、画像、岗位、报告、对话与评测 | [`frontend/app/workspace/page.tsx`](../frontend/app/workspace/page.tsx) |
 | API | 请求校验、鉴权、响应与 HTTP 路由 | [`backend/app/api/`](../backend/app/api/) |
 | Domain Services | Evidence、画像修正、岗位分析、报告、隐私操作 | [`backend/app/services/`](../backend/app/services/) |
-| Agent | 固定图：识别意图 → 检索证据 → 组织回答 | [`backend/app/graph/career.py`](../backend/app/graph/career.py) |
+| Agent | 按意图分流：证据问答、已保存的岗位缺口、画像修正提示 | [`backend/app/graph/career.py`](../backend/app/graph/career.py) |
 | Retrieval | 用户范围内的 Dense + Sparse 检索与本地降级 | [`backend/app/retrieval/`](../backend/app/retrieval/) |
 | Persistence | SQLAlchemy 模型、Alembic 迁移、Qdrant 索引 | [`backend/app/models/`](../backend/app/models/)、[`backend/migrations/`](../backend/migrations/) |
 | MCP | 共享业务服务的工具、资源和提示模板 | [`backend/app/mcp/server.py`](../backend/app/mcp/server.py) |

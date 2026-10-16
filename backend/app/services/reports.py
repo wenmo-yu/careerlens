@@ -9,6 +9,7 @@ from app.llm import get_llm_provider
 from app.models.career_report import CareerReport
 from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
+from app.services.citations import validated_citations
 from app.services.profile import read_profile
 
 
@@ -67,15 +68,21 @@ async def _generate_narrative(context: dict[str, Any], allowed_ids: set[str]) ->
             schema=schema,
             operation="career_report",
         )
-        cited = [item for item in generated.get("cited_evidence_ids", []) if item in allowed_ids]
+        summary = str(generated["executive_summary"]).strip()
+        pitch = str(generated["interview_pitch"]).strip()
         actions = [
             str(item).strip()
             for item in generated.get("action_suggestions", [])
             if str(item).strip()
         ]
+        if not summary or not pitch:
+            raise ValueError("Model report narrative is empty")
+        cited = validated_citations(
+            [summary, pitch, *actions], generated.get("cited_evidence_ids", []), allowed_ids
+        )
         return {
-            "executive_summary": str(generated["executive_summary"]).strip(),
-            "interview_pitch": str(generated["interview_pitch"]).strip(),
+            "executive_summary": summary,
+            "interview_pitch": pitch,
             "action_suggestions": actions or fallback["action_suggestions"],
             "cited_evidence_ids": cited,
         }, diagnostics

@@ -115,7 +115,7 @@ export default function Home() {
   function handleChat(event: FormEvent) {
     event.preventDefault();
     void run("chat", async () => {
-      const result = await sendChat(userId, chatInput, chat?.thread_id);
+      const result = await sendChat(userId, chatInput, chat?.thread_id, analysis?.id);
       setChat(result);
       setTelemetry(await getObservabilitySummary());
     });
@@ -315,7 +315,8 @@ export default function Home() {
                 <div className="bar"><i style={{ width: `${skill.confidence * 100}%` }} /></div>
                 <b>{Math.round(skill.confidence * 100)}%</b>
               </article>
-            ))}</div> : <Empty text="导入经历后，这里会显示带置信度和 Evidence ID 的技能画像。" />}
+            ))}</div> : <Empty text="导入经历后，这里会显示带内部可信程度和 Evidence ID 的技能画像。" />}
+            {skills.length > 0 && <p className="profile-score-note">百分比是抽取器的启发式可信程度，用于排序和展示；不是“具备该能力”的统计概率。请结合 Evidence 原文核对。</p>}
           </div>
         </div>
         <div className="connector-strip">
@@ -344,9 +345,10 @@ export default function Home() {
             <button disabled={busy !== null}>{busy === "job" ? "分析中…" : "分析匹配度"}</button>
           </div>
           <div className="score-card">
-            <span>VERIFIABLE MATCH</span>
+            <span>RULE-BASED MATCH</span>
             <strong>{analysis ? analysis.score : "—"}<small>{analysis && "%"}</small></strong>
             <p>{analysis?.report.recommendation ?? "完成画像后提交 JD"}</p>
+            {analysis && <small className="score-disclaimer">规则匹配分，不是录用概率</small>}
           </div>
         </form>
         {analysis && <div className="match-grid">
@@ -358,7 +360,7 @@ export default function Home() {
               <span>{match.evidence_ids.length ? `${match.evidence_ids.length} 条` : "暂无"}</span>
             </div>)}
           </div>
-          <div className="path-card"><h3>Gap → Learning Path</h3>{analysis.learning_path.length ? analysis.learning_path.map((step) => <article key={step.skill}><b>0{step.stage}</b><div><strong>{step.skill}</strong><p>{step.goal}</p><small>预计 {step.weeks} 周</small></div></article>) : <Empty text="当前没有识别到明确缺口。" />}</div>
+          <div className="path-card"><h3>Gap → Learning Path</h3><p className="path-disclaimer">按缺口、现有等级与每周时间排序的规则式计划；实践成果可作为下一轮 Evidence。</p>{analysis.learning_path.length ? analysis.learning_path.map((step) => <article key={step.skill}><b>0{step.stage}</b><div><strong>{step.skill}</strong><p>{step.goal}</p><small>{step.start_week ? `第 ${step.start_week} 周起 · ` : ""}预计 {step.weeks} 周{step.estimated_hours ? ` / ${step.estimated_hours} 小时` : ""}</small></div></article>) : <Empty text="当前没有识别到明确缺口。" />}</div>
         </div>}
       </section>
 

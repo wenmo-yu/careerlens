@@ -31,12 +31,14 @@ flowchart LR
 | `ConversationThread` | 对话线程与用户归属 | 限定 checkpoint 会话的访问边界 |
 | `AccessToken` / `AuditEvent` | Token 哈希/Scope、操作审计 | 权限与隐私操作追踪；不存明文 Token |
 
+画像条目的 `confidence` 是内部启发式分数：默认规则抽取器根据证据数量和来源数计算，启用模型时还可能合并模型返回值。它没有用真实标签做概率校准，**不能解读成“某项能力真实存在的概率”**；判断依据仍是可回看的 Evidence。
+
 ## 写入与派生
 
 1. 文本、文件、平台导出或多模态转录先在 [`ingestion/`](../backend/app/ingestion/) 中解析，再由 [`services/evidence.py`](../backend/app/services/evidence.py) 标准化、分块并写入 Evidence。只有用户主动提供或授权导出的内容才应进入系统。
 2. Evidence 数据库提交后建立 Qdrant 索引。两者不是分布式事务；若向量写入失败，数据库记录仍可能存在，可检查导入诊断并调用 reindex 修复。
 3. [`services/profile.py`](../backend/app/services/profile.py) 读取用户 Evidence 构建画像。默认规则提取适合可复现演示，配置真实生成模型后可抽取更丰富的类别；模型输出仍会过滤无效 Evidence ID。
-4. [`services/jobs.py`](../backend/app/services/jobs.py) 从 JD 提取技能要求，并与当前画像对照。`strong / partial / gap` 是规则分级，不是统计意义的招聘成功概率；学习路径根据缺口优先级和每周时间给出估算。
+4. [`services/jobs.py`](../backend/app/services/jobs.py) 从 JD 提取技能要求，并与当前画像对照。`strong / partial / gap` 是规则分级，不是统计意义的招聘成功概率；学习路径根据缺口、已有等级、目标岗位和每周时间给出有边界的估算。
 5. [`services/reports.py`](../backend/app/services/reports.py) 将画像与指定 JD 分析固化为新版本报告。模型可在允许的证据边界内补充叙述，失败时仍有确定性报告。
 
 ## 用户纠正与陈旧数据

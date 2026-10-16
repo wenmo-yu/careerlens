@@ -9,6 +9,7 @@ from app.core.database import get_session
 from app.graph.career import run_career_graph
 from app.models.conversation import ConversationThread
 from app.models.evidence import Evidence
+from app.models.job_analysis import JobAnalysis
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.security import authorize_user
 from app.services.profile import read_profile
@@ -35,6 +36,17 @@ async def chat(
     evidence_result = await session.scalars(
         select(Evidence).where(Evidence.user_id == payload.user_id)
     )
+    if payload.job_analysis_id:
+        analysis = await session.get(JobAnalysis, payload.job_analysis_id)
+        if analysis is None or analysis.user_id != payload.user_id:
+            raise HTTPException(status_code=404, detail="Job analysis not found for this user")
+    else:
+        analysis = await session.scalar(
+            select(JobAnalysis)
+            .where(JobAnalysis.user_id == payload.user_id)
+            .order_by(JobAnalysis.created_at.desc(), JobAnalysis.id.desc())
+            .limit(1)
+        )
     thread = None
     if payload.thread_id:
         thread = await session.scalar(
@@ -49,6 +61,7 @@ async def chat(
         message=payload.message,
         profile=profile,
         evidence=list(evidence_result),
+        job_analysis=analysis,
         thread_id=payload.thread_id,
     )
     if thread is None:
