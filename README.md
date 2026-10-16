@@ -10,9 +10,17 @@ CareerLens 将用户授权的简历、自述和个人平台导出内容整理为
 
 ## 界面预览
 
-![CareerLens 职业决策工作台首页](docs/assets/overview.jpg)
+![CareerLens 网站首页：证据驱动的职业决策](docs/assets/overview.jpg)
 
-截图来自本地 Docker 环境，使用虚构资料和默认 Demo 模型。[查看画像、岗位匹配、报告与对话的完整界面展示](docs/showcase.md)。
+首页用于快速理解项目，交互工作台保留完整业务操作。截图来自本地 Docker 环境；案例内容为虚构资料，生成端使用默认 Demo 模型。[查看案例体验、系统设计、工作台与业务结果的页面展示](docs/showcase.md)。
+
+| 页面 | 内容 |
+| --- | --- |
+| [首页](frontend/app/page.tsx) | 产品定位、能力亮点、业务流程和虚构案例入口 |
+| [案例体验](frontend/app/demo/page.tsx) | 用一组虚构经历逐步解释 Evidence → 画像 → 岗位匹配 → 报告 |
+| [系统设计](frontend/app/architecture/page.tsx) | 技术分层、证据链、Agent 流程和数据边界 |
+| [快速开始](frontend/app/start/page.tsx) | 本地启动、服务入口、模型模式与操作顺序 |
+| [交互工作台](frontend/app/workspace/page.tsx) | 实际调用 API 的导入、画像、匹配、报告、对话、评测与隐私操作 |
 
 ## 核心使用流程
 
@@ -25,7 +33,7 @@ CareerLens 将用户授权的简历、自述和个人平台导出内容整理为
 | 5. 追问结论 | 在 Career Copilot 中询问“为什么推荐这个方向？” | 多轮回答、检索诊断与可展开的原始证据 |
 | 6. 修正记忆 | 提出新的求职偏好并确认变更草案 | 用户批准后写入长期画像的修正记录 |
 
-首页预填了**虚构**个人经历与 JD，可在无需 API Key 的默认配置下体验完整流程。真实个人资料仅应在获得授权并采取适当保护时导入。
+交互工作台预填了**虚构**个人经历与 JD，可在无需 API Key 的默认配置下体验完整流程。真实个人资料仅应在获得授权并采取适当保护时导入。
 
 ## 为什么这样设计
 
@@ -90,7 +98,7 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 
 | 想看什么 | 从这里开始 |
 | --- | --- |
-| 前端完整操作流 | [`frontend/app/page.tsx`](frontend/app/page.tsx) |
+| 前端完整操作流 | [`frontend/app/workspace/page.tsx`](frontend/app/workspace/page.tsx) |
 | Evidence 归一化与业务写入 | [`backend/app/services/evidence.py`](backend/app/services/evidence.py)、[`backend/app/ingestion/`](backend/app/ingestion/) |
 | 画像构建与人工确认修正 | [`backend/app/services/profile.py`](backend/app/services/profile.py)、[`backend/app/services/profile_updates.py`](backend/app/services/profile_updates.py) |
 | Qdrant 双路检索与重排 | [`backend/app/retrieval/qdrant_store.py`](backend/app/retrieval/qdrant_store.py) |
@@ -128,7 +136,8 @@ docker compose up -d --build
 
 访问：
 
-- Web：`http://localhost:3000`
+- Web 首页：`http://localhost:3000`
+- 交互工作台：`http://localhost:3000/workspace`
 - API 文档：`http://localhost:8000/docs`
 - MCP Streamable HTTP：`http://localhost:8001/mcp`
 - Qdrant：`http://localhost:16333/dashboard`（可通过 `QDRANT_HTTP_PORT` 修改宿主机端口；容器内仍使用 `6333`）

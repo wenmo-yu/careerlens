@@ -4,7 +4,7 @@
 
 | 文档 | 主要内容 |
 | --- | --- |
-| [界面展示](showcase.md) | 职业画像、岗位分析、报告和对话的实际运行截图 |
+| [界面展示](showcase.md) | 首页、案例、系统设计、工作台及业务结果的页面截图 |
 | [系统架构](architecture.md) | 服务分层、请求链路、数据边界与设计取舍 |
 | [数据与证据生命周期](data-and-evidence.md) | Evidence、画像、JD 分析和报告的关联、更新与删除 |
 | [Agent、检索与模型](agent-and-retrieval.md) | LangGraph 工作流、混合检索、模型切换与降级 |

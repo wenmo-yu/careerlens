@@ -22,7 +22,7 @@ flowchart LR
 
 | 层 | 职责 | 代码入口 |
 | --- | --- | --- |
-| Web | 演示导入、画像、岗位、报告、对话与评测 | [`frontend/app/page.tsx`](../frontend/app/page.tsx) |
+| Web | 演示导入、画像、岗位、报告、对话与评测 | [`frontend/app/workspace/page.tsx`](../frontend/app/workspace/page.tsx) |
 | API | 请求校验、鉴权、响应与 HTTP 路由 | [`backend/app/api/`](../backend/app/api/) |
 | Domain Services | Evidence、画像修正、岗位分析、报告、隐私操作 | [`backend/app/services/`](../backend/app/services/) |
 | Agent | 固定图：识别意图 → 检索证据 → 组织回答 | [`backend/app/graph/career.py`](../backend/app/graph/career.py) |
