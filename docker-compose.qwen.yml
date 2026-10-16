@@ -1,0 +1,31 @@
+services:
+  api:
+    build:
+      args:
+        INSTALL_ML: "true"
+    environment:
+      RETRIEVAL_BACKEND: qdrant
+      RETRIEVAL_PROVIDER: qwen
+      EMBEDDING_DIMENSION: 384
+      QWEN_EMBEDDING_MODEL: Qwen/Qwen3-Embedding-0.6B
+      QWEN_RERANKER_MODEL: Qwen/Qwen3-Reranker-0.6B
+      HF_HOME: /models/huggingface
+    volumes:
+      - huggingface_cache:/models/huggingface
+
+  mcp:
+    build:
+      args:
+        INSTALL_ML: "true"
+    environment:
+      RETRIEVAL_BACKEND: qdrant
+      RETRIEVAL_PROVIDER: qwen
+      EMBEDDING_DIMENSION: 384
+      QWEN_EMBEDDING_MODEL: Qwen/Qwen3-Embedding-0.6B
+      QWEN_RERANKER_MODEL: Qwen/Qwen3-Reranker-0.6B
+      HF_HOME: /models/huggingface
+    volumes:
+      - huggingface_cache:/models/huggingface
+
+volumes:
+  huggingface_cache:

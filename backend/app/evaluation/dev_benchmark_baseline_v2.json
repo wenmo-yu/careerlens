@@ -1,0 +1,9 @@
+{
+  "dataset": "careerlens-dev-benchmark-v2",
+  "minimums": {
+    "profile_extraction_f1": 0.98,
+    "evidence_recall_at_k": 0.95,
+    "supported_claim_rate": 1.0,
+    "requirement_matching_f1": 0.98
+  }
+}

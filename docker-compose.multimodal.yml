@@ -1,0 +1,16 @@
+services:
+  api:
+    build:
+      args:
+        INSTALL_MULTIMODAL: "true"
+    environment:
+      MEDIA_PROVIDER: auto
+      WHISPER_MODEL: small
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
+      OCR_LANGUAGE: ch
+    volumes:
+      - media_model_cache:/root/.cache
+
+volumes:
+  media_model_cache:

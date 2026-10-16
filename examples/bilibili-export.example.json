@@ -1,0 +1,13 @@
+{
+  "videos": [
+    {
+      "bvid": "BV1CAREERDEMO",
+      "title": "AI Agent 项目开发复盘",
+      "description": "从职业画像到证据检索的完整工程实现。",
+      "transcript": "我使用 FastAPI、LangGraph、Qdrant 和 PostgreSQL 构建了 CareerLens。",
+      "tags": ["AI Agent", "LangGraph", "RAG"],
+      "published_at": "2026-10-15",
+      "url": "https://www.bilibili.com/video/BV1CAREERDEMO"
+    }
+  ]
+}

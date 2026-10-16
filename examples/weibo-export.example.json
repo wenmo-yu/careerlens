@@ -1,0 +1,12 @@
+{
+  "statuses": [
+    {
+      "idstr": "WBCAREERDEMO",
+      "text_raw": "完成 CareerLens 重构：使用 FastAPI、LangGraph 和 Qdrant 构建有证据引用的职业决策 Agent。",
+      "topics": ["AI Agent", "项目复盘"],
+      "created_at": "2026-10-15T20:00:00+08:00",
+      "url": "https://weibo.com/status/WBCAREERDEMO",
+      "visibility": "public"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+services:
+  migrate:
+    environment:
+      DATABASE_URL: postgresql+asyncpg://career:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/career
+
+  api:
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+asyncpg://career:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/career
+      CHECKPOINT_DATABASE_URL: postgresql://career:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/career
+      AUTH_MODE: required
+      AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:?Set AUTH_TOKEN_PEPPER in .env}
+      AUTH_REGISTRATION_SECRET: ${AUTH_REGISTRATION_SECRET:?Set AUTH_REGISTRATION_SECRET in .env}
+
+  mcp:
+    environment:
+      DATABASE_URL: postgresql+asyncpg://career:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/career
+      AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:?Set AUTH_TOKEN_PEPPER in .env}
+      MCP_AUTH_MODE: required
+
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}

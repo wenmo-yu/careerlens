@@ -1,0 +1,45 @@
+{
+  "name": "careerlens-baseline-v1",
+  "recall_k": 3,
+  "cases": [
+    {
+      "id": "agent-engineering-01",
+      "evidence": [
+        {
+          "id": "ev-python",
+          "content": "使用 Python 和 FastAPI 构建异步后端服务。"
+        },
+        {
+          "id": "ev-agent",
+          "content": "通过 LangGraph 构建 AI Agent，并用 Qdrant 实现 RAG 检索。"
+        },
+        {
+          "id": "ev-deploy",
+          "content": "使用 Docker 完成服务容器化部署。"
+        }
+      ],
+      "expected_profile": [
+        {"category": "skill", "name": "Python"},
+        {"category": "skill", "name": "FastAPI"},
+        {"category": "skill", "name": "LangGraph"},
+        {"category": "skill", "name": "Agent"},
+        {"category": "skill", "name": "Qdrant"},
+        {"category": "skill", "name": "RAG"},
+        {"category": "skill", "name": "Docker"},
+        {"category": "target_role", "name": "AI Agent 开发"}
+      ],
+      "retrieval_queries": [
+        {"query": "Python FastAPI 后端", "relevant_evidence_ids": ["ev-python"]},
+        {"query": "LangGraph Agent RAG", "relevant_evidence_ids": ["ev-agent"]},
+        {"query": "Docker 容器化部署", "relevant_evidence_ids": ["ev-deploy"]}
+      ],
+      "jd_text": "要求熟悉 Python、LangGraph、Kubernetes，Docker 经验优先。",
+      "expected_requirements": [
+        {"name": "Python", "status": "partial"},
+        {"name": "LangGraph", "status": "partial"},
+        {"name": "Kubernetes", "status": "gap"},
+        {"name": "Docker", "status": "partial"}
+      ]
+    }
+  ]
+}

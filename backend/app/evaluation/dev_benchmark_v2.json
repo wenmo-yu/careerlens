@@ -1,0 +1,270 @@
+{
+  "name": "careerlens-dev-benchmark-v2",
+  "recall_k": 2,
+  "cases": [
+    {
+      "id": "agent-backend",
+      "evidence": [
+        {"id": "ab-python", "content": "使用 Python 和 FastAPI 构建异步接口服务。"},
+        {"id": "ab-agent", "content": "使用 LangGraph 开发 AI Agent 并维护对话状态。"},
+        {"id": "ab-rag", "content": "通过 Qdrant 实现 RAG 证据检索。"},
+        {"id": "ab-docker", "content": "使用 Docker 完成应用容器化部署。"}
+      ],
+      "expected_profile": [
+        {"category": "skill", "name": "Python"},
+        {"category": "skill", "name": "FastAPI"},
+        {"category": "skill", "name": "LangGraph"},
+        {"category": "skill", "name": "Agent"},
+        {"category": "skill", "name": "Qdrant"},
+        {"category": "skill", "name": "RAG"},
+        {"category": "skill", "name": "Docker"},
+        {"category": "target_role", "name": "AI Agent 开发"}
+      ],
+      "retrieval_queries": [
+        {"query": "LangGraph Agent 状态管理", "relevant_evidence_ids": ["ab-agent"]},
+        {"query": "Qdrant RAG 证据检索", "relevant_evidence_ids": ["ab-rag"]}
+      ],
+      "jd_text": "要求 Python、LangGraph、Kubernetes，Docker 经验优先。",
+      "expected_requirements": [
+        {"name": "Python", "status": "partial"},
+        {"name": "LangGraph", "status": "partial"},
+        {"name": "Kubernetes", "status": "gap"},
+        {"name": "Docker", "status": "partial"}
+      ]
+    },
+    {
+      "id": "frontend-engineering",
+      "evidence": [
+        {"id": "fe-react", "content": "使用 React 和 TypeScript 开发职业工作台。"},
+        {"id": "fe-next", "content": "基于 Next.js 完成服务端渲染和页面路由。"},
+        {"id": "fe-docker", "content": "用 Docker 打包前端生产环境。"},
+        {"id": "fe-design", "content": "负责设计系统、响应式布局和可访问性检查。"}
+      ],
+      "expected_profile": [
+        {"category": "skill", "name": "React"},
+        {"category": "skill", "name": "TypeScript"},
+        {"category": "skill", "name": "Next.js"},
+        {"category": "skill", "name": "Docker"}
+      ],
+      "retrieval_queries": [
+        {"query": "React TypeScript 工作台", "relevant_evidence_ids": ["fe-react"]},
+        {"query": "Next.js 路由服务端渲染", "relevant_evidence_ids": ["fe-next"]}
+      ],
+      "jd_text": "要求 React、TypeScript 和 Next.js，了解 Kubernetes。",
+      "expected_requirements": [
+        {"name": "React", "status": "partial"},
+        {"name": "TypeScript", "status": "partial"},
+        {"name": "Next.js", "status": "partial"},
+        {"name": "Kubernetes", "status": "gap"}
+      ]
+    },
+    {
+      "id": "data-api",
+      "evidence": [
+        {"id": "da-postgres", "content": "使用 PostgreSQL 设计用户画像数据模型。"},
+        {"id": "da-sql", "content": "编写 SQL 数据库查询并优化索引。"},
+        {"id": "da-python", "content": "使用 Python 完成数据清洗任务。"},
+        {"id": "da-fastapi", "content": "通过 FastAPI 提供数据访问接口。"}
+      ],
+      "expected_profile": [
+        {"category": "skill", "name": "PostgreSQL"},
+        {"category": "skill", "name": "SQL"},
+        {"category": "skill", "name": "Python"},
+        {"category": "skill", "name": "FastAPI"}
+      ],
+      "retrieval_queries": [
+        {"query": "PostgreSQL 用户画像模型", "relevant_evidence_ids": ["da-postgres"]},
+        {"query": "SQL 查询索引优化", "relevant_evidence_ids": ["da-sql"]}
+      ],
+      "jd_text": "需要 PostgreSQL、SQL、Python 和 FastAPI。",
+      "expected_requirements": [
+        {"name": "PostgreSQL", "status": "partial"},
+        {"name": "SQL", "status": "partial"},
+        {"name": "Python", "status": "partial"},
+        {"name": "FastAPI", "status": "partial"}
+      ]
+    },
+    {
+      "id": "llm-rag",
+      "evidence": [
+        {"id": "lr-llm", "content": "目标是从事 LLM应用开发，负责大模型功能落地。"},
+        {"id": "lr-chain", "content": "使用 LangChain 搭建 RAG 问答链。"},
+        {"id": "lr-qdrant", "content": "将文档向量写入 Qdrant 并完成召回。"},
+        {"id": "lr-docker", "content": "使用 Docker 发布推理服务。"}
+      ],
+      "expected_profile": [
+        {"category": "skill", "name": "LLM"},
+        {"category": "skill", "name": "LangChain"},
+        {"category": "skill", "name": "RAG"},
+        {"category": "skill", "name": "Qdrant"},
+        {"category": "skill", "name": "Docker"},
+        {"category": "target_role", "name": "LLM 应用开发"}
+      ],
+      "retrieval_queries": [
+        {"query": "LangChain RAG 问答", "relevant_evidence_ids": ["lr-chain"]},
+        {"query": "Qdrant 向量召回", "relevant_evidence_ids": ["lr-qdrant"]}
+      ],
+      "jd_text": "要求 LLM、LangChain、RAG，有 MCP 经验优先。",
+      "expected_requirements": [
+        {"name": "LLM", "status": "partial"},
+        {"name": "LangChain", "status": "partial"},
+        {"name": "RAG", "status": "partial"},
+        {"name": "MCP", "status": "gap"}
+      ]
+    },
+    {
+      "id": "computer-vision",
+      "evidence": [
+        {"id": "cv-torch", "content": "使用 PyTorch 训练 CV算法 模型。"},
+        {"id": "cv-python", "content": "使用 Python 实现 Computer Vision 数据处理。"},
+        {"id": "cv-docker", "content": "通过 Docker 部署图像推理接口。"},
+        {"id": "cv-research", "content": "完成数据标注规范、消融实验与误差分析。"}
+      ],
+      "expected_profile": [
+        {"category": "skill", "name": "PyTorch"},
+        {"category": "skill", "name": "Computer Vision"},
+        {"category": "skill", "name": "Python"},
+        {"category": "skill", "name": "Docker"},
+        {"category": "target_role", "name": "CV 算法"}
+      ],
+      "retrieval_queries": [
+        {"query": "PyTorch CV 模型训练", "relevant_evidence_ids": ["cv-torch"]},
+        {"query": "Computer Vision 数据处理", "relevant_evidence_ids": ["cv-python"]}
+      ],
+      "jd_text": "要求 PyTorch、Computer Vision、Python，了解 Kubernetes。",
+      "expected_requirements": [
+        {"name": "PyTorch", "status": "partial"},
+        {"name": "Computer Vision", "status": "strong"},
+        {"name": "Python", "status": "partial"},
+        {"name": "Kubernetes", "status": "gap"}
+      ]
+    },
+    {
+      "id": "platform-deployment",
+      "evidence": [
+        {"id": "pd-k8s", "content": "使用 Kubernetes 编排 Docker 容器服务。"},
+        {"id": "pd-postgres", "content": "维护 PostgreSQL 数据库备份。"},
+        {"id": "pd-fastapi", "content": "为平台编写 FastAPI 健康检查接口。"},
+        {"id": "pd-python", "content": "通过 Python 自动化部署检查。"}
+      ],
+      "expected_profile": [
+        {"category": "skill", "name": "Kubernetes"},
+        {"category": "skill", "name": "Docker"},
+        {"category": "skill", "name": "PostgreSQL"},
+        {"category": "skill", "name": "FastAPI"},
+        {"category": "skill", "name": "Python"}
+      ],
+      "retrieval_queries": [
+        {"query": "Kubernetes Docker 编排", "relevant_evidence_ids": ["pd-k8s"]},
+        {"query": "PostgreSQL 数据库备份", "relevant_evidence_ids": ["pd-postgres"]}
+      ],
+      "jd_text": "需要 Kubernetes、Docker、PostgreSQL 和 Python。",
+      "expected_requirements": [
+        {"name": "Kubernetes", "status": "partial"},
+        {"name": "Docker", "status": "partial"},
+        {"name": "PostgreSQL", "status": "partial"},
+        {"name": "Python", "status": "partial"}
+      ]
+    },
+    {
+      "id": "mcp-integration",
+      "evidence": [
+        {"id": "mi-server", "content": "基于 Model Context Protocol（MCP）实现数据 Server。"},
+        {"id": "mi-api", "content": "使用 Agent 和 FastAPI 编排工具调用。"},
+        {"id": "mi-client", "content": "用 TypeScript 编写 MCP 客户端。"},
+        {"id": "mi-react", "content": "使用 React 展示工具调用结果。"}
+      ],
+      "expected_profile": [
+        {"category": "skill", "name": "MCP"},
+        {"category": "skill", "name": "Agent"},
+        {"category": "skill", "name": "FastAPI"},
+        {"category": "skill", "name": "TypeScript"},
+        {"category": "skill", "name": "React"}
+      ],
+      "retrieval_queries": [
+        {"query": "Model Context Protocol Server", "relevant_evidence_ids": ["mi-server"]},
+        {"query": "TypeScript MCP 客户端", "relevant_evidence_ids": ["mi-client"]}
+      ],
+      "jd_text": "要求 MCP、FastAPI、TypeScript 和 LangGraph。",
+      "expected_requirements": [
+        {"name": "MCP", "status": "strong"},
+        {"name": "FastAPI", "status": "partial"},
+        {"name": "TypeScript", "status": "partial"},
+        {"name": "LangGraph", "status": "gap"}
+      ]
+    },
+    {
+      "id": "java-rag",
+      "evidence": [
+        {"id": "jr-java", "content": "使用 Java 编写任务调度服务。"},
+        {"id": "jr-data", "content": "完成 SQL 查询与 PostgreSQL 数据持久化。"},
+        {"id": "jr-docker", "content": "用 Docker 打包服务。"},
+        {"id": "jr-rag", "content": "希望从事 RAG工程师，做检索增强系统。"}
+      ],
+      "expected_profile": [
+        {"category": "skill", "name": "Java"},
+        {"category": "skill", "name": "SQL"},
+        {"category": "skill", "name": "PostgreSQL"},
+        {"category": "skill", "name": "Docker"},
+        {"category": "skill", "name": "RAG"},
+        {"category": "target_role", "name": "RAG 工程师"}
+      ],
+      "retrieval_queries": [
+        {"query": "Java 任务调度", "relevant_evidence_ids": ["jr-java"]},
+        {"query": "SQL PostgreSQL 持久化", "relevant_evidence_ids": ["jr-data"]}
+      ],
+      "jd_text": "要求 Java、SQL、Docker 和 RAG。",
+      "expected_requirements": [
+        {"name": "Java", "status": "partial"},
+        {"name": "SQL", "status": "partial"},
+        {"name": "Docker", "status": "partial"},
+        {"name": "RAG", "status": "partial"}
+      ]
+    },
+    {
+      "id": "nontechnical-control",
+      "evidence": [
+        {"id": "nc-writing", "content": "整理项目复盘文档并维护每周工作记录。"},
+        {"id": "nc-team", "content": "组织团队评审会议并跟进任务进度。"},
+        {"id": "nc-users", "content": "完成用户访谈和需求优先级梳理。"},
+        {"id": "nc-demo", "content": "准备产品演示和比赛答辩材料。"}
+      ],
+      "expected_profile": [],
+      "retrieval_queries": [
+        {"query": "用户访谈需求优先级", "relevant_evidence_ids": ["nc-users"]},
+        {"query": "比赛答辩产品演示", "relevant_evidence_ids": ["nc-demo"]}
+      ],
+      "jd_text": "需要 Kubernetes 和 MCP。",
+      "expected_requirements": [
+        {"name": "Kubernetes", "status": "gap"},
+        {"name": "MCP", "status": "gap"}
+      ]
+    },
+    {
+      "id": "chinese-aliases",
+      "evidence": [
+        {"id": "ca-rag", "content": "实现面向个人资料的检索增强问答。"},
+        {"id": "ca-docker", "content": "完成服务容器化和镜像发布。"},
+        {"id": "ca-k8s", "content": "使用 k8s 管理测试环境。"},
+        {"id": "ca-pg", "content": "使用 pgsql 保存结构化画像。"}
+      ],
+      "expected_profile": [
+        {"category": "skill", "name": "RAG"},
+        {"category": "skill", "name": "Docker"},
+        {"category": "skill", "name": "Kubernetes"},
+        {"category": "skill", "name": "PostgreSQL"}
+      ],
+      "retrieval_queries": [
+        {"query": "检索增强个人资料", "relevant_evidence_ids": ["ca-rag"]},
+        {"query": "k8s 测试环境", "relevant_evidence_ids": ["ca-k8s"]}
+      ],
+      "jd_text": "要求检索增强、容器化、k8s 和 pgsql。",
+      "expected_requirements": [
+        {"name": "RAG", "status": "partial"},
+        {"name": "Docker", "status": "partial"},
+        {"name": "Kubernetes", "status": "partial"},
+        {"name": "PostgreSQL", "status": "partial"}
+      ]
+    }
+  ]
+}
