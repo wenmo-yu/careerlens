@@ -1,16 +1,12 @@
-import re
 from collections import defaultdict
 
 from app.models.evidence import Evidence
+from app.profile.alias_match import affirmed_alias_matches
 from app.profile.catalog import ROLE_ALIASES, SKILL_ALIASES
 
 
 def _contains_alias(text: str, aliases: tuple[str, ...]) -> bool:
-    lowered = text.lower()
-    return any(
-        re.search(rf"(?<![a-z0-9]){re.escape(alias.lower())}(?![a-z0-9])", lowered)
-        for alias in aliases
-    )
+    return any(affirmed_alias_matches(text, aliases))
 
 
 def extract_profile_items(evidence: list[Evidence]) -> list[dict]:
@@ -19,6 +15,8 @@ def extract_profile_items(evidence: list[Evidence]) -> list[dict]:
 
     catalogs = (("skill", SKILL_ALIASES), ("target_role", ROLE_ALIASES))
     for record in evidence:
+        if record.source_metadata.get("claim_strength") == "preference_signal":
+            continue
         for category, catalog in catalogs:
             for name, aliases in catalog.items():
                 if not _contains_alias(record.content, aliases):

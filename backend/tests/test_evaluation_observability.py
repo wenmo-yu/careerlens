@@ -41,10 +41,11 @@ async def test_dev_benchmark_covers_multiple_scenarios(client):
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "passed"
-    assert payload["run"]["dataset_name"] == "careerlens-dev-benchmark-v2"
-    assert payload["run"]["metrics"]["case_count"] == 10
-    assert payload["run"]["metrics"]["query_count"] == 20
-    assert payload["run"]["metrics"]["claim_count"] >= 40
+    assert payload["run"]["dataset_name"] == "careerlens-dev-benchmark-v3"
+    assert payload["run"]["metrics"]["case_count"] == 20
+    assert payload["run"]["metrics"]["query_count"] == 40
+    assert payload["run"]["metrics"]["recall_k"] == 5
+    assert payload["run"]["metrics"]["claim_count"] >= 70
 
 
 def test_regression_gate_reports_every_metric_below_threshold():
@@ -97,14 +98,18 @@ def test_sample_dataset_has_human_labels():
 
 def test_dev_benchmark_has_unique_cases_and_evidence_ids():
     dataset = load_dev_benchmark()
-    assert len(dataset.cases) == 10
+    assert len(dataset.cases) == 20
     assert len({case.id for case in dataset.cases}) == len(dataset.cases)
     evidence_ids = [item.id for case in dataset.cases for item in case.evidence]
-    assert len(evidence_ids) == 40
+    assert len(evidence_ids) == 80
     assert len(set(evidence_ids)) == len(evidence_ids)
+    assert sum(len(case.retrieval_queries) for case in dataset.cases) == 40
+    for case in dataset.cases:
+        own_ids = {item.id for item in case.evidence}
+        assert all(set(query.relevant_evidence_ids) <= own_ids for query in case.retrieval_queries)
     project = Path(__file__).parents[2]
     public_baseline = json.loads(
-        (project / "eval" / "baselines" / "careerlens-dev-benchmark-v2.json").read_text(
+        (project / "eval" / "baselines" / "careerlens-dev-benchmark-v3.json").read_text(
             encoding="utf-8"
         )
     )
@@ -114,7 +119,7 @@ def test_dev_benchmark_has_unique_cases_and_evidence_ids():
             / "backend"
             / "app"
             / "evaluation"
-            / "dev_benchmark_baseline_v2.json"
+            / "dev_benchmark_baseline_v3.json"
         ).read_text(encoding="utf-8")
     )
     assert public_baseline == bundled_baseline

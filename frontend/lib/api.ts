@@ -256,6 +256,16 @@ export function importWeiboExport(userId: string, file: File) {
   );
 }
 
+export function importBrowserCapture(userId: string, file: File) {
+  const form = new FormData();
+  form.append("user_id", userId);
+  form.append("upload", file);
+  return upload<{ created_count: number; skipped_count: number; duplicate_count: number }>(
+    "/connectors/browser/import",
+    form,
+  );
+}
+
 export function importMedia(userId: string, file: File) {
   const form = new FormData();
   form.append("user_id", userId);

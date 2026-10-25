@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "CareerLens 本地页面采集",
+  "version": "0.2.0",
+  "description": "由用户主动从当前 Bilibili、微博或抖音页面导出已加载条目，不读取 Cookie。",
+  "permissions": ["activeTab", "scripting", "downloads", "storage"],
+  "action": {
+    "default_title": "导出当前页面到 CareerLens",
+    "default_popup": "popup.html"
+  }
+}

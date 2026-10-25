@@ -1,12 +1,12 @@
 """Extract JD requirements with a constrained model path and a reproducible fallback."""
 
 import json
-import re
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from app.llm import LLMProvider, get_llm_provider
+from app.profile.alias_match import affirmed_alias_matches
 from app.profile.catalog import SKILL_ALIASES
 
 
@@ -21,11 +21,7 @@ class RequirementExtraction(BaseModel):
 
 
 def _mentions(text: str, aliases: tuple[str, ...]) -> bool:
-    lowered = text.lower()
-    return any(
-        re.search(rf"(?<![a-z0-9]){re.escape(alias.lower())}(?![a-z0-9])", lowered)
-        for alias in aliases
-    )
+    return any(affirmed_alias_matches(text, aliases))
 
 
 def normalize_skill(name: str) -> str:
@@ -41,19 +37,7 @@ def extract_requirements(jd_text: str) -> list[dict]:
     lowered = jd_text.lower()
     requirements: list[dict] = []
     for skill, aliases in SKILL_ALIASES.items():
-        match = next(
-            (
-                found
-                for alias in aliases
-                if (
-                    found := re.search(
-                        rf"(?<![a-z0-9]){re.escape(alias.lower())}(?![a-z0-9])", lowered
-                    )
-                )
-                is not None
-            ),
-            None,
-        )
+        match = next(affirmed_alias_matches(jd_text, aliases), None)
         if match is None:
             continue
         context = lowered[max(0, match.start() - 20) : match.end() + 20]

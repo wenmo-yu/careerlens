@@ -92,7 +92,7 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 | Agent / Memory | LangGraph、PostgreSQL Checkpoint | 意图理解、个人证据检索、回答生成与多轮会话 |
 | Evidence RAG | Qdrant、Dense + Sparse、RRF、Reranker Provider | 按用户隔离的证据检索、融合与重排 |
 | 模型 | 确定性 Demo、DeepSeek / OpenAI-compatible API、本地 Qwen 接口 | 无密钥可复现；按需接入真实推理服务 |
-| 数据接入 | PDF / DOCX / TXT / Markdown、Bilibili JSON、微博 JSON/CSV | 用户主动上传和授权导出，不依赖登录态爬取 |
+| 数据接入 | PDF / DOCX / TXT / Markdown、Bilibili JSON、微博 JSON/CSV、可选浏览器页面采集 | 用户主动导入；浏览器扩展只读当前已加载页面，不收集 Cookie，不提供后台账号同步 |
 | 可选多模态 | PaddleOCR、Faster-Whisper | 图片文字与音视频转录，需额外安装模型依赖 |
 | 工具与交付 | MCP Python SDK、Docker Compose、GitHub Actions | 可复用工具接口、容器部署和质量门禁 |
 
@@ -113,11 +113,11 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 
 | 验证项 | 当前结果 | 边界 |
 | --- | --- | --- |
-| 后端自动化测试 | 47 项通过 | 以 SQLite 内存数据库运行的单元/API 测试 |
+| 后端自动化测试 | 54 项通过 | 以 SQLite 内存数据库运行的单元/API 测试 |
 | 前端检查 | ESLint 与 production build 通过 | 属于静态检查和构建验证 |
 | Docker 全栈验收 | 迁移、健康检查及 Evidence → 画像 → JD → 报告 → 对话成功 | 使用本机 PostgreSQL、Qdrant、API、MCP、Web 和 Demo 模型 |
 | 检索与 MCP | 烟测命中 Qdrant；MCP 未授权请求返回 401、合法 Token 可初始化 | 默认 Embedding 为 Hash Provider、重排为 Lexical Provider |
-| 开发回归集 | 10 个合成场景、40 条 Evidence、20 个检索问题 | 只用于发现代码回归，不能当作真实业务准确率 |
+| 开发回归集 | 20 个合成场景、80 条 Evidence、40 个检索问题；Recall@5 | 只用于发现代码回归，不能当作真实业务准确率 |
 
 上述结果来自本地验收；GitHub Actions 工作流也已配置。它们验证了默认链路和开发回归集，不代表不同模型、硬件或真实用户数据下的效果。完整评测口径见[评测文档](eval/README.md)。
 
@@ -182,6 +182,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 - `POST /api/v1/evidence/media`：对图片 OCR 或音视频 ASR 后写入 Evidence
 - `POST /api/v1/connectors/bilibili/import`：导入用户授权的 Bilibili JSON 导出
 - `POST /api/v1/connectors/weibo/import`：导入用户授权的微博 JSON 或 CSV 导出
+- `POST /api/v1/connectors/browser/import`：导入用户从 Bilibili、微博或抖音当前页面本地采集的 JSON；互动记录仅作兴趣线索
 - `POST /api/v1/evaluation/run`：运行自定义人工标注评测集
 - `POST /api/v1/evaluation/sample`：运行内置链路冒烟基准
 - `POST /api/v1/evaluation/regression`：运行自定义数据集与阈值门禁
@@ -399,6 +400,8 @@ Bilibili Connector 只接收用户主动提供的 UTF-8 JSON，不读取 Cookie�
 
 微博 Connector 支持 UTF-8 JSON 和 CSV。JSON 可使用根数组，或 `statuses`、`posts`、`weibo`、`items` 数组；CSV 支持 `微博正文` / `text`、`发布时间` / `created_at`、`话题` / `topics`、`微博链接` / `url` 等中英文列名。正文中的简单 HTML 会被清洗，话题和转发内容会进入 Evidence；缺少微博 ID 时使用发布时间与正文生成稳定内容指纹，因此重新排序后重复导入仍能正确跳过。示例见 [`examples/weibo-export.example.json`](examples/weibo-export.example.json)。
 
+可选的 [`browser-helper/`](browser-helper/README.md) 是 Chrome/Edge 本地页面采集工具：用户在 Bilibili、微博或抖音自己的页面登录、滚动加载，多次点击扩展汇总当前已加载的发布或互动条目，移除误采项并导出 JSON。工作台可逐条勾选，只有确认后才会写入 Evidence。扩展不读取 Cookie，也不提供后台同步。它不保证完整账号历史；点赞、收藏、关注仅作为兴趣线索，不直接推断技能。页面结构变化时可能漏项，详见[使用说明与限制](browser-helper/README.md)。
+
 启用 OCR / ASR：
 
 ```powershell
@@ -419,13 +422,13 @@ docker compose -f docker-compose.yml -f docker-compose.multimodal.yml up --build
 
 ## 评测与模型观测
 
-评测不使用 LLM-as-a-Judge，而是与冻结标签中的画像、Evidence 和 JD 状态比较。网页和 CI 默认运行 v2 合成开发基准：
+评测不使用 LLM-as-a-Judge，而是与冻结标签中的画像、Evidence 和 JD 状态比较。网页和 CI 默认运行 v3 合成开发基准：
 
 ```powershell
 Invoke-RestMethod -Method Post http://localhost:8000/api/v1/evaluation/regression/benchmark
 ```
 
-v2 包含 10 个场景、40 条 Evidence、20 个检索问题，并覆盖中英文别名、strong / partial / gap、纯缺口和无技能干扰样本。它用于发现代码回归，不是真实用户分布，因此即使指标为 100% 也不能直接写成业务准确率。自定义数据集格式见 [`eval/README.md`](eval/README.md)。
+v3 包含 20 个场景、80 条 Evidence、40 个检索问题，测试中英文别名、strong / partial / gap、重复证据、否定表述、纯缺口和非技术干扰样本。本地规则链路在该集上达到四项开发指标 100%，包括 Evidence Recall@5；这不是独立人工标注的真实用户分布，也不是 Qdrant/Qwen 模型链路的准确率。自定义数据集格式见 [`eval/README.md`](eval/README.md)。
 
 真实 LLM 调用会记录 operation、provider、model、成功状态、延迟和 Token，不记录 Prompt、API Key 或个人 Evidence 原文。配置每百万 Token 单价后可计算成本：
 
@@ -439,8 +442,8 @@ AI_OUTPUT_PRICE_PER_MILLION=0
 ```powershell
 Set-Location backend
 python -m app.evaluation.cli `
-  --dataset app/evaluation/dev_benchmark_v2.json `
-  --baseline ../eval/baselines/careerlens-dev-benchmark-v2.json
+  --dataset app/evaluation/dev_benchmark_v3.json `
+  --baseline ../eval/baselines/careerlens-dev-benchmark-v3.json
 ```
 
 仓库中的 [GitHub Actions 工作流](.github/workflows/quality.yml) 配置了后端 lint、测试与回归门禁、前端 lint/build，以及 Docker 全栈 Smoke Test。

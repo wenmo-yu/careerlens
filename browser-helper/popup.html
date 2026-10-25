@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CareerLens 本地页面采集</title>
+    <style>
+      body { width: 390px; margin: 0; padding: 18px; font: 13px/1.5 system-ui, sans-serif; color: #242820; background: #faf8f1; }
+      h1 { font-size: 18px; margin: 0 0 8px; }
+      p { margin: 0 0 12px; color: #555c52; }
+      label { display: block; font-weight: 700; margin-bottom: 8px; }
+      select, button, textarea { box-sizing: border-box; width: 100%; font: inherit; }
+      select { padding: 8px; border: 1px solid #aeb3a9; background: white; }
+      button { margin-top: 10px; padding: 10px; border: 0; background: #252b22; color: white; cursor: pointer; }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      #items { margin: 10px 0; padding: 0; list-style: none; max-height: 220px; overflow: auto; border: 1px solid #aeb3a9; background: white; }
+      #items li { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 9px; border-bottom: 1px solid #e3e5dd; }
+      #items li:last-child { border-bottom: 0; }
+      #items li span { overflow-wrap: anywhere; }
+      #items li button { width: auto; margin: 0; padding: 3px 7px; background: #e7eae0; color: #252b22; }
+      .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      #clear { background: #e7eae0; color: #252b22; }
+      #status { min-height: 22px; margin-top: 10px; }
+      small { display: block; color: #666d61; margin-top: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>CareerLens 页面采集</h1>
+    <p>先在平台页面登录并滚动加载需要的内容。可重复采集多个页面；数据仅暂存在扩展内存，关闭浏览器后清空，不读取 Cookie。</p>
+    <label for="kind">当前页面属于</label>
+    <select id="kind">
+      <option value="published">自己的发布内容</option>
+      <option value="liked">点赞记录</option>
+      <option value="favorite">收藏记录</option>
+      <option value="following">关注列表</option>
+    </select>
+    <button id="capture">把当前页面加入采集清单</button>
+    <p id="status" role="status"></p>
+    <label for="groups">已采集的分组</label>
+    <select id="groups" aria-label="已采集的分组"></select>
+    <ul id="items" aria-label="待导出的条目"></ul>
+    <div class="actions"><button id="download" disabled>导出当前分组 JSON</button><button id="clear" disabled>清空当前分组</button></div>
+    <small>点击“移除”可删掉误采项。仅采集自己的页面，不采集私信。导出后仍需在 CareerLens 工作台核对并确认入库。</small>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

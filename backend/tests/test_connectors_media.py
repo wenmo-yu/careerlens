@@ -2,7 +2,11 @@ import json
 
 from app.api.routes import evidence as evidence_routes
 from app.connectors.bilibili import parse_bilibili_export
+from app.connectors.browser_capture import parse_browser_capture
 from app.connectors.weibo import parse_weibo_export
+from app.models.evidence import Evidence
+from app.profile.extractor import extract_profile_items
+from app.profile.llm_extractor import extract_profile_with_fallback
 
 
 def test_parse_bilibili_export_normalizes_content():
@@ -136,6 +140,122 @@ async def test_weibo_import_is_idempotent(client):
     assert second.status_code == 201
     assert second.json()["created_count"] == 0
     assert second.json()["duplicate_count"] == 1
+
+
+def _capture(platform: str, kind: str, url: str) -> bytes:
+    return json.dumps(
+        {
+            "format": "careerlens-browser-capture-v1",
+            "platform": platform,
+            "kind": kind,
+            "source_url": url,
+            "captured_at": "2026-10-25T10:00:00.000Z",
+            "items": [
+                {"url": url, "title": "Python 项目记录", "text": "使用 Python 构建服务"},
+                {"url": url, "title": "重复项", "text": "同一个链接"},
+                {"url": "https://example.com/other", "title": "异站项", "text": "不应导入"},
+            ],
+            "cookie": "must-not-be-stored",
+        },
+        ensure_ascii=False,
+    ).encode()
+
+
+def test_browser_capture_supports_three_platforms_and_discards_foreign_urls():
+    cases = [
+        ("bilibili", "https://www.bilibili.com/video/BV1CAREER"),
+        ("weibo", "https://weibo.com/status/CAREER123"),
+        ("douyin", "https://www.douyin.com/video/123456"),
+    ]
+    for platform, url in cases:
+        items, skipped, selected = parse_browser_capture(_capture(platform, "liked", url))
+        assert selected == platform
+        assert len(items) == 1
+        assert skipped == 2
+        assert items[0].metadata["claim_strength"] == "preference_signal"
+        assert "cookie" not in str(items[0].metadata).lower()
+
+
+def test_browser_capture_rejects_mismatched_source_and_unusable_items():
+    payload = _capture("bilibili", "published", "https://www.douyin.com/video/123456")
+    try:
+        parse_browser_capture(payload)
+    except ValueError as exc:
+        assert "source URL" in str(exc)
+    else:
+        raise AssertionError("Mismatched platform should be rejected")
+
+
+def test_browser_capture_does_not_store_url_query_tokens():
+    url = "https://www.bilibili.com/video/BV1CAREER?token=secret"
+    items, _, _ = parse_browser_capture(_capture("bilibili", "published", url))
+    assert items[0].metadata["url"] == "https://www.bilibili.com/video/BV1CAREER"
+    assert items[0].metadata["source_url"] == "https://www.bilibili.com/video/BV1CAREER"
+
+
+async def test_browser_capture_import_deduplicates_and_does_not_promote_likes_to_skill(client):
+    url = "https://www.douyin.com/video/123456"
+    payload = _capture("douyin", "liked", url)
+    first = await client.post(
+        "/api/v1/connectors/browser/import",
+        data={"user_id": "browser-user"},
+        files={"upload": ("capture.json", payload, "application/json")},
+    )
+    assert first.status_code == 201
+    assert first.json()["created_count"] == 1
+    assert first.json()["skipped_count"] == 2
+    evidence = first.json()["items"][0]
+    assert evidence["source_type"] == "douyin_browser"
+    assert evidence["source_metadata"]["claim_strength"] == "preference_signal"
+    record = Evidence(**{key: value for key, value in evidence.items() if key != "created_at"})
+    assert extract_profile_items([record]) == []
+
+    second = await client.post(
+        "/api/v1/connectors/browser/import",
+        data={"user_id": "browser-user"},
+        files={"upload": ("capture.json", payload, "application/json")},
+    )
+    assert second.status_code == 201
+    assert second.json()["duplicate_count"] == 1
+
+
+async def test_model_cannot_promote_liked_content_to_skill():
+    class Provider:
+        diagnostics = {"provider": "stub", "model": "test"}
+
+        async def generate_json(self, **_):
+            return {
+                "items": [
+                    {
+                        "category": "skill",
+                        "name": "Python",
+                        "level": 3,
+                        "confidence": 0.9,
+                        "evidence_ids": ["liked-1"],
+                    },
+                    {
+                        "category": "interest",
+                        "name": "Python 教程",
+                        "level": 1,
+                        "confidence": 0.6,
+                        "evidence_ids": ["liked-1"],
+                    },
+                ]
+            }
+
+    evidence = Evidence(
+        id="liked-1",
+        user_id="user",
+        source_type="douyin_browser",
+        source_name="Python 教程",
+        content="浏览互动线索：Python 教程",
+        chunk_index=0,
+        source_metadata={"claim_strength": "preference_signal"},
+    )
+    items = await extract_profile_with_fallback([evidence], Provider())
+    assert [(item["category"], item["name"]) for item in items] == [
+        ("interest", "Python 教程")
+    ]
 
 
 async def test_media_upload_uses_extracted_text(client, monkeypatch):

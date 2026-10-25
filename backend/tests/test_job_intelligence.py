@@ -1,6 +1,8 @@
 from app.graph import career
+from app.models.evidence import Evidence
+from app.profile.extractor import extract_profile_items
 from app.services import reports
-from app.services.job_requirements import extract_requirements_with_fallback
+from app.services.job_requirements import extract_requirements, extract_requirements_with_fallback
 from app.services.learning_path import build_learning_path
 
 
@@ -16,6 +18,36 @@ class StubProvider:
         if isinstance(self.result, Exception):
             raise self.result
         return self.result
+
+
+def test_negated_skill_and_requirement_are_not_counted():
+    records = [
+        Evidence(
+            id="negative-skill",
+            user_id="test-user",
+            source_type="benchmark",
+            source_name="negative",
+            content="尚未掌握 Docker，目前只在了解概念。使用 Python 完成数据清洗。",
+            chunk_index=0,
+            source_metadata={},
+        )
+    ]
+    names = {item["name"] for item in extract_profile_items(records)}
+    assert "Docker" not in names
+    assert "Python" in names
+    requirements = extract_requirements("不要求 Docker；要求 Python 和 FastAPI。")
+    assert {item["name"] for item in requirements} == {"Python", "FastAPI"}
+
+
+async def test_model_quote_cannot_validate_a_negated_requirement():
+    provider = StubProvider(
+        {"requirements": [{"name": "Docker", "priority": "required", "quote": "不要求 Docker"}]}
+    )
+    requirements, diagnostics = await extract_requirements_with_fallback(
+        "不要求 Docker；要求 Python。", provider
+    )
+    assert {item["name"] for item in requirements} == {"Python"}
+    assert diagnostics["accepted"] == 0
 
 
 async def test_jd_model_adds_only_requirements_with_literal_quotes():

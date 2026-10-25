@@ -23,8 +23,8 @@ jobs:
       - name: Run frozen regression gate
         run: >-
           python -m app.evaluation.cli
-          --dataset app/evaluation/dev_benchmark_v2.json
-          --baseline ../eval/baselines/careerlens-dev-benchmark-v2.json
+          --dataset app/evaluation/dev_benchmark_v3.json
+          --baseline ../eval/baselines/careerlens-dev-benchmark-v3.json
 
   frontend-quality:
     runs-on: ubuntu-latest
@@ -43,6 +43,11 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - name: Test browser helper capture and collection
+        run: |
+          node ../browser-helper/test-capture.mjs
+          node ../browser-helper/test-collection.mjs
+          node --check ../browser-helper/popup.js
       - run: pnpm build
 
   docker-smoke:

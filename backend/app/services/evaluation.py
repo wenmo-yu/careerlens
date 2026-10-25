@@ -21,12 +21,12 @@ def load_sample_thresholds() -> RegressionThresholds:
 
 
 def load_dev_benchmark() -> EvaluationDataset:
-    path = Path(__file__).parents[1] / "evaluation" / "dev_benchmark_v2.json"
+    path = Path(__file__).parents[1] / "evaluation" / "dev_benchmark_v3.json"
     return EvaluationDataset.model_validate(json.loads(path.read_text(encoding="utf-8")))
 
 
 def load_dev_benchmark_thresholds() -> RegressionThresholds:
-    path = Path(__file__).parents[1] / "evaluation" / "dev_benchmark_baseline_v2.json"
+    path = Path(__file__).parents[1] / "evaluation" / "dev_benchmark_baseline_v3.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
     return RegressionThresholds.model_validate(payload["minimums"])
 

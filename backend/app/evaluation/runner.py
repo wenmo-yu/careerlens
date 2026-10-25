@@ -1,6 +1,7 @@
 from typing import Any
 
 from app.models.evidence import Evidence
+from app.profile.alias_match import affirmed_alias_matches
 from app.profile.catalog import ROLE_ALIASES, SKILL_ALIASES
 from app.profile.extractor import extract_profile_items
 from app.retrieval.hybrid import hybrid_search
@@ -22,7 +23,7 @@ def _is_supported(item: dict, evidence_by_id: dict[str, Evidence]) -> bool:
         return False
     for evidence_id in item["evidence_ids"]:
         record = evidence_by_id.get(evidence_id)
-        if record and any(alias.lower() in record.content.lower() for alias in aliases):
+        if record and any(affirmed_alias_matches(record.content, aliases)):
             return True
     return False
 

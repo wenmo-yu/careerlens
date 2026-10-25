@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.connectors import parse_bilibili_export, parse_weibo_export
+from app.connectors import parse_bilibili_export, parse_browser_capture, parse_weibo_export
 from app.core.config import get_settings
 from app.core.database import get_session
 from app.schemas.evidence import ConnectorImportRead
@@ -12,6 +12,40 @@ from app.services.connectors import import_connector_items
 
 router = APIRouter()
 Session = Annotated[AsyncSession, Depends(get_session)]
+
+
+@router.post(
+    "/browser/import",
+    response_model=ConnectorImportRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_browser_capture(
+    session: Session,
+    user_id: Annotated[str, Form(min_length=1, max_length=128)],
+    upload: Annotated[UploadFile, File()],
+    authorization: Annotated[str | None, Header()] = None,
+) -> ConnectorImportRead:
+    await authorize_user(
+        session, user_id=user_id, authorization=authorization, required_scope="write"
+    )
+    content = await upload.read(2_000_001)
+    try:
+        items, skipped, platform = parse_browser_capture(content)
+        records, duplicates = await import_connector_items(
+            session,
+            user_id=user_id,
+            source_type=f"{platform}_browser",
+            items=items,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ConnectorImportRead(
+        items=records,
+        created_count=len(records),
+        skipped_count=skipped,
+        duplicate_count=duplicates,
+        connector=f"{platform}_browser_capture",
+    )
 
 
 @router.post(

@@ -47,6 +47,11 @@ async def extract_profile_with_fallback(
     if model.diagnostics["provider"] == "demo":
         return deterministic
     allowed_ids = {record.id for record in evidence}
+    preference_ids = {
+        record.id
+        for record in evidence
+        if record.source_metadata.get("claim_strength") == "preference_signal"
+    }
     source = [
         {"evidence_id": record.id, "source": record.source_name, "content": record.content}
         for record in evidence
@@ -55,7 +60,8 @@ async def extract_profile_with_fallback(
         raw = await model.generate_json(
             system_prompt=(
                 "你是职业画像抽取器。只提取证据直接支持的事实；每个条目必须引用输入中的"
-                " evidence_id，不得推测人格、能力或经历。"
+                " evidence_id，不得推测人格、能力或经历。点赞、收藏和关注仅是兴趣线索，"
+                "不能据此声称用户掌握技能、拥有经历或目标岗位。"
             ),
             user_prompt=json.dumps(source, ensure_ascii=False),
             schema=ExtractionResult.model_json_schema(),
@@ -69,6 +75,8 @@ async def extract_profile_with_fallback(
         valid_ids = list(
             dict.fromkeys(item_id for item_id in item.evidence_ids if item_id in allowed_ids)
         )
+        if item.category in {"skill", "experience", "target_role"}:
+            valid_ids = [item_id for item_id in valid_ids if item_id not in preference_ids]
         if not valid_ids:
             continue
         data = item.model_dump()

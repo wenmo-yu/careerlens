@@ -19,6 +19,10 @@ coverage.xml
 htmlcov/
 data/
 uploads/
+# Personal browser-helper exports should never enter the public repository.
+careerlens-bilibili-*.json
+careerlens-weibo-*.json
+careerlens-douyin-*.json
 models/
 .cache/
 node_modules/

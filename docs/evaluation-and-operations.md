@@ -9,9 +9,9 @@
 | 后端测试 | `pytest backend/tests` | 规则、路由和服务的预期行为 | 真实 PostgreSQL/Qdrant 性能或模型质量 |
 | 前端检查 | `pnpm lint`、`pnpm build` | 类型/静态检查与可构建 | 浏览器端 E2E 体验 |
 | Docker smoke | [`scripts/docker-smoke.ps1`](../scripts/docker-smoke.ps1) | 迁移、健康检查、业务闭环、MCP 鉴权在本机容器环境可运行 | 真实模型、生产流量与公网部署 |
-| 合成基准 | 10 场景、40 Evidence、20 检索问题 | 冻结输入下的确定性回归 | 真实简历/JD 的准确率 |
+| 合成基准 | 20 场景、80 Evidence、40 检索问题，Recall@5 | 冻结输入下的确定性回归 | 真实简历/JD 的准确率 |
 
-评测实现见 [`backend/app/evaluation/runner.py`](../backend/app/evaluation/runner.py)，数据格式与指标细节见 [`eval/README.md`](../eval/README.md)。当前冻结基准针对**目录/规则抽取和本地混合检索**计算指标，不是 Qdrant + Qwen + DeepSeek 线上链路的综合效果。即便合成集得分很高，也不能写成“真实业务准确率 100%”。
+评测实现见 [`backend/app/evaluation/runner.py`](../backend/app/evaluation/runner.py)，数据格式与指标细节见 [`eval/README.md`](../eval/README.md)。当前 v3 冻结基准针对**目录/规则抽取和本地混合检索**计算指标，不是 Qdrant + Qwen + DeepSeek 线上链路的综合效果。Supported Claim Rate 是别名与 Evidence ID 的自动代理校验，不是人工事实判定。即便合成集得分为 100%，也不能写成“真实业务准确率 100%”。
 
 ## 本机验收
 

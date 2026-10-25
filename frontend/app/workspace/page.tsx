@@ -2,12 +2,14 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { BrowserCaptureDraft, parseBrowserCaptureDraft } from "@/lib/browser-capture";
 import {
   analyzeJob,
   CareerReport,
   ChatResult,
   importEvidence,
   importBilibiliExport,
+  importBrowserCapture,
   importMedia,
   importWeiboExport,
   JobAnalysis,
@@ -62,6 +64,8 @@ export default function Home() {
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  const [browserDraft, setBrowserDraft] = useState<{ capture: BrowserCaptureDraft; userId: string } | null>(null);
+  const [selectedCaptureItems, setSelectedCaptureItems] = useState<number[]>([]);
 
   const skills = useMemo(
     () => profile?.items.filter((item) => item.category === "skill") ?? [],
@@ -188,6 +192,40 @@ export default function Home() {
       });
     });
     event.target.value = "";
+  }
+
+  function handleBrowserCapture(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setBrowserDraft(null);
+    setSelectedCaptureItems([]);
+    void run("browser-preview", async () => {
+      if (!userId.trim()) throw new Error("请先填写用户标识。");
+      if (file.size > 2_000_000) throw new Error("采集文件不能超过 2 MB。");
+      const capture = parseBrowserCaptureDraft(await file.text());
+      setBrowserDraft({ capture, userId: userId.trim() });
+      setSelectedCaptureItems(capture.items.map((_, index) => index));
+      setNotice({ kind: "ok", text: `已读取 ${capture.items.length} 条采集内容。请逐条核对，确认后才会入库。` });
+    });
+    event.target.value = "";
+  }
+
+  function handleConfirmBrowserCapture() {
+    if (!browserDraft || !selectedCaptureItems.length) return;
+    void run("browser-capture", async () => {
+      const capture = {
+        ...browserDraft.capture,
+        items: browserDraft.capture.items.filter((_, index) => selectedCaptureItems.includes(index)),
+      };
+      const file = new File([JSON.stringify(capture)], "careerlens-reviewed-capture.json", { type: "application/json" });
+      const result = await importBrowserCapture(browserDraft.userId, file);
+      setBrowserDraft(null);
+      setSelectedCaptureItems([]);
+      setNotice({
+        kind: "ok",
+        text: `已为 ${browserDraft.userId} 导入 ${result.created_count} 条，跳过 ${result.skipped_count} 条无效项与 ${result.duplicate_count} 条重复项。互动记录仅作兴趣线索。`,
+      });
+    });
   }
 
   function handleMedia(event: ChangeEvent<HTMLInputElement>) {
@@ -320,11 +358,24 @@ export default function Home() {
           </div>
         </div>
         <div className="connector-strip">
-          <div><span>AUTHORIZED CONNECTORS</span><h3>从个人数据源继续补充证据</h3><p>只接收用户主动导出的文件，不保存登录 Cookie，也不绕过平台权限。</p></div>
+          <div><span>AUTHORIZED CONNECTORS</span><h3>从个人数据源继续补充证据</h3><p>可使用 browser-helper 在已登录页面本地采集并核对后导入；不读取或上传 Cookie。互动记录仅作兴趣线索。</p></div>
           <label className="upload-card"><b>Bilibili Export</b><small>JSON · 视频标题 / 简介 / 字幕 / 标签</small><input type="file" accept="application/json,.json" onChange={handleBilibili} disabled={busy !== null} /><i>{busy === "bilibili" ? "导入中…" : "选择导出文件 ↗"}</i></label>
           <label className="upload-card"><b>Weibo Export</b><small>JSON / CSV · 正文 / 话题 / 转发 / 时间</small><input type="file" accept="application/json,text/csv,.json,.csv" onChange={handleWeibo} disabled={busy !== null} /><i>{busy === "weibo" ? "导入中…" : "选择导出文件 ↗"}</i></label>
+          <label className="upload-card"><b>Browser Capture</b><small>B站 / 微博 / 抖音 · 发布 / 点赞 / 收藏 / 关注 · JSON</small><input type="file" accept="application/json,.json" onChange={handleBrowserCapture} disabled={busy !== null} /><i>{busy === "browser-preview" ? "读取中…" : "选择采集文件并核对 ↗"}</i></label>
           <label className="upload-card"><b>OCR / ASR</b><small>PNG / JPG / MP3 / WAV / MP4 / WEBM</small><input type="file" accept="image/*,audio/*,video/*" onChange={handleMedia} disabled={busy !== null} /><i>{busy === "media" ? "解析中…" : "选择媒体文件 ↗"}</i></label>
         </div>
+        {browserDraft && <div className="capture-review" aria-label="页面采集审核">
+          <div className="capture-review-head">
+            <div><span>REVIEW BEFORE IMPORT</span><h3>核对页面采集内容</h3><p>目标用户：{browserDraft.userId} · {browserDraft.capture.platform} / {browserDraft.capture.kind} · 已选 {selectedCaptureItems.length} / {browserDraft.capture.items.length} 条</p></div>
+            <div className="capture-review-actions"><button type="button" className="secondary" onClick={() => setSelectedCaptureItems(browserDraft.capture.items.map((_, index) => index))}>全选</button><button type="button" className="secondary" onClick={() => setSelectedCaptureItems([])}>全不选</button></div>
+          </div>
+          <p className="capture-review-note">只导入勾选的条目。请核对内容确实来自自己的页面，且没有不希望保存的文字。发布内容按用户自报处理；点赞、收藏与关注仅用于兴趣线索。</p>
+          <div className="capture-review-list">{browserDraft.capture.items.map((item, index) => <label key={`${item.url}-${index}`} className="capture-review-item">
+            <input type="checkbox" checked={selectedCaptureItems.includes(index)} onChange={(event) => setSelectedCaptureItems((current) => event.target.checked ? [...current, index] : current.filter((value) => value !== index))} />
+            <span><strong>{item.title || `条目 ${index + 1}`}</strong><small>{item.text.slice(0, 240)}</small><em>{item.url}</em></span>
+          </label>)}</div>
+          <div className="capture-review-actions"><button type="button" onClick={handleConfirmBrowserCapture} disabled={busy !== null || selectedCaptureItems.length === 0}>{busy === "browser-capture" ? "导入中…" : `确认导入 ${selectedCaptureItems.length} 条`}</button><button type="button" className="secondary" disabled={busy !== null} onClick={() => { setBrowserDraft(null); setSelectedCaptureItems([]); setNotice({ kind: "ok", text: "已取消，本次采集内容没有写入。" }); }}>取消</button></div>
+        </div>}
         <div className="memory-panel">
           <div><span>HUMAN IN THE LOOP</span><h3>长期画像纠正</h3><p>模型只生成变更草案；只有你确认后，系统才把它作为新证据写入画像。</p></div>
           <form onSubmit={handleProposal}><textarea rows={3} value={memoryInput} onChange={(event) => setMemoryInput(event.target.value)} required /><button disabled={busy !== null}>{busy === "proposal" ? "解析中…" : "生成变更草案"}</button></form>
