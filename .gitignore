@@ -23,7 +23,9 @@ uploads/
 careerlens-bilibili-*.json
 careerlens-weibo-*.json
 careerlens-douyin-*.json
-models/
+# Only ignore a top-level models/ directory (e.g. local ML weights).
+# Do NOT use a bare `models/` — it would also ignore backend/app/models/ (the ORM package).
+/models/
 .cache/
 node_modules/
 .next/
