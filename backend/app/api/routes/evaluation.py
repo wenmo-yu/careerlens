@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
@@ -10,6 +10,7 @@ from app.schemas.evaluation import (
     RegressionRequest,
     RegressionResult,
 )
+from app.security.auth import authorize_ops
 from app.services.evaluation import (
     execute_evaluation,
     execute_regression,
@@ -24,18 +25,39 @@ router = APIRouter()
 Session = Annotated[AsyncSession, Depends(get_session)]
 
 
+async def _ops_guard(
+    session: Session, authorization: Annotated[str | None, Header()] = None
+) -> None:
+    """Evaluation is instance-wide; require a manage-scoped token in secured modes."""
+    await authorize_ops(session, authorization=authorization)
+
+
 @router.post("/run", response_model=EvaluationRunRead)
-async def run_dataset(payload: EvaluationDataset, session: Session) -> EvaluationRunRead:
+async def run_dataset(
+    payload: EvaluationDataset,
+    session: Session,
+    authorization: Annotated[str | None, Header()] = None,
+) -> EvaluationRunRead:
+    await _ops_guard(session, authorization)
     return await execute_evaluation(session, payload)
 
 
 @router.post("/sample", response_model=EvaluationRunRead)
-async def run_sample(session: Session) -> EvaluationRunRead:
+async def run_sample(
+    session: Session,
+    authorization: Annotated[str | None, Header()] = None,
+) -> EvaluationRunRead:
+    await _ops_guard(session, authorization)
     return await execute_evaluation(session, load_sample_dataset())
 
 
 @router.post("/regression", response_model=RegressionResult)
-async def run_regression(payload: RegressionRequest, session: Session) -> RegressionResult:
+async def run_regression(
+    payload: RegressionRequest,
+    session: Session,
+    authorization: Annotated[str | None, Header()] = None,
+) -> RegressionResult:
+    await _ops_guard(session, authorization)
     record, regression = await execute_regression(
         session, payload.dataset, payload.minimums
     )
@@ -43,7 +65,11 @@ async def run_regression(payload: RegressionRequest, session: Session) -> Regres
 
 
 @router.post("/regression/sample", response_model=RegressionResult)
-async def run_sample_regression(session: Session) -> RegressionResult:
+async def run_sample_regression(
+    session: Session,
+    authorization: Annotated[str | None, Header()] = None,
+) -> RegressionResult:
+    await _ops_guard(session, authorization)
     minimums = load_sample_thresholds()
     record, regression = await execute_regression(
         session, load_sample_dataset(), minimums
@@ -52,8 +78,12 @@ async def run_sample_regression(session: Session) -> RegressionResult:
 
 
 @router.post("/regression/benchmark", response_model=RegressionResult)
-async def run_dev_benchmark_regression(session: Session) -> RegressionResult:
+async def run_dev_benchmark_regression(
+    session: Session,
+    authorization: Annotated[str | None, Header()] = None,
+) -> RegressionResult:
     """Run the frozen synthetic development benchmark used by CI and the demo UI."""
+    await _ops_guard(session, authorization)
     record, regression = await execute_regression(
         session, load_dev_benchmark(), load_dev_benchmark_thresholds()
     )
@@ -62,6 +92,9 @@ async def run_dev_benchmark_regression(session: Session) -> RegressionResult:
 
 @router.get("/runs", response_model=list[EvaluationRunRead])
 async def get_runs(
-    session: Session, limit: Annotated[int, Query(ge=1, le=100)] = 20
+    session: Session,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    authorization: Annotated[str | None, Header()] = None,
 ) -> list[EvaluationRunRead]:
+    await _ops_guard(session, authorization)
     return await list_evaluation_runs(session, limit)

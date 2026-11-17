@@ -83,3 +83,33 @@ async def authorize_user(
     record.last_used_at = datetime.now(UTC)
     await session.flush()
     return Principal(user_id=user_id, token_id=record.id, scopes=tuple(record.scopes))
+
+
+async def authorize_ops(
+    session: AsyncSession,
+    *,
+    authorization: str | None,
+) -> Principal:
+    """Authorize a global operations endpoint (evaluation, observability).
+
+    Unlike :func:`authorize_user`, these endpoints are not scoped to one user:
+    evaluation runs and metrics are instance-wide. The token therefore only
+    needs to be valid and carry the ``manage`` scope. In ``disabled`` mode, and
+    in ``optional`` mode without a token, the request is allowed so that local
+    demos and the default single-user setup keep working.
+    """
+    settings = get_settings()
+    mode = settings.auth_mode.lower()
+    if mode == "disabled" or (mode == "optional" and not authorization):
+        return Principal(user_id="ops", token_id=None, scopes=("*",))
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="A Bearer token is required")
+    raw_token = authorization.removeprefix("Bearer ").strip()
+    record = await verify_access_token(session, raw_token)
+    if record is None:
+        raise HTTPException(status_code=401, detail="Invalid or revoked access token")
+    if "manage" not in record.scopes:
+        raise HTTPException(status_code=403, detail="This endpoint requires the manage scope")
+    record.last_used_at = datetime.now(UTC)
+    await session.flush()
+    return Principal(user_id=record.user_id, token_id=record.id, scopes=tuple(record.scopes))
