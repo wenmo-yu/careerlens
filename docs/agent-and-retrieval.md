@@ -20,11 +20,13 @@ flowchart LR
 | --- | --- | --- |
 | `understand_intent` | 按问题关键词识别证据解释、技能缺口、方向、画像或修正意图 | 通用任务规划器 |
 | `retrieve_evidence` | 限定当前用户，检索最多 5 条相关 Evidence | 跨用户全局知识搜索 |
-| `compose_answer` | 先准备确定性答案；启用模型时要求结构化 `answer` 与 `cited_evidence_ids`，过滤未检索到的 ID | 对自然语言每个断言的形式化证明 |
+| `compose_answer` | 先准备确定性答案；启用模型时把本次问题、意图、画像、检索证据与最近 12 条历史消息一并装配为模型输入，要求结构化 `answer` 与 `cited_evidence_ids`，过滤未检索到的 ID | 对自然语言每个断言的形式化证明 |
 | `compose_gap_answer` | 从指定或最近一次同用户的 `JobAnalysis` 回答缺口与下一步实践 | 模型自主生成的新岗位结论 |
 | `memory_guidance` | 提醒用户通过现有“草案 → 确认”接口更新长期画像 | 在聊天中静默写入长期记忆 |
 
-图在 [`graph/career.py`](../backend/app/graph/career.py)，checkpoint 可持久化多轮状态；[`api/routes/chat.py`](../backend/app/api/routes/chat.py) 管理会话与岗位分析的用户归属。模型失败、超时、JSON 不合法或正文包含不属于当前检索结果的 Evidence 引用时，回退到可解释的确定性回答；报告叙述也执行同样的引用校验。画像修正仍通过独立 API 人工确认，并非 LangGraph 自动提交。引用 ID 校验不代表语义事实核验已经完成。
+图在 [`graph/career.py`](../backend/app/graph/career.py)；[`api/routes/chat.py`](../backend/app/api/routes/chat.py) 管理会话与岗位分析的用户归属，并在每次请求前加载该线程的 `ConversationMessage` 历史，把 `{role, content}` 列表作为 `history` 传入图，使追问能解析指代并保留先前约束。回答生成后，本轮 user 与 assistant 消息在同一事务内持久化，响应中的 `messages` 返回该线程的完整历史供前端渲染。
+
+多轮上下文来自持久化的消息表，而不是 checkpoint：checkpoint 保存图的执行状态，消息表是可供回看与上下文装配的权威对话事实。模型失败、超时、JSON 不合法或正文包含不属于当前检索结果的 Evidence 引用时，回退到可解释的确定性回答；报告叙述也执行同样的引用校验。画像修正仍通过独立 API 人工确认，并非 LangGraph 自动提交。引用 ID 校验不代表语义事实核验已经完成。
 
 ## Evidence 混合检索
 

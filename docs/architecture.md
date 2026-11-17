@@ -63,7 +63,7 @@ Evidence 原文、来源、画像、分析、报告和审计数据都持久化�
 
 ## 状态、权限和模型边界
 
-- 对话状态由 LangGraph checkpoint 保存；Docker 模式使用 PostgreSQL，测试或轻量本地运行可用内存 checkpoint。会话线程另有用户归属记录。
+- 对话状态分两层：`ConversationMessage` 表持久化可回看的消息事实（多轮上下文与界面渲染的来源），LangGraph checkpoint 保存图的执行状态；Docker 模式使用 PostgreSQL，测试或轻量本地运行可用内存 checkpoint。会话线程另有用户归属记录。
 - HTTP API 支持 `disabled`、`optional`、`required` 鉴权模式。MCP HTTP 对外使用 Bearer Token 与用户/Scope 校验；本地 stdio 由运行它的部署环境承担信任边界。
 - Demo 模型是确定性回退，方便无密钥演示。生成模型与检索模型分开配置；接入 DeepSeek、本地 Qwen 或 OCR/ASR 后必须各自验收效果。
 - 模型输出被结构化 schema 和允许引用的 Evidence ID 约束；这减少无依据引用，但不能保证每一句自然语言结论都语义正确。
