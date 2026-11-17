@@ -33,7 +33,7 @@ def hybrid_search(
     if not query_tokens:
         return []
 
-    scored: list[tuple[float, Evidence]] = []
+    scored: list[tuple[float, str, Evidence | dict[str, Any]]] = []
     total = max(len(evidence), 1)
     document_frequency = Counter(
         token for record in evidence for token in set(tokenize(_field(record, "content")))
@@ -51,7 +51,7 @@ def hybrid_search(
         exact_bonus = 0.25 if query.lower() in content.lower() else 0.0
         score = 0.45 * dense_score + 0.55 * sparse_score + exact_bonus
         if score > 0:
-            scored.append((score, record))
+            scored.append((score, content, record))
 
     scored.sort(key=lambda pair: pair[0], reverse=True)
     return [
@@ -62,5 +62,5 @@ def hybrid_search(
             "source_name": _field(record, "source_name"),
             "content": content,
         }
-        for score, record in scored[:limit]
+        for score, content, record in scored[:limit]
     ]
