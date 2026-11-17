@@ -119,6 +119,7 @@ async def decide_proposal(
             source_name="confirmed-profile-update",
             content=proposal.message,
             metadata={"proposal_id": proposal.id},
+            commit=False,
         )
         evidence_ids = [item.id for item in evidence]
         for change in proposal.changes:
