@@ -16,7 +16,15 @@ async def create_evidence_chunks(
     source_name: str,
     content: str,
     metadata: dict[str, Any] | None = None,
+    commit: bool = True,
 ) -> list[Evidence]:
+    """Create evidence chunks.
+
+    Set ``commit=False`` when the caller is composing a larger atomic unit of
+    work (e.g. approving a profile update): the rows are flushed so their IDs
+    exist, but the transaction stays open for the caller to commit or roll back
+    as one.
+    """
     chunks = chunk_text(content)
     if not chunks:
         raise ValueError("No readable text was found")
@@ -33,9 +41,12 @@ async def create_evidence_chunks(
         for index, chunk in enumerate(chunks)
     ]
     session.add_all(records)
-    await session.commit()
-    for record in records:
-        await session.refresh(record)
+    if commit:
+        await session.commit()
+        for record in records:
+            await session.refresh(record)
+    else:
+        await session.flush()
     await index_evidence(records)
     return records
 
