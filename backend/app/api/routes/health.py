@@ -1,5 +1,6 @@
 import httpx
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.core.config import get_settings
@@ -33,6 +34,10 @@ async def ready() -> dict[str, object]:
     except (httpx.HTTPError, OSError):
         checks["qdrant"] = "unavailable"
 
-    status = "ok" if all(value == "ok" for value in checks.values()) else "degraded"
-    return {"status": status, "checks": checks}
+    ready = all(value == "ok" for value in checks.values())
+    status = "ok" if ready else "degraded"
+    payload = {"status": status, "checks": checks}
+    # A degraded readiness probe must be an HTTP failure, otherwise orchestrators
+    # (Compose/Kubernetes) keep sending traffic to an instance with broken deps.
+    return JSONResponse(status_code=200 if ready else 503, content=payload)
 
