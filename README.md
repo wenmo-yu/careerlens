@@ -89,7 +89,7 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 | --- | --- | --- |
 | Web | Next.js 16、React 19、TypeScript | 导入、画像、岗位分析、报告、对话和评测工作台 |
 | API / 数据 | FastAPI、Pydantic、SQLAlchemy Async、PostgreSQL、Alembic | 异步业务接口、持久化与版本化迁移 |
-| Agent / Memory | LangGraph、PostgreSQL Checkpoint | 意图理解、个人证据检索、回答生成与多轮会话 |
+| Agent / Memory | LangGraph、PostgreSQL Checkpoint、ConversationMessage | 意图理解、个人证据检索、回答生成；消息表持久化多轮对话，Checkpoint 保存图执行状态 |
 | Evidence RAG | Qdrant、Dense + Sparse、RRF、Reranker Provider | 按用户隔离的证据检索、融合与重排 |
 | 模型 | 确定性 Demo、DeepSeek / OpenAI-compatible API、本地 Qwen 接口 | 无密钥可复现；按需接入真实推理服务 |
 | 数据接入 | PDF / DOCX / TXT / Markdown、Bilibili JSON、微博 JSON/CSV、可选浏览器页面采集 | 用户主动导入；浏览器扩展只读当前已加载页面，不收集 Cookie，不提供后台账号同步 |
@@ -113,7 +113,7 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 
 | 验证项 | 当前结果 | 边界 |
 | --- | --- | --- |
-| 后端自动化测试 | 54 项通过 | 以 SQLite 内存数据库运行的单元/API 测试 |
+| 后端自动化测试 | 63 项通过 | 以 SQLite 内存数据库运行的单元/API 测试，含检索正文一致性、修正事务原子性、多轮对话与运维鉴权回归 |
 | 前端检查 | ESLint 与 production build 通过 | 属于静态检查和构建验证 |
 | Docker 全栈验收 | 迁移、健康检查及 Evidence → 画像 → JD → 报告 → 对话成功 | 使用本机 PostgreSQL、Qdrant、API、MCP、Web 和 Demo 模型 |
 | 检索与 MCP | 烟测命中 Qdrant；MCP 未授权请求返回 401、合法 Token 可初始化 | 默认 Embedding 为 Hash Provider、重排为 Lexical Provider |
@@ -176,7 +176,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 打开 `http://localhost:8000/docs`。可用接口：
 
 - `GET /health/live`：进程存活检查
-- `GET /health/ready`：PostgreSQL 与 Qdrant 就绪检查
+- `GET /health/ready`：PostgreSQL 与 Qdrant 就绪检查；依赖不可用时返回 HTTP 503 与 `status: degraded`，健康实例返回 200
 - `POST /api/v1/evidence/text`：导入用户自述或导出的平台文本
 - `POST /api/v1/evidence/file`：导入 PDF、DOCX、TXT 或 Markdown
 - `POST /api/v1/evidence/media`：对图片 OCR 或音视频 ASR 后写入 Evidence
@@ -207,9 +207,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 - `POST /api/v1/reports`：基于画像和指定 JD 分析生成版本化职业报告
 - `GET /api/v1/reports?user_id=...`：读取用户的职业报告版本
 - `GET /api/v1/reports/{report_id}/markdown`：下载 Markdown 职业报告
-- `POST /api/v1/chat`：通过 LangGraph 查询职业画像和证据
+- `POST /api/v1/chat`：通过 LangGraph 查询职业画像和证据。传入上次响应的 `thread_id` 可连续追问；响应中的 `messages` 返回该会话的完整历史消息，前端据此渲染多轮对话
 - `GET /api/v1/evidence/search`：查看混合检索结果和诊断信息
 - `POST /api/v1/evidence/reindex/{user_id}`：将用户 Evidence 重建到 Qdrant
+
+评测与观测接口是实例级能力，不归属某个用户：在 `AUTH_MODE=required` 下调用 `/api/v1/evaluation/*` 与 `/api/v1/observability/*` 需要携带具备 `manage` Scope 的 Bearer Token；`disabled` 模式（默认）与无 Token 的 `optional` 模式放行，便于本机演示。
 
 示例：
 
@@ -508,7 +510,7 @@ Invoke-RestMethod `
 
 Scope 包括 `read`、`write`、`export`、`delete`、`manage`。数据库仅保存带 pepper 的 SHA-256 Token 哈希；导出文件不包含 Token 或哈希。删除 Evidence 时会同时删除 Qdrant 向量、移除 Profile 引用，并保存不含 Evidence 原文的审计事件。
 
-整账号删除要求 `delete` 或 `manage` Scope，会删除 Evidence、画像、JD、报告、画像修正、审计事件、对话线程、LangGraph checkpoint、Qdrant 向量和全部 Token。删除完成后原 Token 立即失效；系统仅保留匿名回执，其中包含带 pepper 的不可逆用户哈希、删除数量、向量/会话清理状态和时间，不保留用户 ID 或 Evidence 原文。
+整账号删除要求 `delete` 或 `manage` Scope，会删除 Evidence、画像、JD、报告、画像修正、审计事件、对话线程及其全部消息、LangGraph checkpoint、Qdrant 向量和全部 Token。删除完成后原 Token 立即失效；系统仅保留匿名回执，其中包含带 pepper 的不可逆用户哈希、删除数量、向量/会话清理状态和时间，不保留用户 ID 或 Evidence 原文。
 
 本地 stdio MCP 被视为部署边界内的可信接口，不读取 HTTP Bearer Token；生产部署时不要向不受信任用户暴露 stdio 进程。对外服务必须使用启用 Bearer Token 的 Streamable HTTP，并将 `AUTH_TOKEN_PEPPER` 替换为随机密钥。
 

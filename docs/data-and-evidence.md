@@ -29,6 +29,7 @@ flowchart LR
 | `CareerReport` | 版本、Markdown、结构化内容、诊断、`is_stale` | 独立报告版本，不覆盖旧报告 |
 | `ProfileUpdateProposal` | 待批准的画像变更 | 将用户聊天中的纠正与长期资料写入分开 |
 | `ConversationThread` | 对话线程与用户归属 | 限定 checkpoint 会话的访问边界 |
+| `ConversationMessage` | 每条对话的 role、正文、intent、thread_id、微秒级时间 | 持久化的多轮对话事实，供上下文装配与界面渲染；与可重建的 checkpoint 状态不同 |
 | `AccessToken` / `AuditEvent` | Token 哈希/Scope、操作审计 | 权限与隐私操作追踪；不存明文 Token |
 
 画像条目的 `confidence` 是内部启发式分数：默认规则抽取器根据证据数量和来源数计算，启用模型时还可能合并模型返回值。它没有用真实标签做概率校准，**不能解读成“某项能力真实存在的概率”**；判断依据仍是可回看的 Evidence。
@@ -43,12 +44,13 @@ flowchart LR
 
 ## 用户纠正与陈旧数据
 
-用户在对话中说“我现在更希望去做后端”时，不应把这句话自动当成确认事实。系统会先生成 `ProfileUpdateProposal`；批准后写入修正 Evidence 并更新画像，拒绝则不改变长期画像。画像重建会保留已经确认的更新项，但当前实现并不是通用的冲突消解或事实版本系统：如果原始资料仍支持旧条目，删除型修正后续仍需检查重建结果。
+用户在对话中说“我现在更希望去做后端”时，不应把这句话自动当成确认事实。系统会先生成 `ProfileUpdateProposal`；批准后在同一数据库事务内写入修正 Evidence、更新画像并把草案标记为已批准，任一步失败都会整体回滚，拒绝则不改变长期画像。画像重建会保留已经确认的更新项，但当前实现并不是通用的冲突消解或事实版本系统：如果原始资料仍支持旧条目，删除型修正后续仍需检查重建结果。
 
-删除单条 Evidence 会尝试清理索引和画像引用，并将引用它的历史报告标为 `is_stale`；旧报告不会被静默重写。整账号清理覆盖关系数据、Token、向量和 checkpoint，并返回匿名回执。跨 PostgreSQL、Qdrant 和 checkpoint 的删除属于多步骤操作，生产环境还需定义备份中的保留/清理策略与失败补偿，不能将本地接口视为端到端合规保证。详见[接入、MCP 与安全](integrations-and-security.md)。
+删除单条 Evidence 会尝试清理索引和画像引用，并将引用它的历史报告标为 `is_stale`；旧报告不会被静默重写。整账号清理覆盖关系数据（含对话线程及其全部消息）、Token、向量和 checkpoint，并返回匿名回执。跨 PostgreSQL、Qdrant 和 checkpoint 的删除属于多步骤操作，生产环境还需定义备份中的保留/清理策略与失败补偿，不能将本地接口视为端到端合规保证。详见[接入、MCP 与安全](integrations-and-security.md)。
 
 ## 可复现性与检查点
 
 - 数据库 schema 由 [Alembic 迁移](../backend/migrations/)管理；Docker 的独立 migration job 先于 API/MCP 启动。
 - Qdrant 索引是派生状态；变更 Embedding 维度或模型后，应使用新 collection 或重建索引，避免混合不同向量空间。
+- 对话状态分两类：`ConversationMessage` 保存可回看的消息事实（界面渲染与下一轮上下文来源），LangGraph checkpoint 保存图的执行状态。消息表是权威历史，checkpoint 只服务执行续跑。
 - 想检查某项岗位结论，按 `JobAnalysis → ProfileItem → evidence_ids → Evidence` 路径验证。想检查对话答案，则直接展开回答中引用的 Evidence 并查看检索诊断。

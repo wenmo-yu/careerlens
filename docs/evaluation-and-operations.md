@@ -24,11 +24,14 @@ docker compose up -d --build
 
 Web 默认在 `http://localhost:3000`，API 文档在 `http://localhost:8000/docs`，MCP 在 `http://localhost:8001/mcp`，Qdrant Dashboard 在 `http://localhost:16333/dashboard`。smoke 成功应输出 `status : passed`，默认还会删除测试账号；用 `-KeepData` 才保留排查数据。Docker 命名卷在 `docker compose down` 后仍保留，`down -v` 会删除卷，不应用于需要保留数据的场景。
 
+后端镜像使用 uv 两阶段构建并消费 `backend/uv.lock`（`uv sync --frozen`），依赖版本可复现。`INSTALL_ML`、`INSTALL_MULTIMODAL`、`INSTALL_OBSERVABILITY` 构建参数分别启用对应 extra；默认镜像只装核心依赖。修改 `pyproject.toml` 后须同步更新 `uv.lock`，否则 `--frozen` 构建会失败。
+
 ## 常见排查路径
 
 | 现象 | 优先检查 |
 | --- | --- |
-| Web 无法访问 API | `docker compose ps`、API `/health/ready`、浏览器网络请求、前端 API 地址 |
+| Web 无法访问 API | `docker compose ps`、API `/health/ready`（依赖不可用时应返回 503 与 `status: degraded`）、浏览器网络请求、前端 API 地址 |
+| 评测/观测接口返回 401/403 | `AUTH_MODE=required` 下这些实例级接口需要 `manage` Scope 的 Bearer Token；`disabled` 或无 Token 的 `optional` 模式放行 |
 | Evidence 已入库但搜索不到 | 检索诊断中的 `backend/fallback/reason`、Qdrant 健康状态、`/api/v1/evidence/reindex/{user_id}` |
 | 模型一直回退 | `AI_PROVIDER`、Base URL、Key、模型名；检查观测摘要中的失败状态，不打印密钥或原文 |
 | JD 漏掉技能 | 检查技能别名目录与 `extract_requirements`；当前是规则提取，非任意术语理解 |
