@@ -10,7 +10,7 @@ from app.models.access_token import AccessToken
 from app.models.account_deletion import AccountDeletionReceipt
 from app.models.audit import AuditEvent
 from app.models.career_report import CareerReport
-from app.models.conversation import ConversationThread
+from app.models.conversation import ConversationMessage, ConversationThread
 from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
 from app.models.profile import ProfileItem
@@ -257,6 +257,7 @@ async def delete_user_account(
             session, ProfileUpdateProposal, user_id
         ),
         "conversation_threads": len(thread_ids),
+        "conversation_messages": await _count_user_records(session, ConversationMessage, user_id),
         "audit_events": await _count_user_records(session, AuditEvent, user_id),
         "access_tokens": await _count_user_records(session, AccessToken, user_id),
     }
@@ -270,6 +271,7 @@ async def delete_user_account(
         ProfileItem,
         Evidence,
         ConversationThread,
+        ConversationMessage,
         AuditEvent,
         AccessToken,
     ):

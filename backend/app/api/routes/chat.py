@@ -7,15 +7,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.graph.career import run_career_graph
-from app.models.conversation import ConversationThread
+from app.models.conversation import ConversationMessage, ConversationThread
 from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
-from app.schemas.chat import ChatRequest, ChatResponse
+from app.schemas.chat import ChatMessage, ChatRequest, ChatResponse
 from app.security import authorize_user
 from app.services.profile import read_profile
 
 router = APIRouter()
 Session = Annotated[AsyncSession, Depends(get_session)]
+
+
+async def _load_history(
+    session: AsyncSession, user_id: str, thread_id: str | None
+) -> list[ConversationMessage]:
+    if not thread_id:
+        return []
+    result = await session.scalars(
+        select(ConversationMessage)
+        .where(
+            ConversationMessage.user_id == user_id,
+            ConversationMessage.thread_id == thread_id,
+        )
+        .order_by(ConversationMessage.created_at, ConversationMessage.id)
+    )
+    return list(result)
 
 
 @router.post("", response_model=ChatResponse)
@@ -56,6 +72,11 @@ async def chat(
         )
         if thread is not None and thread.user_id != payload.user_id:
             raise HTTPException(status_code=403, detail="Thread belongs to another user")
+
+    prior_messages = await _load_history(session, payload.user_id, payload.thread_id)
+    history = [
+        {"role": item.role, "content": item.content} for item in prior_messages
+    ]
     result = await run_career_graph(
         user_id=payload.user_id,
         message=payload.message,
@@ -63,19 +84,50 @@ async def chat(
         evidence=list(evidence_result),
         job_analysis=analysis,
         thread_id=payload.thread_id,
+        history=history,
+    )
+    thread_id = result["thread_id"]
+
+    session.add(
+        ConversationMessage(
+            user_id=payload.user_id,
+            thread_id=thread_id,
+            role="user",
+            content=payload.message,
+        )
+    )
+    session.add(
+        ConversationMessage(
+            user_id=payload.user_id,
+            thread_id=thread_id,
+            role="assistant",
+            content=result["answer"],
+            intent=result.get("intent"),
+        )
     )
     if thread is None:
         session.add(
-            ConversationThread(user_id=payload.user_id, thread_id=result["thread_id"])
+            ConversationThread(user_id=payload.user_id, thread_id=thread_id)
         )
     else:
         thread.updated_at = datetime.now(UTC)
     await session.commit()
+
+    all_messages = await _load_history(session, payload.user_id, thread_id)
     return ChatResponse(
-        thread_id=result["thread_id"],
+        thread_id=thread_id,
         intent=result["intent"],
         answer=result["answer"],
         evidence=result.get("retrieved_evidence", []),
         retrieval=result.get("retrieval_diagnostics", {}),
         model=result.get("model_diagnostics", {}),
+        messages=[
+            ChatMessage(
+                role=item.role,
+                content=item.content,
+                intent=item.intent,
+                created_at=item.created_at.isoformat() if item.created_at else None,
+            )
+            for item in all_messages
+        ],
     )

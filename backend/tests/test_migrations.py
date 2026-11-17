@@ -1,12 +1,19 @@
 import asyncio
 
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.database import Base
 from app.migration_runner import run_migrations
 from app.models.account_deletion import AccountDeletionReceipt
-from app.models.conversation import ConversationThread
+from app.models.conversation import ConversationMessage, ConversationThread
+
+
+def _head_revision() -> str:
+    script = ScriptDirectory.from_config(Config("alembic.ini"))
+    return script.get_current_head()
 
 
 def test_alembic_upgrade_creates_current_schema(tmp_path):
@@ -23,6 +30,7 @@ def test_alembic_upgrade_creates_current_schema(tmp_path):
         "audit_events",
         "career_reports",
         "conversation_threads",
+        "conversation_messages",
         "evaluation_runs",
         "evidence",
         "job_analyses",
@@ -31,7 +39,7 @@ def test_alembic_upgrade_creates_current_schema(tmp_path):
     } <= tables
     with engine.connect() as connection:
         revision = connection.scalar(text("select version_num from alembic_version"))
-    assert revision == "c603b5469069"
+    assert revision == _head_revision()
     engine.dispose()
 
 
@@ -44,6 +52,7 @@ def test_migration_runner_adopts_legacy_create_all_database(tmp_path):
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
             await connection.run_sync(ConversationThread.__table__.drop)
+            await connection.run_sync(ConversationMessage.__table__.drop)
             await connection.run_sync(AccountDeletionReceipt.__table__.drop)
         await engine.dispose()
 
@@ -53,7 +62,7 @@ def test_migration_runner_adopts_legacy_create_all_database(tmp_path):
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")
     with engine.connect() as connection:
         revision = connection.scalar(text("select version_num from alembic_version"))
-    assert revision == "c603b5469069"
+    assert revision == _head_revision()
     assert "conversation_threads" in inspect(engine).get_table_names()
     assert "account_deletion_receipts" in inspect(engine).get_table_names()
     engine.dispose()

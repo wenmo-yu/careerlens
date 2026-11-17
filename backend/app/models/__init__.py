@@ -9,7 +9,7 @@ from app.models.access_token import AccessToken
 from app.models.account_deletion import AccountDeletionReceipt
 from app.models.audit import AuditEvent
 from app.models.career_report import CareerReport
-from app.models.conversation import ConversationThread
+from app.models.conversation import ConversationMessage, ConversationThread
 from app.models.evaluation import EvaluationRun
 from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
@@ -22,6 +22,7 @@ __all__ = [
     "AuditEvent",
     "CareerReport",
     "ConversationThread",
+    "ConversationMessage",
     "EvaluationRun",
     "Evidence",
     "JobAnalysis",

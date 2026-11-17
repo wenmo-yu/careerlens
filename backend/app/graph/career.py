@@ -16,6 +16,7 @@ from app.services.citations import validated_citations
 class CareerState(TypedDict, total=False):
     message: str
     user_id: str
+    history: list[dict]
     intent: str
     profile: list[dict]
     evidence_records: list[dict]
@@ -134,6 +135,9 @@ async def compose_answer(state: CareerState) -> dict:
         "intent": state["intent"],
         "profile": state.get("profile", []),
         "evidence": state.get("retrieved_evidence", []),
+        # Prior turns let the model resolve references ("它", "为什么") and keep
+        # earlier constraints. Only the recent window is sent to bound the prompt.
+        "history": state.get("history", [])[-12:],
     }
     schema = {
         "type": "object",
@@ -206,12 +210,14 @@ async def run_career_graph(
     evidence: list[Evidence],
     job_analysis: JobAnalysis | None,
     thread_id: str | None,
+    history: list[dict] | None = None,
 ) -> dict:
     selected_thread = thread_id or str(uuid.uuid4())
     state = await career_graph.ainvoke(
         {
             "message": message,
             "user_id": user_id,
+            "history": history or [],
             "profile": [
                 {
                     "category": item.category,

@@ -449,8 +449,13 @@ export default function Home() {
           <div className="chat-context"><span>当前用户</span><strong>{userId}</strong><p>{skills.slice(0, 4).map((item) => item.name).join(" · ") || "等待画像"}</p></div>
           <div className="conversation">
             {chat ? <>
-              <div className="bubble user">{chatInput}</div>
-              <div className="bubble agent"><small>CAREERLENS · {chat.intent}</small><p>{chat.answer}</p><div className="retrieval-badges"><span>{chat.model.provider} / {chat.model.model}</span><span>{chat.retrieval.backend}</span><span>{chat.retrieval.fusion}</span><span>{chat.retrieval.reranker}</span>{chat.model.fallback && <span className="fallback">model fallback</span>}{chat.retrieval.fallback && <span className="fallback">retrieval fallback</span>}</div></div>
+              {chat.messages.map((message, index) => (
+                <div key={`${message.created_at ?? "msg"}-${index}`} className={`bubble ${message.role === "user" ? "user" : "agent"}`}>
+                  {message.role === "assistant" && <small>CAREERLENS · {message.intent ?? chat.intent}</small>}
+                  <p>{message.content}</p>
+                  {message.role === "assistant" && index === chat.messages.length - 1 && <div className="retrieval-badges"><span>{chat.model.provider} / {chat.model.model}</span><span>{chat.retrieval.backend}</span><span>{chat.retrieval.fusion}</span><span>{chat.retrieval.reranker}</span>{chat.model.fallback && <span className="fallback">model fallback</span>}{chat.retrieval.fallback && <span className="fallback">retrieval fallback</span>}</div>}
+                </div>
+              ))}
               {chat.evidence.length > 0 && <div className="evidence-stack"><b>引用证据 · {chat.retrieval.backend === "qdrant" ? "RRF + Rerank" : "Local Hybrid"}</b>{chat.evidence.map((item) => <details key={item.evidence_id}><summary>{item.source_name}<span>{Math.round(item.rerank_score * 100)}%</span></summary><p>{item.content}</p><code>{item.evidence_id}</code></details>)}</div>}
             </> : <Empty text="试着问：为什么认为我适合 Agent 开发？" />}
             <form className="chat-input" onSubmit={handleChat}><input value={chatInput} onChange={(event) => setChatInput(event.target.value)} placeholder="询问你的职业画像…" required /><button aria-label="发送" disabled={busy !== null}>↑</button></form>
