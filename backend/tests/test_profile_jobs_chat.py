@@ -102,3 +102,49 @@ async def test_career_chat_returns_traceable_evidence(client):
     assert result["evidence"]
     assert result["retrieval"]["backend"] == "local"
     assert result["retrieval"]["fallback"] is True
+
+
+async def test_chat_persists_history_across_turns(client):
+    """Multiple turns in one thread accumulate durable messages (F02/F03)."""
+    await _seed_profile(client)
+    first = await client.post(
+        "/api/v1/chat",
+        json={"user_id": "career-user", "message": "我适合什么方向？"},
+    )
+    assert first.status_code == 200
+    first_body = first.json()
+    thread_id = first_body["thread_id"]
+    assert [m["role"] for m in first_body["messages"]] == ["user", "assistant"]
+    assert first_body["messages"][0]["content"] == "我适合什么方向？"
+
+    second = await client.post(
+        "/api/v1/chat",
+        json={
+            "user_id": "career-user",
+            "message": "那我还需要补什么？",
+            "thread_id": thread_id,
+        },
+    )
+    assert second.status_code == 200
+    second_body = second.json()
+    assert second_body["thread_id"] == thread_id
+    roles = [m["role"] for m in second_body["messages"]]
+    assert roles == ["user", "assistant", "user", "assistant"]
+    assert second_body["messages"][2]["content"] == "那我还需要补什么？"
+
+
+async def test_chat_history_is_isolated_between_threads_and_users(client):
+    await _seed_profile(client)
+    a = (await client.post(
+        "/api/v1/chat",
+        json={"user_id": "career-user", "message": "第一个会话的问题"},
+    )).json()
+    b = (await client.post(
+        "/api/v1/chat",
+        json={"user_id": "career-user", "message": "另一个会话的问题"},
+    )).json()
+    assert a["thread_id"] != b["thread_id"]
+    assert len(a["messages"]) == 2
+    assert len(b["messages"]) == 2
+    assert a["messages"][0]["content"] == "第一个会话的问题"
+    assert b["messages"][0]["content"] == "另一个会话的问题"

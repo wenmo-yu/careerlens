@@ -10,6 +10,13 @@ class ChatRequest(BaseModel):
     job_analysis_id: str | None = None
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+    intent: str | None = None
+    created_at: str | None = None
+
+
 class ChatResponse(BaseModel):
     thread_id: str
     intent: str
@@ -17,3 +24,4 @@ class ChatResponse(BaseModel):
     evidence: list[dict[str, Any]]
     retrieval: dict[str, Any]
     model: dict[str, Any]
+    messages: list[ChatMessage] = Field(default_factory=list)

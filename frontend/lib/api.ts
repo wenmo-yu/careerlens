@@ -105,6 +105,7 @@ export type ChatResult = {
     reason?: string;
   };
   model: { provider: string; model: string; fallback: boolean; reason?: string };
+  messages: Array<{ role: string; content: string; intent?: string | null; created_at?: string | null }>;
 };
 
 export type EvaluationRun = {
