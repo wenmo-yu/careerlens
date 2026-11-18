@@ -4,6 +4,23 @@ All notable changes to CareerLens are documented here.
 
 ## Unreleased
 
+## 0.3.0 - 2026-11-18
+
+Knowledge organization release: compiled, versioned Wiki pages with query-time
+mode switching and configurable model roles.
+
+### Added
+
+- Versioned Wiki pages compiled from evidence (`POST /api/v1/wiki/compile`), with an immutable revision history. User-visible content changes bump the version; bookkeeping writes do not. Pages can be rolled back as an ordinary edit (rollback is itself a new version), and machine revisions are pruned before human ones.
+- Short-handle citation mapping: the compiler presents `c000`-style handles to the model and resolves them back to stable evidence ids before persisting; unknown handles are dropped and inline markers stripped from page Markdown.
+- Table row-identity guard: rewrites that silently drop source table rows are rejected at the single page-write path, instead of being persisted unnoticed.
+- Query-time mode switching: `ChatRequest.mode = rag | wiki | hybrid` — build once (RAG index / Wiki page / both), then switch retrieval at query time with no rebuild. Hybrid fuses both sources and tags each hit so RAG blocks and Wiki pages can be expanded separately, preserving multi-source references.
+- Role-bound LLM providers via `MODEL_ROLE_BINDINGS` (answer/wiki/analysis/profile) and a two-stage cascading reranker (`RERANK_STAGES_ENABLED`, coarse top-15 → fine top-5) with lexical degradation on stage failure. Both are CareerLens's own designs, not copied from WorkBuddy or WeKnora.
+
+### Fixed
+
+- Answer composition now handles Wiki hits (which carry `page_id`/`slug`) as well as RAG hits (`evidence_id`); previously a Wiki citation could raise a key error in the fallback answer and the model citation allow-set.
+
 ## 0.2.0 - 2026-11-18
 
 A foundation release: robustness fixes plus a structure-aware ingestion layer,
