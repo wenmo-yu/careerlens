@@ -18,6 +18,7 @@ from app.models.profile import ProfileItem
 from app.models.profile_suppression import ProfileSuppression
 from app.models.profile_update import ProfileUpdateProposal
 from app.models.source_document import SourceDocument
+from app.models.wiki import WikiPage, WikiRevision
 
 __all__ = [
     "AccessToken",
@@ -34,4 +35,6 @@ __all__ = [
     "ProfileSuppression",
     "ProfileUpdateProposal",
     "SourceDocument",
+    "WikiPage",
+    "WikiRevision",
 ]
