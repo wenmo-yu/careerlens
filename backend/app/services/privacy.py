@@ -13,8 +13,10 @@ from app.models.career_report import CareerReport
 from app.models.conversation import ConversationMessage, ConversationThread
 from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
+from app.models.parsed_block import ParsedBlock
 from app.models.profile import ProfileItem
 from app.models.profile_update import ProfileUpdateProposal
+from app.models.source_document import SourceDocument
 from app.retrieval.service import delete_evidence_index, delete_user_index
 from app.security import Principal
 from app.services.audit import add_audit_event
@@ -52,6 +54,12 @@ async def export_user_data(
     audits = list(
         await session.scalars(select(AuditEvent).where(AuditEvent.user_id == user_id))
     )
+    documents = list(
+        await session.scalars(select(SourceDocument).where(SourceDocument.user_id == user_id))
+    )
+    parsed_blocks = list(
+        await session.scalars(select(ParsedBlock).where(ParsedBlock.user_id == user_id))
+    )
     add_audit_event(
         session,
         principal=principal,
@@ -63,6 +71,8 @@ async def export_user_data(
             "profile_item_count": len(profile),
             "job_analysis_count": len(jobs),
             "career_report_count": len(reports),
+            "source_document_count": len(documents),
+            "parsed_block_count": len(parsed_blocks),
         },
     )
     await session.commit()
@@ -158,6 +168,51 @@ async def export_user_data(
                 ),
             )
             for item in audits
+        ],
+        "source_documents": [
+            _serialize(
+                item,
+                (
+                    "id",
+                    "source_hash",
+                    "filename",
+                    "source_type",
+                    "mime_type",
+                    "file_size",
+                    "page_count",
+                    "parse_status",
+                    "meta",
+                    "created_at",
+                ),
+            )
+            for item in documents
+        ],
+        "parsed_blocks": [
+            _serialize(
+                item,
+                (
+                    "id",
+                    "evidence_id",
+                    "doc_id",
+                    "block_index",
+                    "block_type",
+                    "content",
+                    "content_hash",
+                    "char_start",
+                    "char_end",
+                    "page_no",
+                    "bbox",
+                    "time_start",
+                    "time_end",
+                    "section_path",
+                    "image_ref",
+                    "source_type",
+                    "content_revision",
+                    "source_metadata",
+                    "created_at",
+                ),
+            )
+            for item in parsed_blocks
         ],
     }
 
@@ -258,6 +313,8 @@ async def delete_user_account(
         ),
         "conversation_threads": len(thread_ids),
         "conversation_messages": await _count_user_records(session, ConversationMessage, user_id),
+        "source_documents": await _count_user_records(session, SourceDocument, user_id),
+        "parsed_blocks": await _count_user_records(session, ParsedBlock, user_id),
         "audit_events": await _count_user_records(session, AuditEvent, user_id),
         "access_tokens": await _count_user_records(session, AccessToken, user_id),
     }
@@ -270,6 +327,8 @@ async def delete_user_account(
         ProfileUpdateProposal,
         ProfileItem,
         Evidence,
+        ParsedBlock,
+        SourceDocument,
         ConversationThread,
         ConversationMessage,
         AuditEvent,

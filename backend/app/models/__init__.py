@@ -13,8 +13,10 @@ from app.models.conversation import ConversationMessage, ConversationThread
 from app.models.evaluation import EvaluationRun
 from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
+from app.models.parsed_block import ParsedBlock
 from app.models.profile import ProfileItem
 from app.models.profile_update import ProfileUpdateProposal
+from app.models.source_document import SourceDocument
 
 __all__ = [
     "AccessToken",
@@ -26,6 +28,8 @@ __all__ = [
     "EvaluationRun",
     "Evidence",
     "JobAnalysis",
+    "ParsedBlock",
     "ProfileItem",
     "ProfileUpdateProposal",
+    "SourceDocument",
 ]
