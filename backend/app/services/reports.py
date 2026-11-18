@@ -3,6 +3,7 @@ from collections import defaultdict
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm import get_llm_provider
@@ -226,24 +227,41 @@ async def generate_report(
         "referenced_evidence_ids": narrative["cited_evidence_ids"],
         "claim_policy": analysis.report["claim_policy"],
     }
-    latest_version = await session.scalar(
-        select(func.max(CareerReport.version)).where(CareerReport.user_id == user_id)
-    )
-    version = int(latest_version or 0) + 1
     title = f"{analysis.title} · 个人职业报告"
-    record = CareerReport(
-        user_id=user_id,
-        job_analysis_id=analysis.id,
-        version=version,
-        title=title,
-        content=content,
-        markdown=_render_markdown(title, version, content),
-        model_diagnostics=diagnostics,
-    )
-    session.add(record)
-    await session.commit()
-    await session.refresh(record)
-    return record
+    # Version allocation is a max(version)+1 read followed by an insert. Under
+    # concurrent generation two requests can read the same max; the unique
+    # (user_id, version) constraint turns that race into an IntegrityError,
+    # which we retry with a freshly computed version (bounded attempts).
+    last_error: IntegrityError | None = None
+    for _attempt in range(5):
+        latest_version = await session.scalar(
+            select(func.max(CareerReport.version)).where(CareerReport.user_id == user_id)
+        )
+        version = int(latest_version or 0) + 1
+        record = CareerReport(
+            user_id=user_id,
+            job_analysis_id=analysis.id,
+            version=version,
+            title=title,
+            content=content,
+            markdown=_render_markdown(title, version, content),
+            model_diagnostics=diagnostics,
+        )
+        try:
+            async with session.begin_nested():
+                session.add(record)
+                await session.flush()
+        except IntegrityError as exc:
+            # The failed INSERT poisoned this object's identity; expunge it so
+            # the next attempt can add a clean one.
+            if record in session:
+                session.expunge(record)
+            last_error = exc
+            continue
+        await session.commit()
+        await session.refresh(record)
+        return record
+    raise RuntimeError("Could not allocate a unique report version") from last_error
 
 
 async def list_reports(

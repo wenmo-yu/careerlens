@@ -275,6 +275,14 @@ export function importMedia(userId: string, file: File) {
   return upload<{ count: number }>("/evidence/media", form);
 }
 
+export function importFile(userId: string, file: File) {
+  const form = new FormData();
+  form.append("user_id", userId);
+  form.append("source_type", "resume");
+  form.append("upload", file);
+  return upload<{ count: number }>("/evidence/file", form);
+}
+
 export function rebuildProfile(userId: string) {
   return request<Profile>(`/profiles/${encodeURIComponent(userId)}/rebuild`, { method: "POST" });
 }
