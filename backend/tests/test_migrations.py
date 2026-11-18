@@ -9,6 +9,8 @@ from app.core.database import Base
 from app.migration_runner import run_migrations
 from app.models.account_deletion import AccountDeletionReceipt
 from app.models.conversation import ConversationMessage, ConversationThread
+from app.models.parsed_block import ParsedBlock
+from app.models.source_document import SourceDocument
 
 
 def _head_revision() -> str:
@@ -34,8 +36,10 @@ def test_alembic_upgrade_creates_current_schema(tmp_path):
         "evaluation_runs",
         "evidence",
         "job_analyses",
+        "parsed_blocks",
         "profile_items",
         "profile_update_proposals",
+        "source_documents",
     } <= tables
     with engine.connect() as connection:
         revision = connection.scalar(text("select version_num from alembic_version"))
@@ -54,6 +58,8 @@ def test_migration_runner_adopts_legacy_create_all_database(tmp_path):
             await connection.run_sync(ConversationThread.__table__.drop)
             await connection.run_sync(ConversationMessage.__table__.drop)
             await connection.run_sync(AccountDeletionReceipt.__table__.drop)
+            await connection.run_sync(ParsedBlock.__table__.drop)
+            await connection.run_sync(SourceDocument.__table__.drop)
         await engine.dispose()
 
     asyncio.run(create_legacy_schema())
