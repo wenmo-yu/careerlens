@@ -1,5 +1,7 @@
+import tomllib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,9 +36,23 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         await engine.dispose()
 
 
+def _app_version() -> str:
+    """Read the version from pyproject.toml so it never drifts from the source.
+
+    importlib.metadata would report a stale version in editable installs until
+    the package is reinstalled; reading the manifest is always current.
+    """
+    manifest = Path(__file__).parents[1] / "pyproject.toml"
+    try:
+        with manifest.open("rb") as file:
+            return str(tomllib.load(file)["project"]["version"])
+    except (OSError, KeyError):
+        return "0.0.0"
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
-    application = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
+    application = FastAPI(title=settings.app_name, version=_app_version(), lifespan=lifespan)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
