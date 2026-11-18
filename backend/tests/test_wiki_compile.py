@@ -114,7 +114,7 @@ async def test_compile_with_model_unknown_handles_dropped(compile_db, monkeypatc
                 "citations": ["c000", "c999"],
             }
 
-    monkeypatch.setattr("app.wiki.compiler.get_llm_provider", lambda: FakeProvider())
+    monkeypatch.setattr("app.wiki.compiler.get_llm_provider", lambda *a, **k: FakeProvider())
     sources = [{"evidence_id": "ev-real", "content": "真实证据内容。"}]
     async with compile_db() as session:
         page, diagnostics = await compile_page(
@@ -143,7 +143,7 @@ async def test_compile_rejects_dropped_table_rows(compile_db, monkeypatch):
                 "citations": ["c000"],
             }
 
-    monkeypatch.setattr("app.wiki.compiler.get_llm_provider", lambda: DropRowsProvider())
+    monkeypatch.setattr("app.wiki.compiler.get_llm_provider", lambda *a, **k: DropRowsProvider())
     sources = [{"evidence_id": "ev-table", "content": table}]
     async with compile_db() as session:
         with pytest.raises(WikiCompileError, match="table rows"):

@@ -74,7 +74,7 @@ async def extract_requirements_with_fallback(
     jd_text: str, provider: LLMProvider | None = None
 ) -> tuple[list[dict], dict]:
     rules = extract_requirements(jd_text)
-    model = provider or get_llm_provider()
+    model = provider or get_llm_provider("analysis")
     if model.diagnostics["provider"] == "demo":
         return rules, {"method": "catalog_rules", "model_used": False, "accepted": 0}
 

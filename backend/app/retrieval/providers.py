@@ -123,6 +123,67 @@ class QwenReranker:
         return [float(score) for score in scores]
 
 
+class CascadingReranker:
+    """Two-stage rerank: a cheap coarse pass narrows candidates, a fine pass
+    scores only the shortlist. This is CareerLens's own design (neither
+    WorkBuddy nor WeKnora ships a literal double reranker). Any stage failure
+    degrades to a single lexical pass so retrieval never breaks.
+    """
+
+    def __init__(
+        self,
+        coarse: RerankerProvider,
+        fine: RerankerProvider,
+        coarse_top_k: int = 15,
+        fine_top_k: int = 5,
+    ) -> None:
+        self._coarse = coarse
+        self._fine = fine
+        self._coarse_top_k = coarse_top_k
+        self._fine_top_k = fine_top_k
+        self.name = f"cascade:{coarse.name}->{fine.name}({coarse_top_k}/{fine_top_k})"
+
+    def score(self, query: str, documents: Sequence[str]) -> list[float]:
+        documents = list(documents)
+        if not documents:
+            return []
+        try:
+            coarse_scores = self._coarse.score(query, documents)
+            # Rank document positions by coarse score, keep the top slice.
+            ranked = sorted(
+                range(len(documents)),
+                key=lambda index: coarse_scores[index],
+                reverse=True,
+            )[: self._coarse_top_k]
+            shortlist = [documents[index] for index in ranked]
+            fine_scores = self._fine.score(query, shortlist)
+            # Put the fine-ranked top-k strictly above everything else, and
+            # preserve coarse ordering for the rest. Using a disjoint score band
+            # avoids mixing fine (cross-encoder) and coarse scales.
+            fine_positions = ranked[: self._fine_top_k]
+            result = [0.0] * len(documents)
+            # Non-fine docs: coarse scores mapped into [0, 1) in coarse order.
+            max_coarse = max((abs(score) for score in coarse_scores), default=1.0) or 1.0
+            for index in range(len(documents)):
+                result[index] = (coarse_scores[index] / max_coarse) * 0.5
+            # Fine docs: map into [1, 2] preserving fine score order.
+            fine_pairs = [
+                (index, fine_scores[position])
+                for position, index in enumerate(fine_positions)
+                if position < len(fine_scores)
+            ]
+            if fine_pairs:
+                values = [value for _, value in fine_pairs]
+                low, high = min(values), max(values)
+                span = high - low
+                for index, value in fine_pairs:
+                    result[index] = 1.0 + ((value - low) / span if span else 0.5)
+            return result
+        except Exception:
+            # Degrade to the cheapest reliable scorer; never fail retrieval.
+            return LexicalReranker().score(query, documents)
+
+
 @lru_cache
 def get_embedding_provider() -> EmbeddingProvider:
     settings = get_settings()
@@ -138,6 +199,23 @@ def get_embedding_provider() -> EmbeddingProvider:
 @lru_cache
 def get_reranker_provider() -> RerankerProvider:
     settings = get_settings()
+    coarse: RerankerProvider
+    fine: RerankerProvider
+    if settings.rerank_stages_enabled:
+        # Coarse is always the cheap lexical pass; fine uses the configured
+        # model (Qwen when available, otherwise lexical).
+        coarse = LexicalReranker()
+        fine = (
+            QwenReranker(settings.qwen_reranker_model, settings.retrieval_query_instruction)
+            if settings.retrieval_provider == "qwen"
+            else LexicalReranker()
+        )
+        return CascadingReranker(
+            coarse,
+            fine,
+            settings.rerank_coarse_top_k,
+            settings.rerank_fine_top_k,
+        )
     if settings.retrieval_provider == "qwen":
         return QwenReranker(
             settings.qwen_reranker_model,

@@ -76,7 +76,7 @@ def resolve_citations(
 async def _generate(
     *, title: str, sources: list[dict[str, Any]], handles: HandleTable
 ) -> tuple[dict[str, Any], dict]:
-    provider = get_llm_provider()
+    provider = get_llm_provider("wiki")
     diagnostics = provider.diagnostics
     if diagnostics["provider"] == "demo":
         return _deterministic_page(title, sources, handles), diagnostics

@@ -177,7 +177,7 @@ async def test_chat_rejects_fabricated_inline_evidence_citation(monkeypatch):
     monkeypatch.setattr(
         career,
         "get_llm_provider",
-        lambda: StubProvider(
+        lambda *a, **k: StubProvider(
             {"answer": "熟悉 Python。[Evidence: fabricated]", "cited_evidence_ids": ["e1"]}
         ),
     )
@@ -197,7 +197,7 @@ async def test_chat_accepts_only_valid_inline_and_list_citations(monkeypatch):
     monkeypatch.setattr(
         career,
         "get_llm_provider",
-        lambda: StubProvider(
+        lambda *a, **k: StubProvider(
             {"answer": "完成 Python 项目。[Evidence: e1]", "cited_evidence_ids": ["fake", "e2"]}
         ),
     )
@@ -221,7 +221,7 @@ async def test_report_rejects_fabricated_inline_evidence_citation(monkeypatch):
     monkeypatch.setattr(
         reports,
         "get_llm_provider",
-        lambda: StubProvider(
+        lambda *a, **k: StubProvider(
             {
                 "executive_summary": "项目能力。[Evidence: fabricated]",
                 "interview_pitch": "我做过 Python 项目。",
