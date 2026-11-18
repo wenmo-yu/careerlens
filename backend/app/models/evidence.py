@@ -20,6 +20,7 @@ class Evidence(Base):
     content_type: Mapped[str] = mapped_column(String(50), nullable=False, default="text")
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     source_metadata: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
     )
@@ -27,4 +28,5 @@ class Evidence(Base):
     __table_args__ = (
         Index("ix_evidence_source", "user_id", "source_type"),
         Index("ix_evidence_user_created", "user_id", "created_at"),
+        Index("ix_evidence_user_hash", "user_id", "content_hash"),
     )
