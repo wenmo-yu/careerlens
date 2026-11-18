@@ -8,6 +8,7 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=5000)
     thread_id: str | None = Field(default=None, max_length=128)
     job_analysis_id: str | None = None
+    mode: str = Field(default="rag", pattern="^(rag|wiki|hybrid)$")
 
 
 class ChatMessage(BaseModel):

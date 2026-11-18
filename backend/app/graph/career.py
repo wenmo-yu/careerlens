@@ -11,6 +11,7 @@ from app.models.job_analysis import JobAnalysis
 from app.models.profile import ProfileItem
 from app.retrieval.service import search_evidence
 from app.services.citations import validated_citations
+from app.services.knowledge import search_knowledge
 
 
 class CareerState(TypedDict, total=False):
@@ -25,6 +26,7 @@ class CareerState(TypedDict, total=False):
     answer: str
     model_diagnostics: dict
     job_analysis: dict | None
+    mode: str
 
 
 def understand_intent(state: CareerState) -> dict:
@@ -91,13 +93,34 @@ def compose_gap_answer(state: CareerState) -> dict:
     }
 
 
-async def retrieve_evidence(state: CareerState) -> dict:
-    results, diagnostics = await search_evidence(
-        user_id=state["user_id"],
-        query=state["message"],
-        evidence=state.get("evidence_records", []),
-        limit=5,
-    )
+async def retrieve_evidence(state: CareerState, config=None) -> dict:
+    """Retrieve under the query-time mode, preserving multi-source refs.
+
+    ``session`` and ``mode`` arrive via LangGraph config. When absent (e.g. a
+    direct graph invocation in tests), fall back to evidence-only retrieval so
+    the node stays independently callable.
+    """
+    configurable = (config or {}).get("configurable", {})
+    session = configurable.get("session")
+    mode = state.get("mode") or configurable.get("mode") or "rag"
+
+    if session is None:
+        # Direct graph invocation without a DB session: evidence-only fallback.
+        results, diagnostics = await search_evidence(
+            user_id=state["user_id"],
+            query=state["message"],
+            evidence=state.get("evidence_records", []),
+            limit=5,
+        )
+    else:
+        results, diagnostics = await search_knowledge(
+            session,
+            user_id=state["user_id"],
+            query=state["message"],
+            mode=mode,
+            evidence=configurable.get("evidence", []),
+            limit=5,
+        )
     return {
         "retrieved_evidence": results,
         "retrieval_diagnostics": diagnostics,
@@ -109,7 +132,14 @@ def _fallback_answer(state: CareerState) -> str:
     evidence = state.get("retrieved_evidence", [])
     top_skills = [item for item in profile if item["category"] == "skill"][:5]
     skill_text = "、".join(item["name"] for item in top_skills) or "尚未形成足够画像"
-    citations = "、".join(item["evidence_id"] for item in evidence) or "无直接证据"
+    # Retrieved items come from either the RAG branch (evidence_id) or the Wiki
+    # branch (page_id/slug). Cite whichever stable identifier is present.
+    citation_ids = [
+        str(item.get("evidence_id") or item.get("page_id") or item.get("slug"))
+        for item in evidence
+        if item.get("evidence_id") or item.get("page_id") or item.get("slug")
+    ]
+    citations = "、".join(citation_ids) or "无直接证据"
     intent = state["intent"]
     if intent == "career_direction":
         answer = (
@@ -158,7 +188,11 @@ async def compose_answer(state: CareerState) -> dict:
             operation="career_chat",
         )
         answer = str(generated["answer"]).strip()
-        allowed = {item["evidence_id"] for item in state.get("retrieved_evidence", [])}
+        allowed = {
+            str(item["evidence_id"] or item["page_id"])
+            for item in state.get("retrieved_evidence", [])
+            if item.get("evidence_id") or item.get("page_id")
+        }
         if not answer:
             raise ValueError("Model answer is empty")
         cited = validated_citations([answer], generated.get("cited_evidence_ids", []), allowed)
@@ -211,6 +245,8 @@ async def run_career_graph(
     job_analysis: JobAnalysis | None,
     thread_id: str | None,
     history: list[dict] | None = None,
+    session=None,
+    mode: str = "rag",
 ) -> dict:
     selected_thread = thread_id or str(uuid.uuid4())
     state = await career_graph.ainvoke(
@@ -218,6 +254,7 @@ async def run_career_graph(
             "message": message,
             "user_id": user_id,
             "history": history or [],
+            "mode": mode,
             "profile": [
                 {
                     "category": item.category,
@@ -249,7 +286,14 @@ async def run_career_graph(
                 else None
             ),
         },
-        {"configurable": {"thread_id": selected_thread}},
+        {
+            "configurable": {
+                "thread_id": selected_thread,
+                "session": session,
+                "evidence": evidence,
+                "mode": mode,
+            }
+        },
     )
     return {"thread_id": selected_thread, **state}
 

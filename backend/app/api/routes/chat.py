@@ -85,6 +85,8 @@ async def chat(
         job_analysis=analysis,
         thread_id=payload.thread_id,
         history=history,
+        session=session,
+        mode=payload.mode,
     )
     thread_id = result["thread_id"]
 
