@@ -7,7 +7,9 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm import get_llm_provider
+from app.models.career_report import CareerReport
 from app.models.profile import ProfileItem
+from app.models.profile_suppression import ProfileSuppression
 from app.models.profile_update import ProfileUpdateProposal
 from app.services.evidence import create_evidence_chunks
 
@@ -130,7 +132,33 @@ async def decide_proposal(
             )
             if change["action"] == "remove":
                 await session.execute(query)
+                # Tombstone the removal so rebuild_profile does not re-extract
+                # the same item from the original evidence later.
+                existing_suppression = await session.scalar(
+                    select(ProfileSuppression).where(
+                        ProfileSuppression.user_id == proposal.user_id,
+                        ProfileSuppression.category == change["category"],
+                        ProfileSuppression.name == change["name"],
+                    )
+                )
+                if existing_suppression is None:
+                    session.add(
+                        ProfileSuppression(
+                            user_id=proposal.user_id,
+                            category=change["category"],
+                            name=change["name"],
+                        )
+                    )
                 continue
+            # An explicit upsert of a previously removed item revives it: drop
+            # its tombstone so the next rebuild keeps it.
+            await session.execute(
+                delete(ProfileSuppression).where(
+                    ProfileSuppression.user_id == proposal.user_id,
+                    ProfileSuppression.category == change["category"],
+                    ProfileSuppression.name == change["name"],
+                )
+            )
             existing = await session.scalar(
                 select(ProfileItem).where(
                     ProfileItem.user_id == proposal.user_id,
@@ -155,6 +183,18 @@ async def decide_proposal(
                         details={"source": "confirmed_user_update"},
                     )
                 )
+        # A confirmed profile change invalidates reports built on the old
+        # profile; mark them stale so the UI can prompt regeneration.
+        reports = list(
+            await session.scalars(
+                select(CareerReport).where(
+                    CareerReport.user_id == proposal.user_id,
+                    CareerReport.is_stale.is_(False),
+                )
+            )
+        )
+        for report in reports:
+            report.is_stale = True
         proposal.status = "approved"
     else:
         proposal.status = "rejected"

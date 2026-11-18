@@ -10,6 +10,7 @@ import {
   importEvidence,
   importBilibiliExport,
   importBrowserCapture,
+  importFile,
   importMedia,
   importWeiboExport,
   JobAnalysis,
@@ -238,6 +239,19 @@ export default function Home() {
     event.target.value = "";
   }
 
+  function handleDocument(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    void run("document", async () => {
+      const result = await importFile(userId, file);
+      setNotice({
+        kind: "ok",
+        text: `文档解析完成，生成 ${result.count} 条 Evidence（重复内容已自动合并）。`,
+      });
+    });
+    event.target.value = "";
+  }
+
   function handleEvaluation() {
     void run("evaluation", async () => {
       const [result, summary] = await Promise.all([
@@ -363,6 +377,7 @@ export default function Home() {
           <label className="upload-card"><b>Weibo Export</b><small>JSON / CSV · 正文 / 话题 / 转发 / 时间</small><input type="file" accept="application/json,text/csv,.json,.csv" onChange={handleWeibo} disabled={busy !== null} /><i>{busy === "weibo" ? "导入中…" : "选择导出文件 ↗"}</i></label>
           <label className="upload-card"><b>Browser Capture</b><small>B站 / 微博 / 抖音 · 发布 / 点赞 / 收藏 / 关注 · JSON</small><input type="file" accept="application/json,.json" onChange={handleBrowserCapture} disabled={busy !== null} /><i>{busy === "browser-preview" ? "读取中…" : "选择采集文件并核对 ↗"}</i></label>
           <label className="upload-card"><b>OCR / ASR</b><small>PNG / JPG / MP3 / WAV / MP4 / WEBM</small><input type="file" accept="image/*,audio/*,video/*" onChange={handleMedia} disabled={busy !== null} /><i>{busy === "media" ? "解析中…" : "选择媒体文件 ↗"}</i></label>
+          <label className="upload-card"><b>Documents</b><small>PDF / DOCX / TXT / MD / CSV · 保留页码与表格</small><input type="file" accept=".pdf,.docx,.txt,.md,.markdown,.csv,.tsv" onChange={handleDocument} disabled={busy !== null} /><i>{busy === "document" ? "解析中…" : "选择文档 ↗"}</i></label>
         </div>
         {browserDraft && <div className="capture-review" aria-label="页面采集审核">
           <div className="capture-review-head">

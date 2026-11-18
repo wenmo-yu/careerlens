@@ -35,4 +35,5 @@ Thumbs.db
 .idea/
 .vscode/
 *.log
+*.tsbuildinfo
 

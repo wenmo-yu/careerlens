@@ -1,8 +1,10 @@
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.career_report import CareerReport
 from app.models.evidence import Evidence
 from app.models.profile import ProfileItem
+from app.models.profile_suppression import ProfileSuppression
 from app.profile.llm_extractor import extract_profile_with_fallback
 
 
@@ -33,10 +35,33 @@ async def rebuild_profile(session: AsyncSession, user_id: str) -> list[ProfileIt
     by_key = {(item["category"], item["name"].lower()): item for item in extracted}
     for item in confirmed:
         by_key[(item["category"], item["name"].lower())] = item
-    extracted = list(by_key.values())
+    # Removed items are tombstoned; never resurrect them from old evidence.
+    suppression_result = await session.scalars(
+        select(ProfileSuppression).where(ProfileSuppression.user_id == user_id)
+    )
+    suppressed = {
+        (item.category, item.name.lower()) for item in suppression_result
+    }
+    extracted = [
+        item
+        for key, item in by_key.items()
+        if (key[0], key[1]) not in suppressed
+    ]
     await session.execute(delete(ProfileItem).where(ProfileItem.user_id == user_id))
     records = [ProfileItem(user_id=user_id, **item) for item in extracted]
     session.add_all(records)
+    # The profile is the basis for reports; once it changes, existing reports
+    # no longer reflect the current picture and must be regenerated.
+    reports = list(
+        await session.scalars(
+            select(CareerReport).where(
+                CareerReport.user_id == user_id,
+                CareerReport.is_stale.is_(False),
+            )
+        )
+    )
+    for report in reports:
+        report.is_stale = True
     await session.commit()
     for record in records:
         await session.refresh(record)
