@@ -160,7 +160,8 @@ class OpenAICompatibleProvider:
 
 
 @lru_cache
-def get_llm_provider() -> LLMProvider:
+def _get_llm_provider_for(role: str, model: str) -> LLMProvider:
+    """Cache keyed on (role, model) so different roles can bind different models."""
     settings = get_settings()
     provider = settings.ai_provider.lower().strip()
     if provider == "demo":
@@ -173,6 +174,16 @@ def get_llm_provider() -> LLMProvider:
         provider=provider,
         base_url=settings.ai_base_url,
         api_key=settings.ai_api_key,
-        model=settings.ai_model,
+        model=model,
         timeout=settings.ai_timeout_seconds,
     )
+
+
+def get_llm_provider(role: str = "answer") -> LLMProvider:
+    """Return the provider bound to ``role`` (answer/wiki/analysis/profile).
+
+    Roles with no explicit binding fall back to the default ai_model. The
+    cache key includes the resolved model, so role bindings take effect without
+    touching other roles. No-arg calls keep working and mean the "answer" role.
+    """
+    return _get_llm_provider_for(role, get_settings().model_for_role(role))

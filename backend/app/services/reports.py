@@ -31,7 +31,7 @@ def _deterministic_actions(analysis: JobAnalysis) -> list[str]:
 
 
 async def _generate_narrative(context: dict[str, Any], allowed_ids: set[str]) -> tuple[dict, dict]:
-    provider = get_llm_provider()
+    provider = get_llm_provider("analysis")
     fallback = {
         "executive_summary": context["summary"],
         "interview_pitch": (

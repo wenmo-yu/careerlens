@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     ai_base_url: str = "https://api.deepseek.com"
     ai_api_key: str = ""
     ai_model: str = "deepseek-flash"
+    # Optional per-role model overrides: "answer=model-a,wiki=model-b,...".
+    # Empty means every role uses ai_model. Kept as a string so it can be set
+    # with a single env var (MODEL_ROLE_BINDINGS) in Compose/CI.
+    model_role_bindings: str = ""
+    # Two-stage cascading rerank: coarse cross-encoder narrows to top_k, then a
+    # fine reranker produces the final top_k. Disabled by default (single stage).
+    rerank_stages_enabled: bool = False
+    rerank_coarse_top_k: int = 15
+    rerank_fine_top_k: int = 5
     ai_timeout_seconds: float = 60
     ai_input_price_per_million: float = 0
     ai_output_price_per_million: float = 0
@@ -60,6 +69,22 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def role_models(self) -> dict[str, str]:
+        """Parse MODEL_ROLE_BINDINGS into a role -> model map."""
+        bindings: dict[str, str] = {}
+        for part in self.model_role_bindings.split(","):
+            if "=" not in part:
+                continue
+            role, model = part.split("=", 1)
+            role, model = role.strip(), model.strip()
+            if role and model:
+                bindings[role] = model
+        return bindings
+
+    def model_for_role(self, role: str) -> str:
+        return self.role_models.get(role, self.ai_model)
 
     model_config = SettingsConfigDict(
         env_file=".env",

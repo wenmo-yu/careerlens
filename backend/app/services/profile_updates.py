@@ -70,7 +70,7 @@ def _deterministic_changes(message: str) -> list[dict]:
 async def create_proposal(
     session: AsyncSession, *, user_id: str, message: str
 ) -> ProfileUpdateProposal:
-    provider = get_llm_provider()
+    provider = get_llm_provider("analysis")
     changes = _deterministic_changes(message)
     if provider.diagnostics["provider"] != "demo":
         try:

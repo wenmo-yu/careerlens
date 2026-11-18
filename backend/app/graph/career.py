@@ -157,7 +157,7 @@ def _fallback_answer(state: CareerState) -> str:
 
 async def compose_answer(state: CareerState) -> dict:
     fallback = _fallback_answer(state)
-    provider = get_llm_provider()
+    provider = get_llm_provider("answer")
     if provider.diagnostics["provider"] == "demo":
         return {"answer": fallback, "model_diagnostics": provider.diagnostics}
     context = {
