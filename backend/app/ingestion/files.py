@@ -1,29 +1,219 @@
-from io import BytesIO
+"""File ingestion: plain-text view (backward compatible) + structured parsing.
+
+``extract_text`` keeps its original ``(text, metadata)`` signature for every
+existing caller. ``parse_document`` is the new structure-aware entry point that
+emits the shared :class:`ParsedDocument` contract (see contract.py), preserving
+page / bbox / table / timestamp locations needed by later phases.
+"""
+
+import csv
+import io
 from pathlib import Path
 
 import pymupdf
 from docx import Document
+from docx.table import Table
 
-SUPPORTED_SUFFIXES = {".pdf", ".docx", ".txt", ".md"}
+from app.ingestion.contract import ParsedBlock, ParsedDocument
+
+SUPPORTED_SUFFIXES = {
+    ".pdf",
+    ".docx",
+    ".txt",
+    ".md",
+    ".markdown",
+    ".csv",
+    ".tsv",
+}
+
+# A page whose image coverage exceeds this ratio is treated as scanned: its
+# embedded OCR text layer (if any) is not trusted. Mirrors WeKnora's
+# SCAN_IMAGE_AREA_RATIO heuristic (pdf_parser.py:82).
+SCAN_IMAGE_AREA_RATIO = 0.5
+LOW_TEXT_IMAGE_RATIO = 0.1
+SCAN_MIN_CHARS_PER_PAGE = 10
 
 
-def extract_text(filename: str, content: bytes) -> tuple[str, dict]:
+def _docx_blocks(document: Document) -> list[tuple[str, str, dict]]:
+    """Return ordered (text, block_type, extra) tuples from a DOCX body."""
+    blocks: list[tuple[str, str, dict]] = []
+    section_path: str | None = None
+    for element in document.element.body.iterchildren():
+        tag = element.tag.split("}")[-1]
+        if tag == "p":
+            from docx.text.paragraph import Paragraph
+
+            paragraph = Paragraph(element, document)
+            text = paragraph.text.strip()
+            if not text:
+                continue
+            style = (paragraph.style.name or "").lower()
+            if "heading" in style:
+                section_path = text
+                blocks.append((text, "heading", {"section_path": text}))
+            else:
+                blocks.append((text, "text", {"section_path": section_path}))
+        elif tag == "tbl":
+            table = Table(element, document)
+            markdown = _table_to_markdown(table)
+            if markdown:
+                blocks.append((markdown, "table", {"section_path": section_path}))
+    return blocks
+
+
+def _table_to_markdown(table: Table) -> str:
+    rows: list[list[str]] = []
+    for row in table.rows:
+        cells = [
+            cell.text.strip().replace("\n", " ").replace("|", "\\|") for cell in row.cells
+        ]
+        rows.append(cells)
+    if not rows:
+        return ""
+    width = max(len(row) for row in rows)
+    rows = [row + [""] * (width - len(row)) for row in rows]
+    lines = ["| " + " | ".join(rows[0]) + " |", "| " + " | ".join(["---"] * width) + " |"]
+    lines.extend("| " + " | ".join(row) + " |" for row in rows[1:])
+    return "\n".join(lines)
+
+
+def _csv_blocks(content: bytes, delimiter: str) -> tuple[list[tuple[str, str, dict]], dict]:
+    text = content.decode("utf-8-sig")
+    rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
+    rows = [row for row in rows if any(cell.strip() for cell in row)]
+    if not rows:
+        return [], {"row_count": 0}
+    width = max(len(row) for row in rows)
+    rows = [row + [""] * (width - len(row)) for row in rows]
+    lines = ["| " + " | ".join(rows[0]) + " |", "| " + " | ".join(["---"] * width) + " |"]
+    lines.extend("| " + " | ".join(row) + " |" for row in rows[1:])
+    return [("\n".join(lines), "table", {})], {"row_count": len(rows)}
+
+
+def _page_is_scanned(page: pymupdf.Page) -> bool:
+    """Classify a page by image area coverage, not by character count alone."""
+    page_area = abs(page.rect.width * page.rect.height) or 1.0
+    image_area = 0.0
+    for image in page.get_images(full=True):
+        for rect in page.get_image_rects(image[0]):
+            image_area += abs(rect.width * rect.height)
+    ratio = image_area / page_area
+    text_len = len(page.get_text("text").strip())
+    return ratio >= SCAN_IMAGE_AREA_RATIO or (
+        text_len < SCAN_MIN_CHARS_PER_PAGE and ratio >= LOW_TEXT_IMAGE_RATIO
+    )
+
+
+def parse_document(filename: str, content: bytes) -> ParsedDocument:
+    """Parse a file into the shared structured contract.
+
+    PDF pages are classified as text or scanned. Text pages keep per-page
+    content with a page-level bbox; scanned pages become explicit OCR-pending
+    blocks so the caller can schedule OCR without inventing text.
+    """
     suffix = Path(filename).suffix.lower()
     if suffix not in SUPPORTED_SUFFIXES:
         raise ValueError(f"Unsupported file type: {suffix or 'unknown'}")
 
     if suffix == ".pdf":
+        blocks: list[ParsedBlock] = []
+        scanned_pages: list[int] = []
         with pymupdf.open(stream=content, filetype="pdf") as document:
-            pages = [page.get_text("text") for page in document]
-        return "\n\n".join(pages), {"page_count": len(pages)}
+            for index, page in enumerate(document):
+                page_no = index + 1
+                if _page_is_scanned(page):
+                    scanned_pages.append(page_no)
+                    rect = page.rect
+                    blocks.append(
+                        ParsedBlock(
+                            content="",
+                            block_type="image",
+                            block_index=index,
+                            page_no=page_no,
+                            bbox={"x0": rect.x0, "y0": rect.y0, "x1": rect.x1, "y1": rect.y1},
+                            source_type="scanned_pdf_ocr",
+                            source_metadata={"page": page_no, "ocr_pending": True},
+                        )
+                    )
+                    continue
+                text = page.get_text("text").strip()
+                rect = page.rect
+                if text:
+                    blocks.append(
+                        ParsedBlock(
+                            content=text,
+                            block_type="text",
+                            block_index=index,
+                            page_no=page_no,
+                            bbox={"x0": rect.x0, "y0": rect.y0, "x1": rect.x1, "y1": rect.y1},
+                            source_type="pdf_text_layer",
+                            source_metadata={"page": page_no},
+                        )
+                    )
+        status = "partial" if scanned_pages else "parsed"
+        return ParsedDocument(
+            doc_id="",
+            blocks=blocks,
+            source_type="pdf",
+            metadata={
+                "page_count": len(blocks),
+                "scanned_page_count": len(scanned_pages),
+                "scanned_pages": scanned_pages,
+            },
+            parse_status=status,
+        )
 
     if suffix == ".docx":
-        document = Document(BytesIO(content))
-        paragraphs = [paragraph.text for paragraph in document.paragraphs]
-        return "\n".join(paragraphs), {"paragraph_count": len(paragraphs)}
+        document = Document(io.BytesIO(content))
+        raw_blocks = _docx_blocks(document)
+        blocks = [
+            ParsedBlock(
+                content=text,
+                block_type=block_type,
+                block_index=index,
+                section_path=extra.get("section_path"),
+                source_type="docx_table" if block_type == "table" else "docx",
+            )
+            for index, (text, block_type, extra) in enumerate(raw_blocks)
+        ]
+        return ParsedDocument(
+            doc_id="",
+            blocks=blocks,
+            source_type="docx",
+            metadata={"paragraph_count": len(blocks)},
+        )
 
+    if suffix in {".csv", ".tsv"}:
+        raw, meta = _csv_blocks(content, "\t" if suffix == ".tsv" else ",")
+        blocks = [
+            ParsedBlock(
+                content=text,
+                block_type=block_type,
+                block_index=index,
+                source_type="csv",
+            )
+            for index, (text, block_type, _) in enumerate(raw)
+        ]
+        return ParsedDocument(doc_id="", blocks=blocks, source_type="csv", metadata=meta)
+
+    # .txt / .md / .markdown
     try:
-        return content.decode("utf-8-sig"), {}
+        text = content.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
         raise ValueError("Text files must use UTF-8 encoding") from exc
+    blocks = [
+        ParsedBlock(content=text.strip(), block_type="text", block_index=0, source_type="text")
+    ]
+    return ParsedDocument(doc_id="", blocks=blocks, source_type="text")
 
+
+def extract_text(filename: str, content: bytes) -> tuple[str, dict]:
+    """Backward-compatible plain-text view over the structured parser."""
+    document = parse_document(filename, content)
+    text = document.markdown
+    if not text.strip():
+        # Scanned-only PDF with no OCR text yet: keep a non-empty marker so the
+        # original empty-content guard still behaves consistently.
+        if document.metadata.get("scanned_page_count"):
+            text = ""
+    return text, {**document.metadata, "block_count": len(document.blocks)}
