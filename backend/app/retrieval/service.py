@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Any
 
 from qdrant_client import QdrantClient
 
@@ -40,7 +41,7 @@ async def index_evidence(evidence: list[Evidence], *, strict: bool = False) -> d
 
 
 async def search_evidence(
-    *, user_id: str, query: str, evidence: list[Evidence], limit: int = 5
+    *, user_id: str, query: str, evidence: list[Evidence] | list[dict[str, Any]], limit: int = 5
 ) -> tuple[list[dict], dict]:
     settings = get_settings()
     if settings.retrieval_backend != "local":
@@ -50,6 +51,8 @@ async def search_evidence(
                 query=query,
                 limit=limit,
             )
+            live_ids = {item["id"] if isinstance(item, dict) else item.id for item in evidence}
+            results = [item for item in results if item["evidence_id"] in live_ids]
             if results or not evidence or settings.retrieval_backend == "qdrant":
                 return results, {
                     "backend": "qdrant",

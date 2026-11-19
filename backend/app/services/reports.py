@@ -11,7 +11,12 @@ from app.models.career_report import CareerReport
 from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
 from app.services.citations import validated_citations
+from app.services.jobs import job_analysis_is_current
 from app.services.profile import read_profile
+
+
+class StaleJobAnalysisError(ValueError):
+    """The saved analysis no longer matches live profile evidence or the current rules."""
 
 
 def _safe_inline(value: str) -> str:
@@ -31,7 +36,7 @@ def _deterministic_actions(analysis: JobAnalysis) -> list[str]:
 
 
 async def _generate_narrative(context: dict[str, Any], allowed_ids: set[str]) -> tuple[dict, dict]:
-    provider = get_llm_provider()
+    provider = get_llm_provider("analysis")
     fallback = {
         "executive_summary": context["summary"],
         "interview_pitch": (
@@ -174,6 +179,8 @@ async def generate_report(
         )
     )
     evidence_by_id = {item.id: item for item in evidence_records}
+    if not job_analysis_is_current(analysis, profile, set(evidence_by_id)):
+        raise StaleJobAnalysisError("Job analysis is out of date. Analyze the JD again.")
     grouped: dict[str, list[str]] = defaultdict(list)
     for item in profile:
         grouped[item.category].append(item.name)

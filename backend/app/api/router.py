@@ -11,6 +11,7 @@ from app.api.routes import (
     privacy,
     profile,
     reports,
+    wiki,
 )
 
 router = APIRouter()
@@ -26,4 +27,5 @@ router.include_router(
 router.include_router(evaluation.router, prefix="/evaluation", tags=["evaluation"])
 router.include_router(reports.router, prefix="/reports", tags=["reports"])
 router.include_router(privacy.router, prefix="/privacy", tags=["privacy"])
+router.include_router(wiki.router, prefix="/wiki", tags=["wiki"])
 

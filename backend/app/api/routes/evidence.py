@@ -2,19 +2,22 @@ from typing import Annotated
 
 from anyio import to_thread
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile, status
+from pymupdf import FileDataError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_session
-from app.ingestion.files import extract_text
-from app.ingestion.media import get_media_extractor
+from app.ingestion.contract import source_fingerprint
+from app.ingestion.files import parse_document
+from app.ingestion.media import get_media_extractor, parse_media
 from app.models.evidence import Evidence
 from app.retrieval.service import index_evidence, search_evidence
 from app.schemas.evidence import EvidenceBatchRead, EvidenceRead, EvidenceTextCreate
 from app.security import authorize_user
 from app.services.evidence import create_evidence_chunks, get_evidence, list_evidence
 from app.services.privacy import delete_evidence_record
+from app.services.source_ingestion import ingest_source_document
 
 router = APIRouter()
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -65,16 +68,18 @@ async def ingest_file(
 
     filename = upload.filename or "upload"
     try:
-        text, file_metadata = extract_text(filename, content)
-        records = await create_evidence_chunks(
+        parsed = await to_thread.run_sync(parse_document, filename, content)
+        records = await ingest_source_document(
             session,
             user_id=user_id,
             source_type=source_type,
-            source_name=filename,
-            content=text,
-            metadata={"content_type": upload.content_type, **file_metadata},
+            filename=filename,
+            mime_type=upload.content_type,
+            file_size=len(content),
+            source_hash=source_fingerprint(content),
+            parsed=parsed,
         )
-    except ValueError as exc:
+    except (ValueError, FileDataError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return EvidenceBatchRead(items=records, count=len(records))
 
@@ -97,14 +102,16 @@ async def ingest_media(
     filename = upload.filename or "media-upload"
     try:
         extractor = get_media_extractor()
-        text, media_metadata = await to_thread.run_sync(extractor.extract, filename, content)
-        records = await create_evidence_chunks(
+        parsed = await to_thread.run_sync(parse_media, extractor, filename, content)
+        records = await ingest_source_document(
             session,
             user_id=user_id,
             source_type=source_type,
-            source_name=filename,
-            content=text,
-            metadata={"content_type": upload.content_type, **media_metadata},
+            filename=filename,
+            mime_type=upload.content_type,
+            file_size=len(content),
+            source_hash=source_fingerprint(content),
+            parsed=parsed,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

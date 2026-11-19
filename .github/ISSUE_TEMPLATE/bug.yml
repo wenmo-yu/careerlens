@@ -1,0 +1,26 @@
+name: 缺陷 / Bug
+description: 报告可复现的问题（请仅使用合成数据和脱敏日志）
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 预期和实际行为 / Expected and actual behavior
+      description: 说明发生了什么，以及预期有什么不同。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 最小复现步骤 / Steps to reproduce
+      description: 仅使用合成证据或示例，不附带真实简历、密钥、账号导出或安全问题细节。
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 版本与环境 / Version and environment
+      placeholder: "Git SHA or release; OS; Compose or local; model provider"
+    validations:
+      required: true

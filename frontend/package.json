@@ -1,6 +1,6 @@
 {
   "name": "careerlens-frontend",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,7 +9,7 @@
     "lint": "eslint app lib"
   },
   "dependencies": {
-    "next": "^16.4.2",
+    "next": "^16.4.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -18,7 +18,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
-    "eslint-config-next": "^16.4.2",
+    "eslint-config-next": "^16.4.5",
     "typescript": "^5.1.0"
   }
 }

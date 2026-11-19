@@ -32,7 +32,7 @@ class ParsedBlock(Base):
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
-    evidence_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    evidence_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     doc_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     block_index: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -42,7 +42,7 @@ class ParsedBlock(Base):
     char_start: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     char_end: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     page_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    bbox: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    bbox: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     time_start: Mapped[float | None] = mapped_column(Float, nullable=True)
     time_end: Mapped[float | None] = mapped_column(Float, nullable=True)
     section_path: Mapped[str | None] = mapped_column(String(500), nullable=True)

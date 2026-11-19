@@ -7,6 +7,8 @@
 | [界面展示](showcase.md) | 首页、案例、系统设计、工作台及业务结果的页面截图 |
 | [系统架构](architecture.md) | 服务分层、请求链路、数据边界与设计取舍 |
 | [数据与证据生命周期](data-and-evidence.md) | Evidence、画像、JD 分析和报告的关联、更新与删除 |
+| [两期验收与 Wiki 使用](phase-1-2-validation.md) | A–D 验收、工作台操作、迁移与配置 |
+| [评分与学习路线](job-matching-and-planning.md) | 权重、算例、排期和历史分析失效机制 |
 | [Agent、检索与模型](agent-and-retrieval.md) | LangGraph 工作流、混合检索、模型切换与降级 |
 | [接入、MCP 与安全](integrations-and-security.md) | 数据导入、MCP 接口、用户隔离与权限 |
 | [评测与运维](evaluation-and-operations.md) | 评测口径、本地验收和故障定位 |

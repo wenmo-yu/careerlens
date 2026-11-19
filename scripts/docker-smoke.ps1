@@ -72,7 +72,29 @@ try {
         content = "我使用 Python、FastAPI、PostgreSQL、Qdrant、LangGraph 和 Docker 构建了带混合检索与证据引用的职业规划 RAG 系统，并负责测试和部署。"
     }
     Assert-True ($evidence.count -ge 1) "evidence ingestion"
+    $secondImport = Invoke-Json POST "$apiRoot/evidence/text" @{
+        user_id = $UserId
+        source_type = "project"
+        source_name = "docker-smoke-copy"
+        content = $evidence.items[0].content
+    }
+    Assert-True ($secondImport.items[0].id -eq $evidence.items[0].id) "evidence deduplication"
 
+    $form = [System.Net.Http.MultipartFormDataContent]::new()
+    try {
+        $form.Add([System.Net.Http.StringContent]::new($UserId), "user_id")
+        $form.Add([System.Net.Http.StringContent]::new("Skill,Level`nFastAPI,Advanced"),
+            "upload", "skills.csv")
+        $source = Invoke-RestMethod -Method Post -Uri "$apiRoot/evidence/file" `
+            -Headers $headers -Body $form
+    }
+    finally {
+        $form.Dispose()
+    }
+    Assert-True ($source.count -eq 1) "structured document upload"
+    $export = Invoke-Json GET "$apiRoot/privacy/$UserId/export"
+    Assert-True (@($export.source_documents).Count -eq 1) "source document persisted"
+    Assert-True ($export.parsed_blocks[0].evidence_id -eq $source.items[0].id) "parsed block lineage"
     $profile = Invoke-Json POST "$apiRoot/profiles/$UserId/rebuild" @{}
     Assert-True ($profile.count -ge 1) "profile rebuild"
 
@@ -93,10 +115,32 @@ try {
     $chat = Invoke-Json POST "$apiRoot/chat" @{
         user_id = $UserId
         message = "结合我的证据和目标岗位，给出本周最优先行动。"
-        thread_id = "docker-smoke-thread"
+        thread_id = "$UserId-thread"
         job_analysis_id = $job.id
     }
     Assert-True (-not [string]::IsNullOrWhiteSpace($chat.answer)) "LangGraph chat"
+
+    $wiki = Invoke-Json POST "$apiRoot/wiki/compile" @{
+        user_id = $UserId
+        slug = "smoke-topic"
+        title = "FastAPI skills"
+        evidence_ids = @($source.items[0].id)
+    }
+    Assert-True ($wiki.page.version -eq 1) "compile Wiki page"
+    foreach ($mode in @("rag", "wiki", "hybrid")) {
+        $reply = Invoke-Json POST "$apiRoot/chat" @{
+            user_id = $UserId
+            message = "Show the evidence for FastAPI"
+            thread_id = $chat.thread_id
+            mode = $mode
+        }
+        Assert-True ($reply.retrieval.mode -eq $mode) "switch to $mode without rebuilding"
+        if ($mode -ne "rag") {
+            Assert-True (@($reply.evidence.source_kind) -contains "wiki") "$mode Wiki hit"
+        }
+    }
+    $deletion = Invoke-Json DELETE "$apiRoot/evidence/$($source.items[0].id)"
+    Assert-True ($deletion.removed_wiki_pages -eq 1) "delete dependent Wiki page"
 
     $query = [Uri]::EscapeDataString("FastAPI Qdrant")
     $search = Invoke-Json GET "$apiRoot/evidence/search?user_id=$UserId&query=$query&limit=5"

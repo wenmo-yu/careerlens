@@ -1,9 +1,11 @@
 from qdrant_client import QdrantClient
 
+from app.core.config import Settings
 from app.models.evidence import Evidence
 from app.retrieval.hybrid import hybrid_search
 from app.retrieval.providers import HashEmbeddingProvider, LexicalReranker
 from app.retrieval.qdrant_store import QdrantEvidenceStore, sparse_vector
+from app.retrieval.service import search_evidence
 
 
 def _evidence(evidence_id: str, content: str) -> Evidence:
@@ -64,4 +66,17 @@ def test_hybrid_search_pairs_each_content_with_its_own_evidence():
         assert hit["content"] == by_id[hit["evidence_id"]], (
             f"content/evidence_id mismatch: {hit['evidence_id']} -> {hit['content']!r}"
         )
+
+
+async def test_deleted_evidence_is_filtered_from_stale_vector_index(monkeypatch):
+    class StaleIndex:
+        async def asearch(self, **kwargs):
+            return [{"evidence_id": "deleted-evidence", "content": "previous content"}]
+
+    monkeypatch.setattr(
+        "app.retrieval.service.get_settings", lambda: Settings(retrieval_backend="qdrant")
+    )
+    monkeypatch.setattr("app.retrieval.service.get_qdrant_store", StaleIndex)
+    hits, _ = await search_evidence(user_id="retrieval-user", query="content", evidence=[])
+    assert hits == []
 

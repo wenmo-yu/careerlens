@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 私下报告安全问题 / Private security report
+    url: https://github.com/wenmo-yu/careerlens/security/policy
+    about: Do not post security details, tokens, resumes, or personal data in public issues.
+  - name: 使用与排查 / Documentation
+    url: https://github.com/wenmo-yu/careerlens/tree/main/docs
+    about: Check the setup, model configuration, and troubleshooting guides first.

@@ -1,8 +1,9 @@
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm.attributes import flag_modified
 
 from app.ingestion.chunking import chunk_text
 from app.ingestion.contract import content_fingerprint
@@ -11,28 +12,66 @@ from app.retrieval.service import index_evidence
 
 
 def _source_entry(source_type: str, source_name: str, metadata: dict[str, Any]) -> dict[str, Any]:
-    entry: dict[str, Any] = {"source_type": source_type, "source_name": source_name}
-    entry.update(metadata)
-    return entry
+    return {**metadata, "source_type": source_type, "source_name": source_name}
 
 
 def _append_source(record: Evidence, entry: dict[str, Any]) -> bool:
     """Append a source to an existing evidence row; return True if it was new."""
     metadata = record.source_metadata or {}
     sources = list(metadata.get("sources", []))
-    if any(
-        item.get("source_type") == entry["source_type"]
-        and item.get("source_name") == entry["source_name"]
-        for item in sources
-    ):
+    if entry in sources:
         return False
     sources.append(entry)
-    metadata["sources"] = sources
-    metadata["source_count"] = len(sources)
-    # JSON columns are not dirty-tracked on in-place mutation; explicitly flag
-    # so the appended source is persisted.
-    flag_modified(record, "source_metadata")
+    record.source_metadata = {**metadata, "sources": sources, "source_count": len(sources)}
     return True
+
+
+def insert_no_conflict(session: AsyncSession, model, values: dict, keys: list[str]):
+    insert = sqlite_insert if session.get_bind().dialect.name == "sqlite" else postgres_insert
+    return insert(model).values(**values).on_conflict_do_nothing(index_elements=keys)
+
+
+async def resolve_evidence(
+    session: AsyncSession,
+    *,
+    user_id: str,
+    source_type: str,
+    source_name: str,
+    content: str,
+    chunk_index: int,
+    metadata: dict[str, Any],
+    dedup: bool = True,
+) -> Evidence:
+    fingerprint = content_fingerprint(content) if dedup else None
+    query = (
+        select(Evidence)
+        .where(Evidence.user_id == user_id, Evidence.content_hash == fingerprint)
+        .with_for_update()
+    )
+    entry = _source_entry(source_type, source_name, metadata)
+    values = {
+        "user_id": user_id,
+        "source_type": source_type,
+        "source_name": source_name,
+        "content": content,
+        "chunk_index": chunk_index,
+        "source_metadata": {**metadata, "sources": [entry], "source_count": 1},
+        "content_hash": fingerprint,
+    }
+    if not dedup:
+        record = Evidence(**values)
+        session.add(record)
+        await session.flush()
+        return record
+    record = await session.scalar(query)
+    if record is None:
+        statement = insert_no_conflict(
+            session, Evidence, values, ["user_id", "content_hash"]
+        )
+        await session.execute(statement)
+        record = (await session.scalars(query)).one()
+    _append_source(record, entry)
+    return record
 
 
 async def create_evidence_chunks(
@@ -63,50 +102,19 @@ async def create_evidence_chunks(
     if not chunks:
         raise ValueError("No readable text was found")
 
-    fingerprints = [content_fingerprint(chunk) for chunk in chunks]
-    existing: dict[str, Evidence] = {}
-    if dedup:
-        hashes = set(fingerprints)
-        if hashes:
-            result = await session.scalars(
-                select(Evidence).where(
-                    Evidence.user_id == user_id,
-                    Evidence.content_hash.in_(hashes),
-                )
-            )
-            existing = {record.content_hash: record for record in result}
-
-    entry = _source_entry(source_type, source_name, metadata or {})
-    base_metadata: dict[str, Any] = dict(metadata or {})
-    resolved: list[Evidence] = []
-    fresh: list[Evidence] = []
-    for chunk, fingerprint in zip(chunks, fingerprints, strict=True):
-        record = existing.get(fingerprint)
-        if record is not None:
-            _append_source(record, entry)
-            resolved.append(record)
-            continue
-        record = Evidence(
-            user_id=user_id,
-            source_type=source_type,
-            source_name=source_name,
-            content=chunk,
-            chunk_index=len(resolved) + len(fresh),
-            source_metadata={**base_metadata, "sources": [entry], "source_count": 1},
-            content_hash=fingerprint,
+    records: dict[int, Evidence] = {}
+    ordered_chunks = sorted(enumerate(chunks), key=lambda item: content_fingerprint(item[1]))
+    for index, chunk in ordered_chunks:
+        records[index] = await resolve_evidence(
+            session, user_id=user_id, source_type=source_type, source_name=source_name,
+            content=chunk, chunk_index=index, metadata=metadata or {}, dedup=dedup,
         )
-        session.add(record)
-        fresh.append(record)
-        resolved.append(record)
-
+    resolved = list({records[index].id: records[index] for index in range(len(chunks))}.values())
     if commit:
         await session.commit()
-        for record in fresh:
-            await session.refresh(record)
+        await index_evidence(resolved)
     else:
         await session.flush()
-    if fresh:
-        await index_evidence(fresh)
     return resolved
 
 

@@ -11,6 +11,7 @@ from app.models.career_report import CareerReport
 from app.models.profile import ProfileItem
 from app.models.profile_suppression import ProfileSuppression
 from app.models.profile_update import ProfileUpdateProposal
+from app.retrieval.service import index_evidence
 from app.services.evidence import create_evidence_chunks
 
 
@@ -70,7 +71,7 @@ def _deterministic_changes(message: str) -> list[dict]:
 async def create_proposal(
     session: AsyncSession, *, user_id: str, message: str
 ) -> ProfileUpdateProposal:
-    provider = get_llm_provider()
+    provider = get_llm_provider("analysis")
     changes = _deterministic_changes(message)
     if provider.diagnostics["provider"] != "demo":
         try:
@@ -108,7 +109,12 @@ async def list_proposals(
 async def decide_proposal(
     session: AsyncSession, *, proposal_id: str, approve: bool
 ) -> ProfileUpdateProposal:
-    proposal = await session.get(ProfileUpdateProposal, proposal_id)
+    proposal = await session.scalar(
+        select(ProfileUpdateProposal)
+        .where(ProfileUpdateProposal.id == proposal_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if proposal is None:
         raise LookupError("Profile update proposal not found")
     if proposal.status != "pending":
@@ -201,4 +207,6 @@ async def decide_proposal(
     proposal.resolved_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(proposal)
+    if approve:
+        await index_evidence(evidence)
     return proposal

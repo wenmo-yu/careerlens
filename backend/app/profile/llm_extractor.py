@@ -43,7 +43,7 @@ async def extract_profile_with_fallback(
     evidence: list[Evidence], provider: LLMProvider | None = None
 ) -> list[dict]:
     deterministic = extract_profile_items(evidence)
-    model = provider or get_llm_provider()
+    model = provider or get_llm_provider("profile")
     if model.diagnostics["provider"] == "demo":
         return deterministic
     allowed_ids = {record.id for record in evidence}

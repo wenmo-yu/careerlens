@@ -51,7 +51,13 @@ export type JobAnalysis = {
     goal: string;
     deliverables: string[];
   }>;
-  report: { summary: string; recommendation: string; claim_policy: string };
+  report: {
+    summary: string;
+    recommendation: string;
+    claim_policy: string;
+    required_gap_count?: number;
+    weekly_hours?: number;
+  };
 };
 
 export type CareerReport = {
@@ -85,23 +91,46 @@ export type CareerReport = {
   created_at: string;
 };
 
+export type KnowledgeMode = "rag" | "wiki" | "hybrid";
+
+export type WikiPage = {
+  id: string;
+  slug: string;
+  title: string;
+  content: string;
+  version: number;
+  chunk_refs: string[];
+};
+
+type EvidenceItem = { id: string; source_name: string; content: string };
+
 export type ChatResult = {
   thread_id: string;
   intent: string;
   answer: string;
   evidence: Array<{
+    source_kind?: "rag";
     evidence_id: string;
     score: number;
     source_name: string;
     content: string;
     rerank_score: number;
     retrieval_method: string;
+  } | {
+    source_kind: "wiki";
+    page_id: string;
+    slug: string;
+    title: string;
+    content: string;
+    chunk_refs: string[];
   }>;
   retrieval: {
-    backend: string;
-    fusion: string;
-    reranker: string;
-    fallback: boolean;
+    mode?: KnowledgeMode;
+    backend?: string;
+    fusion?: string;
+    knowledge_fusion?: string;
+    reranker?: string;
+    fallback?: boolean;
     reason?: string;
   };
   model: { provider: string; model: string; fallback: boolean; reason?: string };
@@ -323,7 +352,27 @@ export function downloadCareerReport(reportId: string) {
   return requestText(`/reports/${encodeURIComponent(reportId)}/markdown`);
 }
 
-export function sendChat(userId: string, message: string, threadId?: string, jobAnalysisId?: string) {
+export function listWikiEvidence(userId: string, offset = 0) {
+  const query = new URLSearchParams({ user_id: userId, limit: "50", offset: String(offset) });
+  return request<{ items: EvidenceItem[] }>(`/evidence?${query}`);
+}
+
+export function getWikiPage(userId: string, slug: string) {
+  const query = new URLSearchParams({ user_id: userId });
+  return request<WikiPage>(`/wiki/${encodeURIComponent(slug)}?${query}`);
+}
+
+export function compileWikiPage(userId: string, slug: string, title: string, evidenceIds: string[]) {
+  return request<{ page: WikiPage }>("/wiki/compile", {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, slug, title, evidence_ids: evidenceIds }),
+  });
+}
+
+export function sendChat(
+  userId: string, message: string, threadId?: string, jobAnalysisId?: string,
+  mode: KnowledgeMode = "rag",
+) {
   return request<ChatResult>("/chat", {
     method: "POST",
     body: JSON.stringify({
@@ -331,6 +380,7 @@ export function sendChat(userId: string, message: string, threadId?: string, job
       message,
       thread_id: threadId ?? null,
       job_analysis_id: jobAnalysisId ?? null,
+      mode,
     }),
   });
 }

@@ -44,7 +44,7 @@ class ParsedBlock:
     char_start: int = 0
     char_end: int = 0
     page_no: int | None = None
-    bbox: dict | None = None
+    bbox: dict | list[float] | None = None
     time_start: float | None = None
     time_end: float | None = None
     section_path: str | None = None

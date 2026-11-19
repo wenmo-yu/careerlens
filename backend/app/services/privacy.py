@@ -17,6 +17,7 @@ from app.models.parsed_block import ParsedBlock
 from app.models.profile import ProfileItem
 from app.models.profile_update import ProfileUpdateProposal
 from app.models.source_document import SourceDocument
+from app.models.wiki import WikiPage, WikiRevision
 from app.retrieval.service import delete_evidence_index, delete_user_index
 from app.security import Principal
 from app.services.audit import add_audit_event
@@ -60,6 +61,12 @@ async def export_user_data(
     parsed_blocks = list(
         await session.scalars(select(ParsedBlock).where(ParsedBlock.user_id == user_id))
     )
+    wiki_pages = list(
+        await session.scalars(select(WikiPage).where(WikiPage.user_id == user_id))
+    )
+    wiki_revisions = list(
+        await session.scalars(select(WikiRevision).where(WikiRevision.user_id == user_id))
+    )
     add_audit_event(
         session,
         principal=principal,
@@ -73,6 +80,8 @@ async def export_user_data(
             "career_report_count": len(reports),
             "source_document_count": len(documents),
             "parsed_block_count": len(parsed_blocks),
+            "wiki_page_count": len(wiki_pages),
+            "wiki_revision_count": len(wiki_revisions),
         },
     )
     await session.commit()
@@ -214,6 +223,50 @@ async def export_user_data(
             )
             for item in parsed_blocks
         ],
+        "wiki_pages": [
+            _serialize(
+                item,
+                (
+                    "id",
+                    "slug",
+                    "title",
+                    "page_type",
+                    "content",
+                    "summary",
+                    "version",
+                    "last_edit_source",
+                    "source_refs",
+                    "chunk_refs",
+                    "out_links",
+                    "in_links",
+                    "status",
+                    "created_at",
+                    "updated_at",
+                ),
+            )
+            for item in wiki_pages
+        ],
+        "wiki_revisions": [
+            _serialize(
+                item,
+                (
+                    "id",
+                    "page_id",
+                    "version",
+                    "title",
+                    "page_type",
+                    "content",
+                    "summary",
+                    "status",
+                    "edit_source",
+                    "edited_at",
+                    "source_refs",
+                    "chunk_refs",
+                    "created_at",
+                ),
+            )
+            for item in wiki_revisions
+        ],
     }
 
 
@@ -223,6 +276,11 @@ async def delete_evidence_record(
     record: Evidence,
     principal: Principal,
 ) -> dict:
+    locked = await session.scalar(
+        select(Evidence.id).where(Evidence.id == record.id).with_for_update()
+    )
+    if locked is None:
+        return {"deleted": True, "evidence_id": record.id}
     profile_items = list(
         await session.scalars(select(ProfileItem).where(ProfileItem.user_id == record.user_id))
     )
@@ -250,9 +308,43 @@ async def delete_evidence_record(
     for report in reports:
         referenced = report.content.get("referenced_evidence_ids", [])
         catalog_ids = [item.get("id") for item in report.content.get("evidence_catalog", [])]
-        if evidence_id in referenced or evidence_id in catalog_ids:
+        matching_ids = {
+            item_id
+            for match in report.content.get("job_matching", [])
+            for item_id in match.get("evidence_ids", [])
+        }
+        if evidence_id in referenced or evidence_id in catalog_ids or evidence_id in matching_ids:
             report.is_stale = True
             stale_reports += 1
+    await session.execute(
+        delete(ParsedBlock).where(
+            ParsedBlock.user_id == record.user_id, ParsedBlock.evidence_id == evidence_id
+        )
+    )
+    pages = list(await session.scalars(
+        select(WikiPage).where(WikiPage.user_id == record.user_id).order_by(WikiPage.id)
+        .with_for_update()
+    ))
+    removed_pages = {
+        page.id
+        for page in pages
+        if evidence_id in page.source_refs or evidence_id in page.chunk_refs
+    }
+    for page in pages:
+        if page.id in removed_pages:
+            await session.delete(page)
+    revisions = await session.scalars(
+        select(WikiRevision).where(WikiRevision.user_id == record.user_id)
+    )
+    for revision in revisions:
+        if (
+            revision.page_id in removed_pages
+            or revision.source_refs is None
+            or revision.chunk_refs is None
+            or evidence_id in revision.source_refs
+            or evidence_id in revision.chunk_refs
+        ):
+            await session.delete(revision)
     await session.delete(record)
     vector = await delete_evidence_index(evidence_id)
     add_audit_event(
@@ -268,6 +360,7 @@ async def delete_evidence_record(
             "removed_profile_items": removed_profile_items,
             "vector_index": vector,
             "stale_reports": stale_reports,
+            "removed_wiki_pages": len(removed_pages),
         },
     )
     await session.commit()
@@ -278,6 +371,7 @@ async def delete_evidence_record(
         "removed_profile_items": removed_profile_items,
         "vector_index": vector,
         "stale_reports": stale_reports,
+        "removed_wiki_pages": len(removed_pages),
     }
 
 
@@ -315,6 +409,8 @@ async def delete_user_account(
         "conversation_messages": await _count_user_records(session, ConversationMessage, user_id),
         "source_documents": await _count_user_records(session, SourceDocument, user_id),
         "parsed_blocks": await _count_user_records(session, ParsedBlock, user_id),
+        "wiki_pages": await _count_user_records(session, WikiPage, user_id),
+        "wiki_revisions": await _count_user_records(session, WikiRevision, user_id),
         "audit_events": await _count_user_records(session, AuditEvent, user_id),
         "access_tokens": await _count_user_records(session, AccessToken, user_id),
     }
@@ -329,6 +425,8 @@ async def delete_user_account(
         Evidence,
         ParsedBlock,
         SourceDocument,
+        WikiRevision,
+        WikiPage,
         ConversationThread,
         ConversationMessage,
         AuditEvent,

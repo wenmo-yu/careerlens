@@ -12,6 +12,57 @@ from app.services.learning_path import build_learning_path
 from app.services.profile import read_profile
 
 
+def classify_match(level: int, evidence_ids: list[str]) -> str:
+    if not evidence_ids:
+        return "gap"
+    return "strong" if level >= 3 else "partial"
+
+
+def match_requirements(
+    requirements: list[dict], profile: list[ProfileItem], valid_ids: set[str]
+) -> tuple[list[dict], float]:
+    skills: dict[str, tuple[ProfileItem, list[str]]] = {}
+    for item in profile:
+        if item.category != "skill":
+            continue
+        name = normalize_skill(item.name).casefold()
+        evidence_ids = sorted(set(item.evidence_ids) & valid_ids)
+        previous = skills.get(name)
+        if evidence_ids and (
+            previous is None
+            or (item.level, item.confidence) > (previous[0].level, previous[0].confidence)
+        ):
+            skills[name] = item, evidence_ids
+
+    matches: list[dict] = []
+    earned = 0.0
+    possible = 0.0
+    for requirement in requirements:
+        weight = 1.0 if requirement["priority"] == "required" else 0.5
+        possible += weight
+        skill = skills.get(requirement["name"].casefold())
+        if skill is None:
+            matches.append({**requirement, "status": "gap", "evidence_ids": []})
+            continue
+        item, evidence_ids = skill
+        status = classify_match(item.level, evidence_ids)
+        earned += weight * (1.0 if status == "strong" else 0.65)
+        matches.append({
+            **requirement, "status": status, "level": item.level,
+            "confidence": item.confidence, "evidence_ids": evidence_ids,
+        })
+    return matches, round(100 * earned / possible, 1) if possible else 0.0
+
+
+def job_analysis_is_current(
+    analysis: JobAnalysis, profile: list[ProfileItem], valid_ids: set[str]
+) -> bool:
+    if analysis.report.get("match_method") != "weighted_requirements_v2":
+        return False
+    matches, score = match_requirements(analysis.requirements, profile, valid_ids)
+    return analysis.matches == matches and analysis.score == score
+
+
 async def analyze_job(
     session: AsyncSession,
     *,
@@ -24,9 +75,6 @@ async def analyze_job(
     if not profile:
         raise ValueError("Build the user profile before analyzing a job")
 
-    profile_by_name: dict[str, ProfileItem] = {
-        normalize_skill(item.name).casefold(): item for item in profile if item.category == "skill"
-    }
     requirements, extraction = await extract_requirements_with_fallback(jd_text)
     if not requirements:
         raise ValueError("No supported technical requirements were found in the JD")
@@ -44,50 +92,28 @@ async def analyze_job(
         else set()
     )
 
-    matches: list[dict] = []
-    gaps: list[dict] = []
-    earned = 0.0
-    possible = 0.0
-    for requirement in requirements:
-        weight = 1.0 if requirement["priority"] == "required" else 0.5
-        possible += weight
-        profile_item = profile_by_name.get(requirement["name"].casefold())
-        evidence_ids = (
-            [item for item in profile_item.evidence_ids if item in valid_ids]
-            if profile_item
-            else []
-        )
-        if profile_item and evidence_ids:
-            strength = "strong" if profile_item.level >= 3 else "partial"
-            factor = 1.0 if strength == "strong" else 0.65
-            earned += weight * factor
-            matches.append(
-                {
-                    **requirement,
-                    "status": strength,
-                    "level": profile_item.level,
-                    "confidence": profile_item.confidence,
-                    "evidence_ids": evidence_ids,
-                }
-            )
-        else:
-            gap = {**requirement, "status": "gap", "evidence_ids": []}
-            matches.append(gap)
-            gaps.append(gap)
-
-    score = round(100 * earned / possible, 1) if possible else 0.0
+    matches, score = match_requirements(requirements, profile, valid_ids)
+    gaps = [item for item in matches if item["status"] == "gap"]
+    required_gaps = [item for item in gaps if item["priority"] == "required"]
     learning_path = build_learning_path(matches, title=title, weekly_hours=weekly_hours)
     strengths = [item for item in matches if item["status"] in {"strong", "partial"}]
+    if required_gaps:
+        recommendation = f"先补齐 {len(required_gaps)} 项必需能力缺口，再判断是否重点投递"
+    elif score >= 70:
+        recommendation = "建议重点投递并针对缺口准备"
+    else:
+        recommendation = "建议先加强已有能力的证据，再重点投递"
     report = {
         "summary": f"按当前规则计算，与 {title} 的证据支持匹配分为 {score}%；这不是录用概率。",
         "strengths": strengths,
         "gaps": gaps,
-        "recommendation": (
-            "建议重点投递并针对缺口准备" if score >= 70 else "建议先补齐核心缺口后再重点投递"
-        ),
+        "recommendation": recommendation,
         "claim_policy": "所有能力结论均来自 Profile Item 关联的 Evidence；无证据项标记为 gap。",
         "requirement_extraction": extraction,
-        "learning_path_method": "bounded_rule_plan",
+        "match_method": "weighted_requirements_v2",
+        "required_gap_count": len(required_gaps),
+        "weekly_hours": weekly_hours,
+        "learning_path_method": "required_first_v2",
     }
     analysis = JobAnalysis(
         user_id=user_id,
