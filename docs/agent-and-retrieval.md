@@ -58,3 +58,16 @@ flowchart LR
 ## 设计与验证边界
 
 项目把“有来源”作为必要条件，不把它误写成“结论一定正确”。真实评估需覆盖：Evidence 是否充分、画像抽取是否准确、JD 要求是否完整、错误证据是否被引用，以及用户修正后结果是否如预期变化。现有[开发回归基准](evaluation-and-operations.md)主要验证确定性规则与本地检索，无法证明真实 Qwen/DeepSeek 的质量。
+
+## 与 WeKnora / WorkBuddy 的实现对照
+
+CareerLens 的 Wiki 版本链与后台运行时参考了 WeKnora 与 WorkBuddy 的架构，但按本项目规模做了取舍。为避免把"参考"误读成"等价"，这里列出关键对照：
+
+| 机制 | 来源 | CareerLens 的实现与取舍 |
+| --- | --- | --- |
+| Wiki 版本不变量 | WeKnora `wiki_page.go` | 版本仅用户可见内容变化才递增；快照记录被替换版本的作者；`base_version` 乐观并发；回滚=普通编辑；快照分级裁剪；零值字段显式持久化。扩展：引用（`chunk_refs`）变化也计入版本，便于核验引用变更。 |
+| 短句柄引用映射 | WeKnora `HandleTable` | 编译器向模型呈现 `c000` 短句柄，落库前解析回稳定 evidence_id；未知句柄丢弃、内联标记剥离。用 `<c id>` + `[c000]` 正则替代上游的 word-boundary 编解码，效果等价。 |
+| 表格行身份保护 | WeKnora `wiki_write_row_guard.go` | 拒绝静默丢行的重写；cell 身份按上游规则归一化（全角空格、强调/代码标记、大小写、空白折叠），避免模型仅改格式就被误判。有意更严格：loss 用多重集分母，丢掉重复行中的一行也计为损失。 |
+| 运行时不变量 | WorkBuddy 运行时设计 | Run/Step/Event 持久化、幂等键、fencing 代次、取消、租约恢复与 SSE 断点续看均已落地；提交前二次校验代次，业务记录/终态/最终事件同事务。取舍：取消只标记状态并递增 fencing，运行中的外部调用在下一个锁检查点才感知，短任务可接受。 |
+
+核对结论：未发现上游有而本项目缺失的核心不变量；更多实现细节以 `backend/app/wiki/`、`backend/app/runtime/` 代码为准。

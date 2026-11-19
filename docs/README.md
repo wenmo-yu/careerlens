@@ -18,8 +18,10 @@
 
 ## 运行与验证范围
 
-- 基础 Compose 已在本机完成 Web → FastAPI → PostgreSQL/Qdrant → 画像 → JD 分析 → 报告 → 对话闭环验证，同时覆盖 MCP 鉴权、后端测试和前端静态检查。
-- DeepSeek/OpenAI-compatible、本地 Qwen、PaddleOCR/Faster-Whisper 与可观测性属于可配置集成；实际效果取决于所用模型、密钥、硬件和数据。
-- 合成评测用于代码回归，不等同真实用户场景准确率。公网部署与本地运行具有不同的安全边界，详见[安全说明](integrations-and-security.md)。
+- 基础 Compose 已完成 Web → FastAPI → PostgreSQL/Qdrant → 画像 → JD 分析 → 报告 → 对话闭环验证；CI 的 `docker-smoke` 以双 Worker 覆盖后台 run 幂等、SSE 续看、Wiki 审批与取消、模式切换。
+- 自动化测试当前 **158 项后端用例全绿**，前端通过 ESLint、TypeScript 类型检查与生产构建；验收口径见[第三期说明](phase-3-runtime.md)与 [Quality Gate](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml)。
+- 数据接入支持 PDF / DOCX / XLSX / TXT / Markdown；XLSX 由标准库解析，无需 openpyxl。扫描 PDF 页标记为待 OCR，不伪造文本。
+- DeepSeek/OpenAI-compatible、本地 Qwen、PaddleOCR/Faster-Whisper 与可观测性属于可配置集成；真实模型质量需按[路线图](../ROADMAP.md)在授权或合成样本上单独验收，不把开发集分数当成真实准确率。
+- 公网部署与本地运行具有不同的安全边界，详见[安全说明](integrations-and-security.md)。
 
 如果文档与代码不一致，以代码和实际运行结果为准，并欢迎通过 Issue/PR 指出具体差异。

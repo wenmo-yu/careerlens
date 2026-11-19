@@ -8,7 +8,9 @@ page / bbox / table / timestamp locations needed by later phases.
 
 import csv
 import io
+import zipfile
 from pathlib import Path
+from xml.etree import ElementTree
 
 import pymupdf
 from docx import Document
@@ -24,7 +26,12 @@ SUPPORTED_SUFFIXES = {
     ".markdown",
     ".csv",
     ".tsv",
+    ".xlsx",
 }
+
+# XLSX OOXML namespaces for the standard-library reader (no openpyxl needed).
+_NS_MAIN = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+_NS_REL = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
 
 # A page whose image coverage exceeds this ratio is treated as scanned: its
 # embedded OCR text layer (if any) is not trusted. Mirrors WeKnora's
@@ -92,6 +99,97 @@ def _csv_blocks(content: bytes, delimiter: str) -> tuple[list[tuple[str, str, di
         for row in rows
     ]
     return [(_render_table(escaped), "table", {})], {"row_count": len(rows)}
+
+
+def _xlsx_shared_strings(archive: zipfile.ZipFile) -> list[str]:
+    """Read the shared-string table from an XLSX package."""
+    if "xl/sharedStrings.xml" not in archive.namelist():
+        return []
+    root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
+    strings: list[str] = []
+    for item in root.findall(f"{_NS_MAIN}si"):
+        # A shared string may be split across rich-text runs (<r><t>...).
+        parts = [node.text or "" for node in item.iter(f"{_NS_MAIN}t")]
+        strings.append("".join(parts))
+    return strings
+
+
+def _xlsx_sheet_paths(archive: zipfile.ZipFile) -> list[str]:
+    """List worksheet parts in workbook order via workbook.xml.rels."""
+    names = archive.namelist()
+    paths: list[str] = []
+    rels_path = "xl/_rels/workbook.xml.rels"
+    if rels_path in names:
+        root = ElementTree.fromstring(archive.read(rels_path))
+        relation_targets = {
+            rel.get("Id"): rel.get("Target")
+            for rel in root
+            if (rel.get("Type") or "").endswith("/worksheet")
+        }
+        if "xl/workbook.xml" in names:
+            workbook = ElementTree.fromstring(archive.read("xl/workbook.xml"))
+            for sheet in workbook.iter(f"{_NS_MAIN}sheet"):
+                rid = sheet.get(f"{_NS_REL}id")
+                target = relation_targets.get(rid)
+                if not target:
+                    continue
+                candidate = target.lstrip("/") if target.startswith("/") else f"xl/{target}"
+                if candidate in names:
+                    paths.append(candidate)
+    if not paths:
+        paths = sorted(
+            n for n in names
+            if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")
+        )
+    return paths
+
+
+def _xlsx_blocks(content: bytes) -> tuple[list[tuple[str, str, dict]], dict]:
+    """Parse XLSX with the standard library into table blocks.
+
+    Handles shared strings, inline strings, numeric cells, and multiple
+    worksheets. Circular references and formulas are read as their cached
+    value when present (``<v>``), otherwise left empty.
+    """
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        shared = _xlsx_shared_strings(archive)
+        raw_blocks: list[tuple[str, str, dict]] = []
+        total_rows = 0
+        for sheet_path in _xlsx_sheet_paths(archive):
+            root = ElementTree.fromstring(archive.read(sheet_path))
+            rows: list[list[str]] = []
+            for row in root.iter(f"{_NS_MAIN}row"):
+                cells: list[str] = []
+                for cell in row.findall(f"{_NS_MAIN}c"):
+                    cell_type = cell.get("t")
+                    if cell_type == "inlineStr":
+                        node = cell.find(f"{_NS_MAIN}is")
+                        value = "".join(
+                            part.text or "" for part in node.iter(f"{_NS_MAIN}t")
+                        ) if node is not None else ""
+                    else:
+                        value_node = cell.find(f"{_NS_MAIN}v")
+                        value = (
+                            value_node.text
+                            if value_node is not None and value_node.text
+                            else ""
+                        )
+                        if cell_type == "s" and value:
+                            index = int(value)
+                            value = shared[index] if index < len(shared) else ""
+                    cells.append(
+                        value.strip().replace("\r", "").replace("\n", " ").replace("|", "\\|")
+                    )
+                if any(cells):
+                    rows.append(cells)
+            if rows:
+                width = max(len(row) for row in rows)
+                padded = [row + [""] * (width - len(row)) for row in rows]
+                raw_blocks.append(
+                    (_render_table(padded), "table", {"sheet": Path(sheet_path).stem})
+                )
+                total_rows += len(rows)
+        return raw_blocks, {"row_count": total_rows, "sheet_count": len(raw_blocks)}
 
 
 def _page_is_scanned(page: pymupdf.Page) -> bool:
@@ -200,6 +298,20 @@ def parse_document(filename: str, content: bytes) -> ParsedDocument:
             for index, (text, block_type, _) in enumerate(raw)
         ]
         return ParsedDocument(doc_id="", blocks=blocks, source_type="csv", metadata=meta)
+
+    if suffix == ".xlsx":
+        raw, meta = _xlsx_blocks(content)
+        blocks = [
+            ParsedBlock(
+                content=text,
+                block_type=block_type,
+                block_index=index,
+                source_type="xlsx",
+                source_metadata=extra,
+            )
+            for index, (text, block_type, extra) in enumerate(raw)
+        ]
+        return ParsedDocument(doc_id="", blocks=blocks, source_type="xlsx", metadata=meta)
 
     # .txt / .md / .markdown
     try:

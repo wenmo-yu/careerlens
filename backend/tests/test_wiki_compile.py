@@ -49,7 +49,7 @@ def test_resolve_citations_drops_unknown_and_dedupes():
 
 def test_table_row_identity_and_loss_ratio():
     original = "| 技能 | 级别 |\n| --- | --- |\n| Python | 5 |\n| FastAPI | 4 |"
-    assert table_row_identities(original) == ["Python", "FastAPI"]
+    assert table_row_identities(original) == ["python", "fastapi"]
     dropped = "| 技能 | 级别 |\n| --- | --- |\n| Python | 5 |"
     assert row_identity_loss_ratio(original, dropped) == 0.5
     with pytest.raises(DroppedTableRowsError):
@@ -148,6 +148,25 @@ async def test_compile_rejects_dropped_table_rows(compile_db, monkeypatch):
     async with compile_db() as session:
         with pytest.raises(WikiCompileError, match="table rows"):
             await compile_page(session, user_id="u", slug="s", title="t", sources=sources)
+
+
+def test_table_guard_ignores_formatting_and_case_changes():
+    """A model re-emitting a table with cosmetic changes must not be rejected.
+
+    Port of WeKnora normalizeWikiWriteCell: full-width spaces, emphasis/code
+    markers and case are formatting, not lost rows.
+    """
+    original = (
+        "| 技能 | 级别 |\n| --- | --- |\n"
+        "| **Python** | 5 |\n| fastAPI | 4 |\n| `RAG` | 5 |"
+    )
+    # Model changes case, adds emphasis, and uses a leading blank cell.
+    rewritten = (
+        "| 技能 | 级别 |\n| --- | --- |\n"
+        "| | python | 5 |\n| FastApi | 4 |\n| RAG | 5 |"
+    )
+    assert row_identity_loss_ratio(original, rewritten) == 0.0
+    assert_rows_preserved("", rewritten, source_tables=[original])
 
 
 def test_table_guard_counts_repeated_row_keys():

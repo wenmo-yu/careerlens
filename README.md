@@ -35,6 +35,9 @@ CareerLens 将用户授权的简历、自述和个人平台导出内容整理为
 | 4. 生成报告 | 点击“生成职业报告” | 八章节、可下载 Markdown、保留历史版本的职业报告 |
 | 5. 追问结论 | 在 Career Copilot 中询问“为什么推荐这个方向？” | 多轮回答、检索诊断与可展开的原始证据 |
 | 6. 修正记忆 | 提出新的求职偏好并确认变更草案 | 用户批准后写入长期画像的修正记录 |
+| 7. 后台任务 | 在「后台任务」提交文档导入、Wiki 编译、岗位分析或报告生成 | 实时进度、断线续看、审批/取消、结果入口；关闭页面不中断执行 |
+
+文档导入、Wiki 编译、岗位分析和报告生成会进入持久化后台 Run，由独立 Worker 执行，支持幂等、租约恢复与提交边界原子写；短对话仍走原有的同步 LangGraph 会话。详情见[后台任务与恢复](docs/phase-3-runtime.md)。
 
 交互工作台预填了**虚构**个人经历与 JD，可在无需 API Key 的默认配置下体验完整流程。真实个人资料仅应在获得授权并采取适当保护时导入。
 
@@ -75,13 +78,22 @@ flowchart TD
     S --> G[LangGraph Career Copilot]
     S --> J[JD 匹配 / Skill Gap / Learning Path]
     S --> R[版本化职业报告]
+    S --> K[Wiki 编译 / 短句柄引用 / 版本回滚]
+    K --> E
     G --> E
     G --> Q
+    G -.rag / wiki / hybrid.-> K
     J --> E
     J --> R
     L[Demo / DeepSeek / OpenAI-compatible / 本地 Qwen] --> G
     L --> R
     P[(PostgreSQL Checkpoint)] --> G
+    B[后台 Run/Step/Event] --> WK[Worker + Coordinator 多 Agent]
+    WK --> S
+    WK --> E
+    WK --> OX[向量索引 outbox]
+    OX --> Q
+    SSE[SSE 进度流] --> B
 ```
 
 PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引。基础 Compose 用独立 migration job 执行 Alembic 迁移；API 与 MCP 共用业务服务和数据权限规则。更多实现细节见[技术文档导航](docs/README.md)：架构、数据模型、Agent 与检索、接口安全、评测和运维。
@@ -93,9 +105,11 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 | Web | Next.js 16、React 19、TypeScript | 导入、画像、岗位分析、报告、对话和评测工作台 |
 | API / 数据 | FastAPI、Pydantic、SQLAlchemy Async、PostgreSQL、Alembic | 异步业务接口、持久化与版本化迁移 |
 | Agent / Memory | LangGraph、PostgreSQL Checkpoint、ConversationMessage | 意图理解、个人证据检索、回答生成；消息表持久化多轮对话，Checkpoint 保存图执行状态 |
-| Evidence RAG | Qdrant、Dense + Sparse、RRF、Reranker Provider | 按用户隔离的证据检索、融合与重排 |
-| 模型 | 确定性 Demo、DeepSeek / OpenAI-compatible API、本地 Qwen 接口 | 无密钥可复现；按需接入真实推理服务 |
-| 数据接入 | PDF / DOCX / TXT / Markdown、Bilibili JSON、微博 JSON/CSV、可选浏览器页面采集 | 用户主动导入；浏览器扩展只读当前已加载页面，不收集 Cookie，不提供后台账号同步 |
+| Evidence RAG | Qdrant、Dense + Sparse、RRF、Reranker Provider | 按用户隔离的证据检索、融合与重排；支持 rag / wiki / hybrid 提问期切换 |
+| 知识组织 | WikiPage / WikiRevision、短句柄引用映射、表格行身份保护 | 编译带引用的主题页；版本仅可见内容变化才递增，乐观并发、回滚、快照裁剪 |
+| 后台运行时 | Run / Step / Event、独立 Worker、Coordinator 多 Agent、SSE 续看 | 幂等键、租约恢复、fencing 代次、取消/审批、提交边界原子写；向量写入 outbox 补偿 |
+| 模型 | 确定性 Demo、DeepSeek / OpenAI-compatible API、本地 Qwen 接口 | 无密钥可复现；角色绑定模型与两级串级重排可配置；按需接入真实推理服务 |
+| 数据接入 | PDF / DOCX / XLSX / TXT / Markdown、Bilibili JSON、微博 JSON/CSV、可选浏览器页面采集 | 用户主动导入；XLSX 用标准库解析无需 openpyxl；浏览器扩展只读当前已加载页面，不收集 Cookie，不提供后台账号同步 |
 | 可选多模态 | PaddleOCR、Faster-Whisper | 图片文字与音视频转录，需额外安装模型依赖 |
 | 工具与交付 | MCP Python SDK、Docker Compose、GitHub Actions | 可复用工具接口、容器部署和质量门禁 |
 
@@ -109,6 +123,9 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 | Qdrant 双路检索与重排 | [`backend/app/retrieval/qdrant_store.py`](backend/app/retrieval/qdrant_store.py) |
 | LangGraph 对话流程 | [`backend/app/graph/career.py`](backend/app/graph/career.py) |
 | JD 分析与报告生成 | [`backend/app/services/jobs.py`](backend/app/services/jobs.py)、[`backend/app/services/reports.py`](backend/app/services/reports.py) |
+| Wiki 版本与编译 | [`backend/app/services/wiki_pages.py`](backend/app/services/wiki_pages.py)、[`backend/app/wiki/`](backend/app/wiki/) |
+| 后台运行时与 Worker | [`backend/app/runtime/`](backend/app/runtime/)、[`backend/app/api/routes/runs.py`](backend/app/api/routes/runs.py) |
+| 工作台任务中心 | [`frontend/components/run-center.tsx`](frontend/components/run-center.tsx)、[`frontend/lib/run-events.ts`](frontend/lib/run-events.ts) |
 | MCP 接口与权限 | [`backend/app/mcp/server.py`](backend/app/mcp/server.py)、[`backend/app/security/auth.py`](backend/app/security/auth.py) |
 | 评测与可重复验收 | [`backend/app/evaluation/`](backend/app/evaluation/)、[`scripts/docker-smoke.ps1`](scripts/docker-smoke.ps1) |
 
@@ -116,10 +133,10 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 
 | 验证项 | 当前结果 | 边界 |
 | --- | --- | --- |
-| 后端自动化测试 | 63 项通过 | 以 SQLite 内存数据库运行的单元/API 测试，含检索正文一致性、修正事务原子性、多轮对话与运维鉴权回归 |
-| 前端检查 | ESLint 与 production build 通过 | 属于静态检查和构建验证 |
-| Docker 全栈验收 | 迁移、健康检查及 Evidence → 画像 → JD → 报告 → 对话成功 | 使用本机 PostgreSQL、Qdrant、API、MCP、Web 和 Demo 模型 |
-| 检索与 MCP | 烟测命中 Qdrant；MCP 未授权请求返回 401、合法 Token 可初始化 | 默认 Embedding 为 Hash Provider、重排为 Lexical Provider |
+| 后端自动化测试 | **158 项通过** | 以 SQLite 内存数据库运行的单元/API 测试，覆盖解析、去重、Wiki 版本不变量、后台运行时（幂等/租约/取消/恢复/outbox）、检索一致性与运维鉴权 |
+| 前端检查 | ESLint、TypeScript 类型检查与 production build 通过 | 6 个页面静态预渲染；含 SSE 进度流解码测试 |
+| Docker 全栈验收 | 双 Worker（`--scale worker=2`）在真实 PostgreSQL + Qdrant 上跑通 Evidence → 画像 → JD → 报告 → 对话、后台 run 幂等、SSE 续看、Wiki 审批与取消 | CI `docker-smoke` job 每次 PR 自动执行 |
+| 检索与 MCP | 烟测命中 Qdrant；MCP 未授权请求返回 401、合法 Token 可初始化 | 默认 Embedding 为 Hash Provider、重排为 Lexical Provider；支持 rag/wiki/hybrid 模式切换 |
 | 开发回归集 | 20 个合成场景、80 条 Evidence、40 个检索问题；Recall@5 | 只用于发现代码回归，不能当作真实业务准确率 |
 
 上述结果来自本地验收；GitHub Actions 工作流也已配置。它们验证了默认链路和开发回归集，不代表不同模型、硬件或真实用户数据下的效果。完整评测口径见[评测文档](eval/README.md)。
