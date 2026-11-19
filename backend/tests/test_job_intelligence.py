@@ -3,6 +3,7 @@ from app.models.evidence import Evidence
 from app.profile.extractor import extract_profile_items
 from app.services import reports
 from app.services.job_requirements import extract_requirements, extract_requirements_with_fallback
+from app.services.jobs import match_requirements
 from app.services.learning_path import build_learning_path
 
 
@@ -95,13 +96,85 @@ def test_learning_path_uses_level_priority_time_and_goal():
         {"name": "Kubernetes", "priority": "required", "status": "gap", "evidence_ids": []},
     ]
     path = build_learning_path(matches, title="Agent 开发实习生", weekly_hours=6)
-    assert [item["skill"] for item in path] == ["Kubernetes", "MCP", "Docker"]
+    assert [item["skill"] for item in path] == ["Kubernetes", "Docker", "MCP"]
     assert path[0]["weeks"] == 3
     assert path[1]["start_week"] == 4
-    assert path[2]["current_level"] == 2
-    assert path[2]["source_evidence_ids"] == ["e1"]
+    assert path[1]["current_level"] == 2
+    assert path[1]["source_evidence_ids"] == ["e1"]
+    assert path[2]["start_week"] == 6
+    assert all(item["weeks"] * 6 >= item["estimated_hours"] for item in path)
     assert "Agent 开发实习生" in path[0]["goal"]
     assert "部署" in path[0]["goal"]
+
+
+def test_jd_priority_stays_in_its_clause_or_explicit_section():
+    jd = (
+        "要求 Python、LangGraph、Kubernetes，Docker 经验优先。"
+        "\nPreferred:\n- Next.js\nRequired:\n- SQL"
+    )
+    by_name = {item["name"]: item["priority"] for item in extract_requirements(jd)}
+    assert by_name == {
+        "Python": "required", "LangGraph": "required", "Kubernetes": "required",
+        "Docker": "preferred", "Next.js": "preferred", "SQL": "required",
+    }
+
+
+async def test_model_cannot_reweight_catalogued_requirement_with_an_ambiguous_quote():
+    provider = StubProvider({
+        "requirements": [
+            {"name": "Python", "priority": "preferred", "quote": "Python，Docker 优先"},
+            {"name": "Redis", "priority": "required", "quote": "不要求 Redis"},
+        ],
+    })
+    requirements, _ = await extract_requirements_with_fallback(
+        "需要 Python，Docker 优先；不要求 Redis。", provider
+    )
+    assert {item["name"]: item["priority"] for item in requirements} == {
+        "Python": "required", "Docker": "preferred",
+    }
+
+
+def test_weighted_score_ignores_missing_evidence_and_resolves_aliases():
+    from app.models.profile import ProfileItem
+
+    requirements = [
+        {"name": "Python", "priority": "required"},
+        {"name": "PostgreSQL", "priority": "preferred"},
+        {"name": "Docker", "priority": "required"},
+    ]
+    profile = [
+        ProfileItem(name="Python", category="skill", level=3, confidence=0.9, evidence_ids=["p"]),
+        ProfileItem(name="Postgres", category="skill", level=2, confidence=0.8, evidence_ids=["q"]),
+        ProfileItem(name="PostgreSQL", category="skill", level=5, confidence=1, evidence_ids=["x"]),
+        ProfileItem(name="Docker", category="skill", level=5, confidence=1, evidence_ids=["y"]),
+    ]
+    matches, score = match_requirements(requirements, profile, {"p", "q"})
+    assert [item["status"] for item in matches] == ["strong", "partial", "gap"]
+    assert matches[1]["evidence_ids"] == ["q"]
+    assert score == 53.0
+
+
+async def test_deleted_evidence_blocks_reuse_of_job_analysis(client):
+    user_id = "job-freshness"
+    user = {"user_id": user_id}
+    imported = await client.post(
+        "/api/v1/evidence/text", json={**user, "content": "Built Python tools."}
+    )
+    await client.post("/api/v1/evidence/text", json={**user, "content": "Built Docker containers."})
+    assert (await client.post(f"/api/v1/profiles/{user_id}/rebuild")).status_code == 200
+    analysis = await client.post(
+        "/api/v1/jobs/analyze",
+        json={**user, "title": "Backend", "jd_text": "Python and Docker required."},
+    )
+    assert analysis.status_code == 200
+    analysis_id = analysis.json()["id"]
+    assert (await client.delete(f"/api/v1/evidence/{imported.json()['items'][0]['id']}")).is_success
+    report = await client.post("/api/v1/reports", json={**user, "job_analysis_id": analysis_id})
+    assert report.status_code == 409
+    reply = await client.post(
+        "/api/v1/chat", json={**user, "job_analysis_id": analysis_id, "message": "我还差什么？"}
+    )
+    assert reply.status_code == 409
 
 
 async def test_copilot_uses_saved_job_analysis_and_keeps_memory_update_confirmed(client):
