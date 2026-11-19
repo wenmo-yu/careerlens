@@ -6,9 +6,9 @@ Only the latest commit on `main` receives security fixes while CareerLens is in 
 
 ## Reporting a vulnerability
 
-Please use GitHub's private vulnerability reporting when it is enabled for the repository. Do not open a public issue containing API keys, access tokens, personal Evidence, database dumps, authentication bypass details, or working exploit payloads.
+Use [GitHub private vulnerability reporting](https://github.com/wenmo-yu/careerlens/security/advisories/new) when it is enabled. If unavailable, ask the maintainer for a private contact route without posting any details of the issue.
 
-Include the affected component, reproduction conditions, expected impact, and a minimal proof of concept with all personal data and secrets removed.
+In a private report, include the affected version, component, expected impact, and suggested mitigation if known. Never include personal Evidence, database dumps, or credentials.
 
 ## Deployment requirements
 

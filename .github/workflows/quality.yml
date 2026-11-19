@@ -5,6 +5,13 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   backend-quality:
     runs-on: ubuntu-latest
@@ -43,6 +50,10 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - name: Test workbench capture preview and progress stream
+        run: |
+          node --experimental-strip-types lib/browser-capture.test.mjs
+          node --experimental-strip-types lib/run-events.test.mjs
       - name: Test browser helper capture and collection
         run: |
           node ../browser-helper/test-capture.mjs
@@ -57,7 +68,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build and start the full stack
-        run: docker compose up -d --build
+        run: docker compose up -d --build --scale worker=2
       - name: Run disposable end-to-end smoke test
         shell: pwsh
         run: ./scripts/docker-smoke.ps1

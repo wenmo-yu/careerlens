@@ -1,5 +1,5 @@
 services:
-  api:
+  api: &media
     build:
       args:
         INSTALL_MULTIMODAL: "true"
@@ -11,6 +11,17 @@ services:
       OCR_LANGUAGE: ch
     volumes:
       - media_model_cache:/root/.cache
+  worker:
+    <<: *media
+    environment:
+      HOME: /tmp
+      XDG_CACHE_HOME: /root/.cache
+      PADDLE_PDX_CACHE_HOME: /root/.cache/paddlex
+      MEDIA_PROVIDER: auto
+      WHISPER_MODEL: small
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
+      OCR_LANGUAGE: ch
 
 volumes:
   media_model_cache:

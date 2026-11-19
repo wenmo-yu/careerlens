@@ -1,3 +1,28 @@
+x-processing-environment: &processing-environment
+  DATABASE_URL: postgresql+asyncpg://career:career@postgres:5432/career
+  QDRANT_URL: http://qdrant:6333
+  RETRIEVAL_BACKEND: ${RETRIEVAL_BACKEND:-auto}
+  RETRIEVAL_PROVIDER: ${RETRIEVAL_PROVIDER:-hash}
+  AI_PROVIDER: ${AI_PROVIDER:-demo}
+  AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
+  AI_API_KEY: ${AI_API_KEY:-}
+  AI_MODEL: ${AI_MODEL:-deepseek-flash}
+  MODEL_ROLE_BINDINGS: ${MODEL_ROLE_BINDINGS:-}
+  RERANK_STAGES_ENABLED: ${RERANK_STAGES_ENABLED:-false}
+  RERANK_COARSE_TOP_K: ${RERANK_COARSE_TOP_K:-15}
+  RERANK_FINE_TOP_K: ${RERANK_FINE_TOP_K:-5}
+  AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-60}
+  AI_INPUT_PRICE_PER_MILLION: ${AI_INPUT_PRICE_PER_MILLION:-0}
+  AI_OUTPUT_PRICE_PER_MILLION: ${AI_OUTPUT_PRICE_PER_MILLION:-0}
+  AUTH_MODE: ${AUTH_MODE:-disabled}
+  RUN_WORKER_CONCURRENCY: ${RUN_WORKER_CONCURRENCY:-2}
+  RUN_GLOBAL_CONCURRENCY: ${RUN_GLOBAL_CONCURRENCY:-4}
+  RUN_PENDING_PER_USER: ${RUN_PENDING_PER_USER:-12}
+  RUN_LEASE_SECONDS: ${RUN_LEASE_SECONDS:-30}
+  RUN_TIMEOUT_SECONDS: ${RUN_TIMEOUT_SECONDS:-300}
+  RUN_UPLOAD_MAX_BYTES: ${RUN_UPLOAD_MAX_BYTES:-20971520}
+  RUN_PENDING_HOURS: ${RUN_PENDING_HOURS:-24}
+
 services:
   migrate:
     build:
@@ -13,24 +38,13 @@ services:
     build:
       context: ./backend
     environment:
-      DATABASE_URL: postgresql+asyncpg://career:career@postgres:5432/career
+      <<: *processing-environment
       AUTO_CREATE_SCHEMA: "false"
       APP_ENV: ${APP_ENV:-development}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
-      QDRANT_URL: http://qdrant:6333
-      RETRIEVAL_BACKEND: ${RETRIEVAL_BACKEND:-auto}
-      RETRIEVAL_PROVIDER: ${RETRIEVAL_PROVIDER:-hash}
       CHECKPOINT_BACKEND: postgres
       CHECKPOINT_DATABASE_URL: postgresql://career:career@postgres:5432/career
       LANGGRAPH_STRICT_MSGPACK: "true"
-      AI_PROVIDER: ${AI_PROVIDER:-demo}
-      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
-      AI_API_KEY: ${AI_API_KEY:-}
-      AI_MODEL: ${AI_MODEL:-deepseek-flash}
-      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-60}
-      AI_INPUT_PRICE_PER_MILLION: ${AI_INPUT_PRICE_PER_MILLION:-0}
-      AI_OUTPUT_PRICE_PER_MILLION: ${AI_OUTPUT_PRICE_PER_MILLION:-0}
-      AUTH_MODE: ${AUTH_MODE:-disabled}
       AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:-careerlens-compose-development-only}
       AUTH_REGISTRATION_SECRET: ${AUTH_REGISTRATION_SECRET:-}
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
@@ -55,6 +69,26 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  worker:
+    build:
+      context: ./backend
+    command: ["python", "-m", "app.runtime.worker"]
+    environment:
+      <<: *processing-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 15s
+    mem_limit: ${RUN_WORKER_MEMORY:-2g}
+    restart: unless-stopped
+
   mcp:
     build:
       context: ./backend
@@ -77,6 +111,10 @@ services:
       AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
       AI_API_KEY: ${AI_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-deepseek-flash}
+      MODEL_ROLE_BINDINGS: ${MODEL_ROLE_BINDINGS:-}
+      RERANK_STAGES_ENABLED: ${RERANK_STAGES_ENABLED:-false}
+      RERANK_COARSE_TOP_K: ${RERANK_COARSE_TOP_K:-15}
+      RERANK_FINE_TOP_K: ${RERANK_FINE_TOP_K:-5}
       AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-60}
       AI_INPUT_PRICE_PER_MILLION: ${AI_INPUT_PRICE_PER_MILLION:-0}
       AI_OUTPUT_PRICE_PER_MILLION: ${AI_OUTPUT_PRICE_PER_MILLION:-0}

@@ -1,0 +1,19 @@
+name: 功能建议 / Feature request
+description: 说明要解决的用户问题和可验收的结果
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 用户场景 / User problem
+      description: 谁遇到了什么问题？目前如何解决？
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 期望结果与验收 / Outcome and acceptance criteria
+      description: 如何判断它可用？如果影响证据引用或隐私，请一起说明。
+    validations:
+      required: true

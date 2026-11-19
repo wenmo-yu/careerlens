@@ -18,6 +18,10 @@ jobs:
         id: meta
         run: |
           TAG="${GITHUB_REF_NAME}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected a vMAJOR.MINOR.PATCH release tag" >&2
+            exit 1
+          fi
           VERSION="${TAG#v}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -25,8 +29,9 @@ jobs:
       - name: Extract changelog section
         id: notes
         shell: bash
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          VERSION="${{ steps.meta.outputs.version }}"
           python3 - "$VERSION" <<'PY' > release-notes.md
           import re
           import sys
@@ -37,10 +42,7 @@ jobs:
           heading = re.compile(rf"^## {re.escape(version)}\b.*$", re.MULTILINE)
           match = heading.search(text)
           if not match:
-              print(f"Release {version}")
-              print()
-              print("_No changelog entry found for this version._")
-              raise SystemExit(0)
+              raise SystemExit(f"No changelog entry found for {version}")
           start = match.end()
           next_section = re.search(r"^## ", text[start:], re.MULTILINE)
           end = start + next_section.start() if next_section else len(text)
