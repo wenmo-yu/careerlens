@@ -4,6 +4,12 @@ All notable changes to CareerLens are documented here.
 
 ## Unreleased
 
+### Added
+
+- Durable background runs for document/media import, Wiki compilation, job analysis, and career reports. The workbench supports progress replay, approval, cancellation, and opening saved results.
+- A PostgreSQL-backed Worker with per-user serialization, idempotency, lease recovery, revision fencing, and structured specialist workflows; no Redis is required.
+- A transactional evidence index outbox retries Qdrant writes and deletes without blocking successful database ingestion.
+
 ## 0.3.0 - 2026-11-18
 
 Knowledge organization release: compiled, versioned Wiki pages with query-time
@@ -11,15 +17,20 @@ mode switching and configurable model roles.
 
 ### Added
 
-- Versioned Wiki pages compiled from evidence (`POST /api/v1/wiki/compile`), with an immutable revision history. User-visible content changes bump the version; bookkeeping writes do not. Pages can be rolled back as an ordinary edit (rollback is itself a new version), and machine revisions are pruned before human ones.
+- Versioned Wiki pages compiled from evidence (`POST /api/v1/wiki/compile`). Content and citation changes bump the version; link bookkeeping does not. Rollback restores content and citations as a new version, and machine revisions are pruned before human ones.
 - Short-handle citation mapping: the compiler presents `c000`-style handles to the model and resolves them back to stable evidence ids before persisting; unknown handles are dropped and inline markers stripped from page Markdown.
 - Table row-identity guard: rewrites that silently drop source table rows are rejected at the single page-write path, instead of being persisted unnoticed.
-- Query-time mode switching: `ChatRequest.mode = rag | wiki | hybrid` — build once (RAG index / Wiki page / both), then switch retrieval at query time with no rebuild. Hybrid fuses both sources and tags each hit so RAG blocks and Wiki pages can be expanded separately, preserving multi-source references.
+- Query-time mode switching: `ChatRequest.mode = rag | wiki | hybrid` — build once (RAG index / Wiki page / both), then switch without rebuilding. Hybrid interleaves ranked RAG and Wiki hits without comparing incompatible scores. The workbench can compile selected evidence, switch modes, and open cited Wiki pages.
 - Role-bound LLM providers via `MODEL_ROLE_BINDINGS` (answer/wiki/analysis/profile) and a two-stage cascading reranker (`RERANK_STAGES_ENABLED`, coarse top-15 → fine top-5) with lexical degradation on stage failure. Both are CareerLens's own designs, not copied from WorkBuddy or WeKnora.
 
 ### Fixed
 
 - Answer composition now handles Wiki hits (which carry `page_id`/`slug`) as well as RAG hits (`evidence_id`); previously a Wiki citation could raise a key error in the fallback answer and the model citation allow-set.
+- Wiki writes reject concurrent changes and unavailable evidence. Deleting a source removes affected Wiki pages or revisions and linked parsed blocks. Qdrant hits are checked against live database evidence.
+- Uploads now persist source locations and stable evidence references. User-scoped deduplication also holds for concurrent inserts; profile approvals index only after committing.
+- The cascade selects the fine top-k across the entire coarse shortlist. Both model-role and reranker settings are passed through Compose.
+- Updated Next.js and its ESLint config to 16.4.5 for security fixes.
+- Job scoring keeps priority labels local to each JD clause, makes missing required skills explicit, and schedules required work before optional gaps. Reports and Copilot no longer reuse outdated job analyses.
 
 ## 0.2.0 - 2026-11-18
 

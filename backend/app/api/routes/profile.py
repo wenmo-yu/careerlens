@@ -25,7 +25,7 @@ async def rebuild(
     user_id: str, session: Session, authorization: Authorization = None
 ) -> ProfileRead:
     await authorize_user(
-        session, user_id=user_id, authorization=authorization, required_scope="write"
+        session, user_id=user_id, authorization=authorization, required_scope="write", touch=False
     )
     try:
         items = await rebuild_profile(session, user_id)
@@ -86,6 +86,7 @@ async def resolve_proposal(
         user_id=proposal.user_id,
         authorization=authorization,
         required_scope="write",
+        touch=False,
     )
     try:
         return await decide_proposal(session, proposal_id=proposal_id, approve=payload.approve)

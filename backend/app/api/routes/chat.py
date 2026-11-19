@@ -12,6 +12,7 @@ from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
 from app.schemas.chat import ChatMessage, ChatRequest, ChatResponse
 from app.security import authorize_user
+from app.services.jobs import job_analysis_is_current
 from app.services.profile import read_profile
 
 router = APIRouter()
@@ -49,9 +50,9 @@ async def chat(
     profile = await read_profile(session, payload.user_id)
     if not profile:
         raise HTTPException(status_code=422, detail="Build the user profile before chatting")
-    evidence_result = await session.scalars(
+    evidence = list(await session.scalars(
         select(Evidence).where(Evidence.user_id == payload.user_id)
-    )
+    ))
     if payload.job_analysis_id:
         analysis = await session.get(JobAnalysis, payload.job_analysis_id)
         if analysis is None or analysis.user_id != payload.user_id:
@@ -63,6 +64,14 @@ async def chat(
             .order_by(JobAnalysis.created_at.desc(), JobAnalysis.id.desc())
             .limit(1)
         )
+    if analysis is not None and not job_analysis_is_current(
+        analysis, profile, {record.id for record in evidence}
+    ):
+        if payload.job_analysis_id:
+            raise HTTPException(
+                status_code=409, detail="Job analysis is out of date. Analyze the JD again."
+            )
+        analysis = None
     thread = None
     if payload.thread_id:
         thread = await session.scalar(
@@ -81,7 +90,7 @@ async def chat(
         user_id=payload.user_id,
         message=payload.message,
         profile=profile,
-        evidence=list(evidence_result),
+        evidence=evidence,
         job_analysis=analysis,
         thread_id=payload.thread_id,
         history=history,

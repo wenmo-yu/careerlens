@@ -29,16 +29,21 @@ def test_alembic_upgrade_creates_current_schema(tmp_path):
     assert {
         "access_tokens",
         "account_deletion_receipts",
+        "agent_runs",
         "audit_events",
         "career_reports",
         "conversation_threads",
         "conversation_messages",
         "evaluation_runs",
         "evidence",
+        "evidence_index_work",
         "job_analyses",
         "parsed_blocks",
         "profile_items",
         "profile_update_proposals",
+        "run_events",
+        "run_scopes",
+        "run_steps",
         "source_documents",
     } <= tables
     with engine.connect() as connection:

@@ -41,7 +41,7 @@ async def test_version_bumps_only_on_visible_change(wiki_db):
             session, page=page, base_version=1, edit_source="pipeline",
             values={"title": "Python", "content": "v1 body", "summary": None,
                     "page_type": "concept", "status": "published"},
-            source_refs=["doc-1"], chunk_refs=["ev-1"],
+            out_links=["related"],
         )
         assert page.version == 1
         assert await session.scalar(
@@ -80,6 +80,23 @@ async def test_stale_write_is_rejected(wiki_db):
                         "page_type": "concept", "status": "published"},
             )
         assert page.content == "v2"
+
+
+async def test_stale_write_is_rejected_across_sessions(wiki_db):
+    async with wiki_db() as writer, wiki_db() as old_reader:
+        page = await create_page(
+            writer, user_id="concurrent", slug="topic", title="Title", content="first"
+        )
+        await writer.commit()
+        stale_page = await get_page(old_reader, user_id="concurrent", slug="topic")
+        await update_page(
+            writer, page=page, base_version=1, edit_source="user", values={"content": "new"}
+        )
+        with pytest.raises(StaleWikiWriteError):
+            await update_page(
+                old_reader, page=stale_page, base_version=1, edit_source="pipeline",
+                values={"content": "stale"},
+            )
 
 
 async def test_revert_is_a_new_version_and_keeps_history(wiki_db):

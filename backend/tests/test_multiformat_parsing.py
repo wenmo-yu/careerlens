@@ -48,6 +48,12 @@ def test_extract_text_backward_compatible_for_pdf():
     assert "block_count" in meta
 
 
+def test_pdf_page_count_includes_blank_pages():
+    parsed = parse_document("cv.pdf", _build_pdf(["Python", "", "FastAPI"]))
+    assert parsed.metadata["page_count"] == 3
+    assert [block.page_no for block in parsed.blocks] == [1, 3]
+
+
 def test_docx_parse_extracts_tables_as_markdown():
     document = Document()
     document.add_paragraph("个人技能", style="Heading 1")

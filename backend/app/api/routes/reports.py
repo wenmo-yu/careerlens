@@ -7,7 +7,7 @@ from app.core.database import get_session
 from app.models.career_report import CareerReport
 from app.schemas.report import CareerReportGenerateRequest, CareerReportRead
 from app.security import authorize_user
-from app.services.reports import generate_report, list_reports
+from app.services.reports import StaleJobAnalysisError, generate_report, list_reports
 
 router = APIRouter()
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -27,6 +27,8 @@ async def create_report(
     )
     try:
         return await generate_report(session, **payload.model_dump())
+    except StaleJobAnalysisError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

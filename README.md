@@ -6,7 +6,10 @@ CareerLens 将用户授权的简历、自述和个人平台导出内容整理为
 
 **开源版本可在本机运行完整业务流程。** 基础 Docker 模式已用 PostgreSQL、Qdrant、API、MCP 和 Web 验证；默认使用确定性演示模型与轻量检索 Provider。DeepSeek/OpenAI-compatible、本地 Qwen、OCR/ASR 提供可选接入代码和配置，实际效果取决于所用模型与运行环境。
 
-[功能流程](#核心使用流程) · [系统架构](#系统架构) · [快速启动](#快速启动) · [验证结果](#已验证的范围) · [技术文档](docs/README.md) · [评测口径](eval/README.md)
+[功能流程](#核心使用流程) · [系统架构](#系统架构) · [快速启动](#快速启动) · [技术文档](docs/README.md) · [后台任务与恢复](docs/phase-3-runtime.md) · [评测口径](eval/README.md)
+
+[![Quality Gate](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml)
+· [贡献指南](CONTRIBUTING.md) · [项目路线图](ROADMAP.md) · [安全报告](SECURITY.md) · [MIT 许可](LICENSE)
 
 ## 界面预览
 
@@ -35,7 +38,7 @@ CareerLens 将用户授权的简历、自述和个人平台导出内容整理为
 
 交互工作台预填了**虚构**个人经历与 JD，可在无需 API Key 的默认配置下体验完整流程。真实个人资料仅应在获得授权并采取适当保护时导入。
 
-当前画像百分比是未校准的内部启发式可信程度；岗位百分比是按固定权重计算的规则匹配分；学习路线按缺口、现有等级和每周时间生成可核验的实践步骤。它们不是招聘成功概率或真实模型效果指标。配置真实生成模型时，JD 可使用带原文引文校验的结构化要求抽取，失败则回退规则；匹配分本身仍为规则计算。实现边界见[Agent、检索与模型](docs/agent-and-retrieval.md)。
+岗位百分比是按固定权重计算的规则匹配分，不是录用概率。学习路线优先处理必需项，用每周时间估算阶段长度；详情和算例见[评分与学习路线](docs/job-matching-and-planning.md)。配置真实生成模型后，模型只帮助抽取有原文依据的岗位要求，不直接打分。
 
 ## 为什么这样设计
 
@@ -134,7 +137,7 @@ docker compose up -d --build
 .\scripts\docker-smoke.ps1
 ```
 
-首次构建需要下载容器镜像和 Python/Node 依赖。`docker-smoke.ps1` 会创建一次虚构账号，走完 Evidence、画像、JD、报告、对话、检索、回归评测与 MCP 鉴权，然后删除测试账号数据；成功时输出 `status : passed`。脚本需要 PowerShell 7 或 Windows PowerShell 5.1。
+首次构建需要下载镜像和依赖。Compose 会启动独立 Worker；文档、媒体、Wiki、岗位分析和报告可以在工作台的「后台任务」查看。手动启动 API 时需另外运行 `python -m app.runtime.worker`。`docker-smoke.ps1` 使用一次性合成资料，验证主流程、后台任务、事件重放和 MCP 鉴权后清理账号；请使用 PowerShell 7。
 
 访问：
 

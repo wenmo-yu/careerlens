@@ -68,6 +68,10 @@ def _table_to_markdown(table: Table) -> str:
             cell.text.strip().replace("\n", " ").replace("|", "\\|") for cell in row.cells
         ]
         rows.append(cells)
+    return _render_table(rows)
+
+
+def _render_table(rows: list[list[str]]) -> str:
     if not rows:
         return ""
     width = max(len(row) for row in rows)
@@ -83,11 +87,11 @@ def _csv_blocks(content: bytes, delimiter: str) -> tuple[list[tuple[str, str, di
     rows = [row for row in rows if any(cell.strip() for cell in row)]
     if not rows:
         return [], {"row_count": 0}
-    width = max(len(row) for row in rows)
-    rows = [row + [""] * (width - len(row)) for row in rows]
-    lines = ["| " + " | ".join(rows[0]) + " |", "| " + " | ".join(["---"] * width) + " |"]
-    lines.extend("| " + " | ".join(row) + " |" for row in rows[1:])
-    return [("\n".join(lines), "table", {})], {"row_count": len(rows)}
+    escaped = [
+        [cell.strip().replace("\r", "").replace("\n", " ").replace("|", "\\|") for cell in row]
+        for row in rows
+    ]
+    return [(_render_table(escaped), "table", {})], {"row_count": len(rows)}
 
 
 def _page_is_scanned(page: pymupdf.Page) -> bool:
@@ -119,6 +123,7 @@ def parse_document(filename: str, content: bytes) -> ParsedDocument:
         blocks: list[ParsedBlock] = []
         scanned_pages: list[int] = []
         with pymupdf.open(stream=content, filetype="pdf") as document:
+            page_count = len(document)
             for index, page in enumerate(document):
                 page_no = index + 1
                 if _page_is_scanned(page):
@@ -156,7 +161,7 @@ def parse_document(filename: str, content: bytes) -> ParsedDocument:
             blocks=blocks,
             source_type="pdf",
             metadata={
-                "page_count": len(blocks),
+                "page_count": page_count,
                 "scanned_page_count": len(scanned_pages),
                 "scanned_pages": scanned_pages,
             },

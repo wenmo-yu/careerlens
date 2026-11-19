@@ -11,13 +11,15 @@ from the supplied blocks, so compilation works in local demos and tests.
 
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm import get_llm_provider
+from app.models.evidence import Evidence
 from app.models.wiki import WikiPage
 from app.services.wiki_pages import (
     StaleWikiWriteError,
-    create_page,
+    create_compiled_page,
     get_page,
     update_page,
 )
@@ -122,16 +124,43 @@ async def compile_page(
     edit_source: str = "pipeline",
     source_refs: list[str] | None = None,
     commit: bool = True,
+    verify_sources: bool = False,
 ) -> tuple[WikiPage, dict]:
     """Compile sources into a page and write it through the guarded write path.
 
     ``sources`` items: ``{"evidence_id": str, "content": str}``. ``base_version``
-    is the version the caller last saw; pass ``None`` when creating a new page
-    or for a deliberate human overwrite.
+    is the version the caller last saw; pass ``None`` only to create a new page.
     """
+    source_ids = list(dict.fromkeys(source["evidence_id"] for source in sources))
+    refs = source_ids if source_refs is None else source_refs
+    await check_page_version(session, user_id, slug, base_version)
+    values, chunk_refs, diagnostics = await prepare_page(title, sources)
+    page = await persist_page(
+        session, user_id=user_id, slug=slug, values=values, base_version=base_version,
+        edit_source=edit_source, source_refs=refs, chunk_refs=chunk_refs,
+        verify_sources=verify_sources,
+    )
+    if commit:
+        await session.commit()
+    return page, diagnostics
+
+
+async def check_page_version(
+    session: AsyncSession, user_id: str, slug: str, base_version: int | None
+) -> WikiPage | None:
+    existing = await get_page(session, user_id=user_id, slug=slug)
+    expected = existing.version if existing is not None else None
+    if base_version != expected:
+        raise StaleWikiWriteError(
+            f"page version changed: expected {base_version}, found {expected}"
+        )
+    return existing
+
+
+async def prepare_page(title: str, sources: list[dict[str, Any]]) -> tuple[dict, list[str], dict]:
     if not sources:
         raise WikiCompileError("no sources to compile")
-
+    source_ids = list(dict.fromkeys(source["evidence_id"] for source in sources))
     handles = HandleTable()
     for source in sources:
         handles.register(source["evidence_id"])
@@ -141,6 +170,11 @@ async def compile_page(
     # Resolve handle citations to stable ids; unknown handles are discarded.
     chunk_refs = resolve_citations(generated["citations"], handles)
     content = handles.strip_inline_citations(generated["content"])
+    if not content or not chunk_refs:
+        generated = _deterministic_page(title, sources, handles)
+        chunk_refs = source_ids
+        content = handles.strip_inline_citations(generated["content"])
+        diagnostics = {**diagnostics, "fallback": True}
 
     # Guard: no source table rows may silently vanish in the rewrite.
     try:
@@ -153,41 +187,49 @@ async def compile_page(
         raise WikiCompileError(str(exc)) from exc
 
     values = {
-        "title": generated["title"] or title,
+        "title": (generated["title"] or title)[:255],
         "content": content,
-        "summary": generated["summary"],
+        "summary": str(generated["summary"]) if generated.get("summary") is not None else None,
         "page_type": "concept",
         "status": "published",
     }
+    return values, chunk_refs, {**diagnostics, "unknown_handles": handles.unknown_handles}
 
-    existing = await get_page(session, user_id=user_id, slug=slug)
+
+async def persist_page(
+    session: AsyncSession, *, user_id: str, slug: str, values: dict, base_version: int | None,
+    edit_source: str, source_refs: list[str], chunk_refs: list[str], verify_sources: bool,
+) -> WikiPage:
+    existing = await check_page_version(session, user_id, slug, base_version)
+    if verify_sources:
+        live_ids = set(await session.scalars(
+            select(Evidence.id)
+            .where(Evidence.user_id == user_id, Evidence.id.in_(source_refs))
+            .order_by(Evidence.id)
+            .with_for_update()
+        ))
+        if live_ids != set(source_refs):
+            raise WikiCompileError("One or more evidence sources are unavailable")
+
     if existing is None:
-        page = await create_page(
+        return await create_compiled_page(
             session,
             user_id=user_id,
             slug=slug,
-            title=values["title"],
-            content=values["content"],
-            summary=values["summary"],
-            edit_source=edit_source,
-            source_refs=source_refs or [],
-            chunk_refs=chunk_refs,
+            values={
+                **values,
+                "last_edit_source": edit_source,
+                "source_refs": source_refs,
+                "chunk_refs": chunk_refs,
+            },
         )
-        if commit:
-            await session.commit()
-        return page, {**diagnostics, "unknown_handles": handles.unknown_handles}
-
-    try:
-        page = await update_page(
-            session,
-            page=existing,
-            base_version=base_version,
-            edit_source=edit_source,
-            values=values,
-            source_refs=source_refs if source_refs is not None else existing.source_refs,
-            chunk_refs=chunk_refs,
-            commit=commit,
-        )
-    except StaleWikiWriteError as exc:
-        raise WikiCompileError(str(exc)) from exc
-    return page, {**diagnostics, "unknown_handles": handles.unknown_handles}
+    return await update_page(
+        session,
+        page=existing,
+        base_version=base_version,
+        edit_source=edit_source,
+        values=values,
+        source_refs=source_refs,
+        chunk_refs=chunk_refs,
+        commit=False,
+    )

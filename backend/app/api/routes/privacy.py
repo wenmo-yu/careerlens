@@ -56,6 +56,7 @@ async def delete_account(
         user_id=user_id,
         authorization=authorization,
         required_scope="delete",
+        touch=False,
     )
     return AccountDeletionRead.model_validate(
         await delete_user_account(session, principal=principal)

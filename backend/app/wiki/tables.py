@@ -9,6 +9,7 @@ loss instead of silently persisting it.
 """
 
 import re
+from collections import Counter
 
 # A Markdown table row: a line starting and ending with a pipe.
 _ROW_LINE = re.compile(r"^\s*\|.*\|\s*$")
@@ -27,11 +28,15 @@ def table_row_identities(markdown: str) -> list[str]:
     block: list[str] = []
 
     def flush() -> None:
+        if len(block) < 2 or not _SEPARATOR.match(block[1]):
+            return
         # Skip header + separator (first two lines); only data rows remain.
         for line in block[2:]:
-            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-            if cells and cells[0]:
-                identities.append(cells[0])
+            cells = re.split(r"(?<!\\)\|", line.strip()[1:-1])
+            identity = cells[0].strip()
+            if not identity:
+                identity = " | ".join(cell.strip() for cell in cells)
+            identities.append(identity)
 
     for line in markdown.splitlines():
         if _ROW_LINE.match(line):
@@ -48,8 +53,8 @@ def row_identity_loss_ratio(original: str, rewritten: str) -> float:
     original_ids = table_row_identities(original)
     if not original_ids:
         return 0.0
-    rewritten_set = set(table_row_identities(rewritten))
-    missing = sum(1 for identity in original_ids if identity not in rewritten_set)
+    rewritten_counts = Counter(table_row_identities(rewritten))
+    missing = sum((Counter(original_ids) - rewritten_counts).values())
     return missing / len(original_ids)
 
 
@@ -71,11 +76,8 @@ def assert_rows_preserved(
     the original page content is used.
     """
     sources = source_tables if source_tables is not None else [original]
-    for source in sources:
-        if not table_row_identities(source):
-            continue
-        loss = row_identity_loss_ratio(source, rewritten)
-        if loss > max_loss_ratio:
-            raise DroppedTableRowsError(
-                f"rewrite dropped {loss:.0%} of table rows (limit {max_loss_ratio:.0%})"
-            )
+    loss = row_identity_loss_ratio("\n\n".join(sources), rewritten)
+    if loss > max_loss_ratio:
+        raise DroppedTableRowsError(
+            f"rewrite dropped {loss:.0%} of table rows (limit {max_loss_ratio:.0%})"
+        )

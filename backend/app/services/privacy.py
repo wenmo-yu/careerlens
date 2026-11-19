@@ -15,10 +15,14 @@ from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
 from app.models.parsed_block import ParsedBlock
 from app.models.profile import ProfileItem
+from app.models.profile_suppression import ProfileSuppression
 from app.models.profile_update import ProfileUpdateProposal
+from app.models.run import AgentRun, EvidenceIndexWork, RunEvent, RunScope, RunStep
 from app.models.source_document import SourceDocument
 from app.models.wiki import WikiPage, WikiRevision
-from app.retrieval.service import delete_evidence_index, delete_user_index
+from app.retrieval.service import delete_user_index
+from app.runtime.index_outbox import enqueue_index, try_index_now
+from app.runtime.store import DELETION, scope
 from app.security import Principal
 from app.services.audit import add_audit_event
 
@@ -35,6 +39,9 @@ async def export_user_data(
     session: AsyncSession, *, principal: Principal
 ) -> dict:
     user_id = principal.user_id
+    runs = list(await session.scalars(select(AgentRun).where(AgentRun.user_id == user_id)))
+    steps = list(await session.scalars(select(RunStep).where(RunStep.user_id == user_id)))
+    events = list(await session.scalars(select(RunEvent).where(RunEvent.user_id == user_id)))
     evidence = list(
         await session.scalars(select(Evidence).where(Evidence.user_id == user_id))
     )
@@ -260,11 +267,23 @@ async def export_user_data(
                     "status",
                     "edit_source",
                     "edited_at",
+                    "source_refs",
+                    "chunk_refs",
                     "created_at",
                 ),
             )
             for item in wiki_revisions
         ],
+        "runs": [_serialize(item, (
+            "id", "operation", "status", "confirmation", "attempts", "result",
+            "error_code", "created_at",
+        )) for item in runs],
+        "run_steps": [_serialize(item, (
+            "run_id", "name", "status", "attempt", "updated_at",
+        )) for item in steps],
+        "run_events": [_serialize(item, (
+            "run_id", "seq", "generation", "event_type", "data", "created_at",
+        )) for item in events],
     }
 
 
@@ -274,6 +293,13 @@ async def delete_evidence_record(
     record: Evidence,
     principal: Principal,
 ) -> dict:
+    await scope(session, record.user_id, bump=True)
+    await scope(session, record.user_id, DELETION, bump=True)
+    locked = await session.scalar(
+        select(Evidence.id).where(Evidence.id == record.id).with_for_update()
+    )
+    if locked is None:
+        return {"deleted": True, "evidence_id": record.id}
     profile_items = list(
         await session.scalars(select(ProfileItem).where(ProfileItem.user_id == record.user_id))
     )
@@ -301,11 +327,46 @@ async def delete_evidence_record(
     for report in reports:
         referenced = report.content.get("referenced_evidence_ids", [])
         catalog_ids = [item.get("id") for item in report.content.get("evidence_catalog", [])]
-        if evidence_id in referenced or evidence_id in catalog_ids:
+        matching_ids = {
+            item_id
+            for match in report.content.get("job_matching", [])
+            for item_id in match.get("evidence_ids", [])
+        }
+        if evidence_id in referenced or evidence_id in catalog_ids or evidence_id in matching_ids:
             report.is_stale = True
             stale_reports += 1
+    await session.execute(
+        delete(ParsedBlock).where(
+            ParsedBlock.user_id == record.user_id, ParsedBlock.evidence_id == evidence_id
+        )
+    )
+    pages = list(await session.scalars(
+        select(WikiPage).where(WikiPage.user_id == record.user_id).order_by(WikiPage.id)
+        .with_for_update()
+    ))
+    removed_pages = {
+        page.id
+        for page in pages
+        if evidence_id in page.source_refs or evidence_id in page.chunk_refs
+    }
+    for page in pages:
+        if page.id in removed_pages:
+            await session.delete(page)
+    revisions = await session.scalars(
+        select(WikiRevision).where(WikiRevision.user_id == record.user_id)
+    )
+    for revision in revisions:
+        if (
+            revision.page_id in removed_pages
+            or revision.source_refs is None
+            or revision.chunk_refs is None
+            or evidence_id in revision.source_refs
+            or evidence_id in revision.chunk_refs
+        ):
+            await session.delete(revision)
     await session.delete(record)
-    vector = await delete_evidence_index(evidence_id)
+    await enqueue_index(session, record.user_id, [evidence_id], action="delete")
+    vector = {"status": "skipped" if get_settings().retrieval_backend == "local" else "queued"}
     add_audit_event(
         session,
         principal=principal,
@@ -319,9 +380,11 @@ async def delete_evidence_record(
             "removed_profile_items": removed_profile_items,
             "vector_index": vector,
             "stale_reports": stale_reports,
+            "removed_wiki_pages": len(removed_pages),
         },
     )
     await session.commit()
+    await try_index_now(session, [evidence_id])
     return {
         "deleted": True,
         "evidence_id": evidence_id,
@@ -329,6 +392,7 @@ async def delete_evidence_record(
         "removed_profile_items": removed_profile_items,
         "vector_index": vector,
         "stale_reports": stale_reports,
+        "removed_wiki_pages": len(removed_pages),
     }
 
 
@@ -347,6 +411,12 @@ async def delete_user_account(
     session: AsyncSession, *, principal: Principal
 ) -> dict:
     user_id = principal.user_id
+    await scope(session, user_id)
+    await scope(session, user_id, DELETION)
+    await session.scalars(
+        select(AgentRun.id).where(AgentRun.user_id == user_id)
+        .order_by(AgentRun.id).with_for_update()
+    )
     thread_ids = list(
         await session.scalars(
             select(ConversationThread.thread_id).where(
@@ -370,15 +440,40 @@ async def delete_user_account(
         "wiki_revisions": await _count_user_records(session, WikiRevision, user_id),
         "audit_events": await _count_user_records(session, AuditEvent, user_id),
         "access_tokens": await _count_user_records(session, AccessToken, user_id),
+        "runs": await _count_user_records(session, AgentRun, user_id),
+        "run_steps": await _count_user_records(session, RunStep, user_id),
+        "run_events": await _count_user_records(session, RunEvent, user_id),
     }
 
-    vector_result = await delete_user_index(user_id)
+    pending_ids = set(await session.scalars(
+        select(EvidenceIndexWork.evidence_id).where(EvidenceIndexWork.user_id == user_id)
+    ))
+    pending_ids.update(await session.scalars(
+        select(Evidence.id).where(Evidence.user_id == user_id)
+    ))
+    if pending_ids:
+        sorted_ids = sorted(pending_ids)
+        for offset in range(0, len(sorted_ids), 500):
+            await enqueue_index(session, user_id, sorted_ids[offset:offset + 500], action="delete")
+    try:
+        vector_result = await delete_user_index(user_id)
+    except Exception:
+        vector_result = {"status": "fallback", "backend": "local"}
+    if vector_result["status"] != "fallback":
+        await session.execute(delete(EvidenceIndexWork).where(EvidenceIndexWork.user_id == user_id))
+    elif pending_ids:
+        vector_result = {**vector_result, "status": "queued"}
     checkpoint_result = await delete_career_threads(thread_ids)
     for model in (
+        RunEvent,
+        RunStep,
+        AgentRun,
+        RunScope,
         CareerReport,
         JobAnalysis,
         ProfileUpdateProposal,
         ProfileItem,
+        ProfileSuppression,
         Evidence,
         ParsedBlock,
         SourceDocument,

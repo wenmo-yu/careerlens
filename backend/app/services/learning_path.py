@@ -14,17 +14,14 @@ PRACTICE_TASKS: dict[str, tuple[str, str]] = {
 
 
 def build_learning_path(matches: list[dict], *, title: str, weekly_hours: int) -> list[dict]:
-    """Prioritize uncovered skills, then weakly supported required skills; cap scope."""
+    """Plan required skills before optional ones, prioritizing gaps within each group."""
+    if not 1 <= weekly_hours <= 80:
+        raise ValueError("weekly_hours must be between 1 and 80")
     candidates = [item for item in matches if item["status"] in {"gap", "partial"}]
     candidates.sort(
         key=lambda item: (
-            0
-            if item["status"] == "gap" and item["priority"] == "required"
-            else 1
-            if item["status"] == "gap"
-            else 2
-            if item["priority"] == "required"
-            else 3,
+            item["priority"] != "required",
+            item["status"] != "gap",
             item.get("level", 0),
             item["name"],
         )

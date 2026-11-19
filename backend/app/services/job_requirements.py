@@ -1,6 +1,7 @@
 """Extract JD requirements with a constrained model path and a reproducible fallback."""
 
 import json
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -8,6 +9,19 @@ from pydantic import BaseModel, Field
 from app.llm import LLMProvider, get_llm_provider
 from app.profile.alias_match import affirmed_alias_matches
 from app.profile.catalog import SKILL_ALIASES
+
+_CLAUSE_BREAK = re.compile(r"[，,。；;！？!?\r\n]+|\.(?=\s|$)")
+_PREFERRED = re.compile(r"加分|优先|\b(?:preferred|a plus|nice[ -]to[ -]have|optional)\b", re.I)
+_REQUIRED = re.compile(r"必需|必须|要求|\b(?:required|requirements|must(?: have)?)\b", re.I)
+_PRIORITY_HEADER = re.compile(
+    r"(?P<label>必需(?:技能|项)?|必备技能|岗位要求|要求|加分项?|优先"
+    r"|required(?: skills)?|requirements|must have|preferred(?: skills)?"
+    r"|nice[ -]to[ -]have|optional)\s*[:：]\s*(?P<body>.*)",
+    re.I,
+)
+_NEGATED_CLAUSE = re.compile(
+    r"^(?:不要求|无需|无须|不需要|不必|not required\b|no need\b)", re.I
+)
 
 
 class ExtractedRequirement(BaseModel):
@@ -34,20 +48,29 @@ def normalize_skill(name: str) -> str:
 
 
 def extract_requirements(jd_text: str) -> list[dict]:
-    lowered = jd_text.lower()
-    requirements: list[dict] = []
-    for skill, aliases in SKILL_ALIASES.items():
-        match = next(affirmed_alias_matches(jd_text, aliases), None)
-        if match is None:
+    requirements: dict[str, str] = {}
+    section_priority = "required"
+    for raw_clause in _CLAUSE_BREAK.split(jd_text):
+        clause = raw_clause.strip().lstrip("-*• ").strip()
+        if not clause or _NEGATED_CLAUSE.match(clause):
             continue
-        context = lowered[max(0, match.start() - 20) : match.end() + 20]
-        priority = (
-            "preferred"
-            if any(word in context for word in ("加分", "优先", "preferred", "plus"))
-            else "required"
-        )
-        requirements.append({"name": skill, "priority": priority})
-    return requirements
+        heading = _PRIORITY_HEADER.fullmatch(clause)
+        if heading:
+            section_priority = "preferred" if _PREFERRED.search(heading["label"]) else "required"
+            clause = heading["body"]
+            if not clause:
+                continue
+        preferred = bool(_PREFERRED.search(clause))
+        required = bool(_REQUIRED.search(clause))
+        priority = "required" if required else "preferred" if preferred else section_priority
+        for skill, aliases in SKILL_ALIASES.items():
+            if _mentions(clause, aliases) and requirements.get(skill) != "required":
+                requirements[skill] = priority
+    return [
+        {"name": skill, "priority": requirements[skill]}
+        for skill in SKILL_ALIASES
+        if skill in requirements
+    ]
 
 
 def _validated_model_requirement(item: ExtractedRequirement, jd_text: str) -> dict | None:
@@ -60,12 +83,12 @@ def _validated_model_requirement(item: ExtractedRequirement, jd_text: str) -> di
     if aliases:
         if not _mentions(quote, aliases):
             return None
-    elif name.casefold() not in quote:
+    elif not _mentions(quote, (name,)):
+        return None
+    if _NEGATED_CLAUSE.match(quote):
         return None
     priority = item.priority
-    if priority == "preferred" and not any(
-        word in quote for word in ("加分", "优先", "preferred", "plus", "nice to have")
-    ):
+    if priority == "preferred" and (not _PREFERRED.search(quote) or _REQUIRED.search(quote)):
         priority = "required"
     return {"name": name, "priority": priority}
 
@@ -99,12 +122,15 @@ async def extract_requirements_with_fallback(
         }
 
     merged = {item["name"].casefold(): item for item in rules}
+    catalog_matches = set(merged)
     accepted = 0
     for item in parsed.requirements:
         valid = _validated_model_requirement(item, jd_text)
         if valid is None:
             continue
-        merged[valid["name"].casefold()] = valid
+        key = valid["name"].casefold()
+        if key not in catalog_matches and merged.get(key, {}).get("priority") != "required":
+            merged[key] = valid
         accepted += 1
     return list(merged.values()), {
         "method": "model_plus_catalog" if accepted else "catalog_rules",

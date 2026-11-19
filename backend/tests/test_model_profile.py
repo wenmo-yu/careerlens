@@ -86,10 +86,8 @@ def test_cascading_reranker_orders_and_limits_shortlist():
     assert len(scores) == len(docs)
     # Fine pass received only top-3 coarse candidates (by length).
     assert set(fine.scored) == {"eeeeee", "bbbb", "ccc"}
-    # Fine pass reorders only its top-2 shortlist (by its own score: shorter
-    # ranks higher here), so bbbb outranks eeeeee; ccc never entered fine top-2.
-    top2 = sorted(range(len(docs)), key=lambda i: scores[i], reverse=True)[:2]
-    assert {docs[i] for i in top2} == {"bbbb", "eeeeee"}
+    top_two = sorted(range(len(docs)), key=lambda index: scores[index], reverse=True)[:2]
+    assert [docs[index] for index in top_two] == ["ccc", "bbbb"]
 
 
 def test_cascading_reranker_degrades_on_stage_failure():

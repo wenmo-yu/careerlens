@@ -4,9 +4,8 @@ A WikiPage is a user-visible, source-grounded topic page compiled from
 evidence. A WikiRevision is an immutable snapshot of the version that a write
 replaced — mirroring WeKnora's wiki_page.go semantics:
 
-- ``version`` bumps only when user-visible content changes (title/content/
-  summary/page_type/status); bookkeeping-only writes (source_refs, links) do
-  not bump it.
+- ``version`` bumps when content, status, or citations change; link bookkeeping
+  does not bump it.
 - ``edit_source`` on a revision records the author of the *superseded* version,
   not the writer performing the replacement.
 - Rollback is expressed as an ordinary edit that happens to carry old content,
@@ -77,6 +76,8 @@ class WikiRevision(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
+    source_refs: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    chunk_refs: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # Author of the version this snapshot replaces (WeKnora wiki_page.go:351).
     edit_source: Mapped[str] = mapped_column(String(20), nullable=False)
     edited_at: Mapped[datetime] = mapped_column(

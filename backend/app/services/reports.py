@@ -11,7 +11,12 @@ from app.models.career_report import CareerReport
 from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
 from app.services.citations import validated_citations
+from app.services.jobs import job_analysis_is_current
 from app.services.profile import read_profile
+
+
+class StaleJobAnalysisError(ValueError):
+    """The saved analysis no longer matches live profile evidence or the current rules."""
 
 
 def _safe_inline(value: str) -> str:
@@ -160,6 +165,22 @@ def _render_markdown(title: str, version: int, content: dict[str, Any]) -> str:
 async def generate_report(
     session: AsyncSession, *, user_id: str, job_analysis_id: str
 ) -> CareerReport:
+    context, content, title = await report_inputs(
+        session, user_id=user_id, job_analysis_id=job_analysis_id
+    )
+    narrative, diagnostics = await _generate_narrative(context, set(context["evidence_ids"]))
+    record = await persist_report(
+        session, user_id=user_id, job_analysis_id=job_analysis_id, title=title,
+        content=report_content(content, narrative), diagnostics=diagnostics,
+    )
+    await session.commit()
+    await session.refresh(record)
+    return record
+
+
+async def report_inputs(
+    session: AsyncSession, *, user_id: str, job_analysis_id: str
+) -> tuple[dict, dict, str]:
     analysis = await session.get(JobAnalysis, job_analysis_id)
     if analysis is None or analysis.user_id != user_id:
         raise ValueError("Job analysis not found for this user")
@@ -174,6 +195,8 @@ async def generate_report(
         )
     )
     evidence_by_id = {item.id: item for item in evidence_records}
+    if not job_analysis_is_current(analysis, profile, set(evidence_by_id)):
+        raise StaleJobAnalysisError("Job analysis is out of date. Analyze the JD again.")
     grouped: dict[str, list[str]] = defaultdict(list)
     for item in profile:
         grouped[item.category].append(item.name)
@@ -188,9 +211,8 @@ async def generate_report(
         "gaps": analysis.gaps,
         "learning_path": analysis.learning_path,
         "actions": actions,
-        "evidence_ids": referenced_ids,
+        "evidence_ids": sorted(evidence_by_id),
     }
-    narrative, diagnostics = await _generate_narrative(context, set(referenced_ids))
     content = {
         "profile": dict(grouped),
         "core_capabilities": [
@@ -199,7 +221,7 @@ async def generate_report(
                 "category": item.category,
                 "level": item.level,
                 "confidence": item.confidence,
-                "evidence_ids": item.evidence_ids,
+                "evidence_ids": sorted(set(item.evidence_ids) & evidence_by_id.keys()),
             }
             for item in profile
             if item.category in {"skill", "role"}
@@ -221,13 +243,25 @@ async def generate_report(
         "job_matching": analysis.matches,
         "skill_gaps": analysis.gaps,
         "learning_path": analysis.learning_path,
+        "claim_policy": analysis.report["claim_policy"],
+    }
+    return context, content, f"{analysis.title} · 个人职业报告"[:255]
+
+
+def report_content(content: dict, narrative: dict) -> dict:
+    return {
+        **content,
         "action_plan": narrative["action_suggestions"],
         "executive_summary": narrative["executive_summary"],
         "interview_pitch": narrative["interview_pitch"],
         "referenced_evidence_ids": narrative["cited_evidence_ids"],
-        "claim_policy": analysis.report["claim_policy"],
     }
-    title = f"{analysis.title} · 个人职业报告"
+
+
+async def persist_report(
+    session: AsyncSession, *, user_id: str, job_analysis_id: str, title: str,
+    content: dict, diagnostics: dict,
+) -> CareerReport:
     # Version allocation is a max(version)+1 read followed by an insert. Under
     # concurrent generation two requests can read the same max; the unique
     # (user_id, version) constraint turns that race into an IntegrityError,
@@ -240,7 +274,7 @@ async def generate_report(
         version = int(latest_version or 0) + 1
         record = CareerReport(
             user_id=user_id,
-            job_analysis_id=analysis.id,
+            job_analysis_id=job_analysis_id,
             version=version,
             title=title,
             content=content,
@@ -258,8 +292,6 @@ async def generate_report(
                 session.expunge(record)
             last_error = exc
             continue
-        await session.commit()
-        await session.refresh(record)
         return record
     raise RuntimeError("Could not allocate a unique report version") from last_error
 

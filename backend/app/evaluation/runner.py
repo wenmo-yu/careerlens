@@ -7,6 +7,7 @@ from app.profile.extractor import extract_profile_items
 from app.retrieval.hybrid import hybrid_search
 from app.schemas.evaluation import EvaluationDataset
 from app.services.job_requirements import extract_requirements
+from app.services.jobs import classify_match
 
 
 def _f1(predicted: set[Any], expected: set[Any]) -> tuple[float, float, float]:
@@ -69,16 +70,12 @@ def run_evaluation(dataset: EvaluationDataset) -> tuple[dict, dict]:
             retrieval_scores.append(len(retrieved & relevant) / len(relevant))
 
         requirements = extract_requirements(case.jd_text) if case.jd_text else []
-        profile_by_name = {item["name"]: item for item in extracted}
+        profile_by_name = {item["name"]: item for item in extracted if item["category"] == "skill"}
         predicted_labels = set()
         for requirement in requirements:
-            profile_item = profile_by_name.get(requirement["name"])
-            status = (
-                "gap"
-                if profile_item is None
-                else "strong"
-                if profile_item["level"] >= 3
-                else "partial"
+            profile_item = profile_by_name.get(requirement["name"], {})
+            status = classify_match(
+                profile_item.get("level", 0), profile_item.get("evidence_ids", [])
             )
             predicted_labels.add((requirement["name"], status))
         expected_labels = {(item.name, item.status) for item in case.expected_requirements}

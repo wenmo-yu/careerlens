@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.database import Base
-from app.services.wiki_pages import get_page
+from app.services.wiki_pages import StaleWikiWriteError, get_page
 from app.wiki.compiler import WikiCompileError, compile_page, resolve_citations
 from app.wiki.handles import HandleTable
 from app.wiki.tables import (
@@ -91,7 +91,7 @@ async def test_compile_rejects_stale_base_version(compile_db):
         page, _ = await compile_page(
             session, user_id="u", slug="s", title="t", sources=sources, base_version=None
         )
-        with pytest.raises(WikiCompileError):
+        with pytest.raises(StaleWikiWriteError):
             await compile_page(
                 session, user_id="u", slug="s", title="t2", sources=sources,
                 base_version=99,
@@ -148,3 +148,8 @@ async def test_compile_rejects_dropped_table_rows(compile_db, monkeypatch):
     async with compile_db() as session:
         with pytest.raises(WikiCompileError, match="table rows"):
             await compile_page(session, user_id="u", slug="s", title="t", sources=sources)
+
+
+def test_table_guard_counts_repeated_row_keys():
+    original = "| Key | Value |\n| --- | --- |\n| A | first |\n| A | second |"
+    assert row_identity_loss_ratio(original, original.rsplit("\n", 1)[0]) == 0.5

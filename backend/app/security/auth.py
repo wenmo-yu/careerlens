@@ -65,6 +65,7 @@ async def authorize_user(
     user_id: str,
     authorization: str | None,
     required_scope: str,
+    touch: bool = True,
 ) -> Principal:
     settings = get_settings()
     mode = settings.auth_mode.lower()
@@ -80,8 +81,9 @@ async def authorize_user(
         raise HTTPException(status_code=403, detail="Token cannot access another user")
     if required_scope not in record.scopes and "manage" not in record.scopes:
         raise HTTPException(status_code=403, detail=f"Missing required scope: {required_scope}")
-    record.last_used_at = datetime.now(UTC)
-    await session.flush()
+    if touch:
+        record.last_used_at = datetime.now(UTC)
+        await session.flush()
     return Principal(user_id=user_id, token_id=record.id, scopes=tuple(record.scopes))
 
 

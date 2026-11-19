@@ -28,5 +28,5 @@ class Evidence(Base):
     __table_args__ = (
         Index("ix_evidence_source", "user_id", "source_type"),
         Index("ix_evidence_user_created", "user_id", "created_at"),
-        Index("ix_evidence_user_hash", "user_id", "content_hash"),
+        Index("ix_evidence_user_hash", "user_id", "content_hash", unique=True),
     )

@@ -2,13 +2,20 @@
 
 ## Local checks
 
-Use Python 3.11+ and Node.js 22+. Install and verify the project before opening a pull request:
+Use Python 3.11+ and Node.js 22+. Read the [roadmap](ROADMAP.md) for priorities and file
+bugs or features using the repository's Issue forms. Use English or Chinese. For larger changes,
+agree on an issue's scope and acceptance criteria before submitting a PR.
+
+Install and verify the project before opening a pull request:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".\backend[dev]"
-.\.venv\Scripts\python.exe -m ruff check backend
-.\.venv\Scripts\python.exe -m pytest backend/tests -q
+Push-Location backend
+..\.venv\Scripts\python.exe -m ruff check .
+..\.venv\Scripts\python.exe -m pytest -q
+..\.venv\Scripts\python.exe -m app.evaluation.cli --dataset app/evaluation/dev_benchmark_v3.json --baseline ../eval/baselines/careerlens-dev-benchmark-v3.json
+Pop-Location
 
 Set-Location frontend
 corepack enable
@@ -29,6 +36,7 @@ docker compose up -d --build
 Use synthetic or explicitly authorized, anonymized data in tests and examples. Never commit personal exports, resumes, cookies, API keys, access tokens, `.env` files, local databases, or model caches.
 
 Keep pull requests focused and include tests for behavior changes. Database model changes require an Alembic revision.
+Follow the [code of conduct](CODE_OF_CONDUCT.md) and use the [security policy](SECURITY.md) for vulnerabilities.
 
 ## Branching and pull requests
 
@@ -40,6 +48,12 @@ We use a trunk-based flow with short-lived branches and pull requests:
 4. Merge with **Squash and merge** so `main` stays linear and readable. Delete the branch after merge — release tags, not long-lived branches, are how we preserve history.
 
 > Direct pushes to `main` are reserved for release bookkeeping (version bumps, tag preparation). Feature work goes through PRs.
+
+Maintainers: configure a ruleset on `main` requiring a pull request and the **backend-quality**,
+**frontend-quality**, and **docker-smoke** checks. Leave required approvals at zero if there is
+only one maintainer, but do not merge red or missing checks. Block force pushes and branch
+deletion. Use **Automatically delete head branches** after merging. Include migration notes and
+any tests that still require a live model in the PR.
 
 ## Versioning and releases
 
@@ -55,6 +69,10 @@ Each iteration milestone is published as an annotated tag:
 git tag -a v0.3.0 -m "CareerLens 0.3.0"
 git push origin v0.3.0
 ```
+
+Create the tag from the validated remote `main` commit. If a local tag with that name already
+exists, verify that it points at the intended commit before pushing; never overwrite a remote
+release tag to repair a stale local one.
 
 Pushing a `v*` tag triggers the **Release** workflow, which extracts the matching version section from `CHANGELOG.md` and creates a GitHub Release automatically. Before tagging:
 

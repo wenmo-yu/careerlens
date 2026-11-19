@@ -12,6 +12,11 @@ services:
       AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:?Set AUTH_TOKEN_PEPPER in .env}
       AUTH_REGISTRATION_SECRET: ${AUTH_REGISTRATION_SECRET:?Set AUTH_REGISTRATION_SECRET in .env}
 
+  worker:
+    environment:
+      DATABASE_URL: postgresql+asyncpg://career:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/career
+      AUTH_MODE: required
+
   mcp:
     environment:
       DATABASE_URL: postgresql+asyncpg://career:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/career
