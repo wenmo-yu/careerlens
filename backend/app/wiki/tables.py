@@ -14,15 +14,30 @@ from collections import Counter
 # A Markdown table row: a line starting and ending with a pipe.
 _ROW_LINE = re.compile(r"^\s*\|.*\|\s*$")
 _SEPARATOR = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
+_EMPHASIS = str.maketrans("", "", "*_`")
+
+
+def _normalize_cell(cell: str) -> str:
+    """Normalise a cell so cosmetic edits read as the same identity.
+
+    Port of WeKnora's ``normalizeWikiWriteCell`` (wiki_write_row_guard.go:53):
+    full-width spaces become ordinary spaces, emphasis/code markers are
+    dropped, whitespace runs collapse, and the result is lower-cased. Formatting
+    and case are exactly what a model changes freely while re-emitting a page,
+    so neither may register as a lost row.
+    """
+    cell = cell.replace("\u3000", " ").translate(_EMPHASIS)
+    return " ".join(cell.split()).casefold()
 
 
 def table_row_identities(markdown: str) -> list[str]:
-    """Extract ordered row identities (first cell of each *data* row).
+    """Extract ordered row identities (normalized first non-empty cell).
 
     Markdown tables are a header row, a separator row, then data rows. We walk
     consecutive pipe-line blocks and skip the first two lines of each block so
-    the header is never mistaken for data; the identity is the leading cell,
-    stable across cosmetic reformatting of other columns.
+    the header is never mistaken for data. Per WeKnora, the identity is the
+    first *non-empty* cell after normalization, so a model inserting a leading
+    blank column does not erase every row's identity.
     """
     identities: list[str] = []
     block: list[str] = []
@@ -33,10 +48,14 @@ def table_row_identities(markdown: str) -> list[str]:
         # Skip header + separator (first two lines); only data rows remain.
         for line in block[2:]:
             cells = re.split(r"(?<!\\)\|", line.strip()[1:-1])
-            identity = cells[0].strip()
-            if not identity:
-                identity = " | ".join(cell.strip() for cell in cells)
-            identities.append(identity)
+            identity = ""
+            for cell in cells:
+                normalized = _normalize_cell(cell)
+                if normalized:
+                    identity = normalized
+                    break
+            if identity:
+                identities.append(identity)
 
     for line in markdown.splitlines():
         if _ROW_LINE.match(line):
@@ -49,7 +68,14 @@ def table_row_identities(markdown: str) -> list[str]:
 
 
 def row_identity_loss_ratio(original: str, rewritten: str) -> float:
-    """Fraction of original table-row identities missing from the rewrite."""
+    """Fraction of original table-row identities missing from the rewrite.
+
+    Cell identities are normalized by ``_normalize_cell`` (WeKnora's rule), but
+    the ratio intentionally uses a multiset denominator rather than WeKnora's
+    distinct-identity count: dropping one of two identical rows is a real data
+    loss and must not be diluted by the duplicate. This keeps the guard a
+    stricter safety net than the upstream variant.
+    """
     original_ids = table_row_identities(original)
     if not original_ids:
         return 0.0

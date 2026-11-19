@@ -11,6 +11,7 @@ from app.models.career_report import CareerReport
 from app.models.profile import ProfileItem
 from app.models.profile_suppression import ProfileSuppression
 from app.models.profile_update import ProfileUpdateProposal
+from app.profile.catalog import ROLE_ALIASES, SKILL_ALIASES
 from app.runtime.index_outbox import try_index_now
 from app.runtime.store import scope
 from app.services.evidence import create_evidence_chunks
@@ -28,6 +29,23 @@ class ProposedChanges(BaseModel):
     changes: list[ProposedChange] = Field(default_factory=list, max_length=10)
 
 
+def _canonical_name(raw: str) -> str:
+    """Map a free-text mention back to a catalog key when possible.
+
+    The extractor names profile items by catalog key (e.g. "AI Agent 开发"),
+    while a correction message carries the user's own wording (e.g.
+    "AI Agent 应用开发工作"). Removing by the raw wording never matched those
+    items. Resolve known aliases so a remove actually deletes the item and
+    tombstones the same key that rebuild will re-extract.
+    """
+    text = raw.strip().casefold()
+    for canonical, aliases in {**ROLE_ALIASES, **SKILL_ALIASES}.items():
+        candidates = (canonical, *aliases)
+        if any(alias.casefold() in text or text in alias.casefold() for alias in candidates):
+            return canonical
+    return raw.strip()
+
+
 def _deterministic_changes(message: str) -> list[dict]:
     changes: list[dict] = []
     remove_match = re.search(
@@ -38,13 +56,19 @@ def _deterministic_changes(message: str) -> list[dict]:
             {
                 "action": "remove",
                 "category": "target_role",
-                "name": remove_match.group(1).strip(),
+                "name": _canonical_name(remove_match.group(1)),
                 "level": 1,
                 "confidence": 1.0,
             }
         )
+    # "我不再想做 X" contains the upsert trigger "想做 X". If a removal already
+    # claimed this span, do not also emit an upsert for the same wording —
+    # that would delete and re-add the item in one approval.
+    remainder = message
+    if remove_match:
+        remainder = message.replace(remove_match.group(0), " ")
     target_match = re.search(
-        r"(?:更希望|想做|目标是|转向)(?:做|从事)?\s*([^，。；;]+)", message
+        r"(?:更希望|想做|目标是|转向)(?:做|从事)?\s*([^，。；;]+)", remainder
     )
     if target_match:
         changes.append(
