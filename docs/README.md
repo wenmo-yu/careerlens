@@ -13,8 +13,12 @@
 | [Agent、检索与模型](agent-and-retrieval.md) | LangGraph 工作流、混合检索、模型切换与降级 |
 | [接入、MCP 与安全](integrations-and-security.md) | 数据导入、MCP 接口、用户隔离与权限 |
 | [评测与运维](evaluation-and-operations.md) | 评测口径、本地验收和故障定位 |
+| [API 与配置参考](api-and-configuration.md) | 完整接口清单、非 Docker 启动、迁移、真实模型与生产配置 |
 
-建议从[项目首页](../README.md)了解功能和启动方法，再按“[架构](architecture.md) → [数据模型](data-and-evidence.md) → [Agent 与检索](agent-and-retrieval.md) → [评测](evaluation-and-operations.md)”阅读实现细节；集成外部客户端时参阅[接入、MCP 与安全](integrations-and-security.md)。
+- **想快速上手**：先看[项目首页](../README.md)的 Quick Start。
+- **想理解设计**：按“[架构](architecture.md) → [数据模型](data-and-evidence.md) → [Agent 与检索](agent-and-retrieval.md) → [评测](evaluation-and-operations.md)”阅读。
+- **想动手复刻**：走[实现教程](../tutorials/README.md)，按依赖顺序逐层实现。
+- **集成外部客户端**：参阅[接入、MCP 与安全](integrations-and-security.md)；完整接口见[API 与配置](api-and-configuration.md)。
 
 ## 运行与验证范围
 
