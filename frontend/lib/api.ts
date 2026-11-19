@@ -1,3 +1,5 @@
+import { readRunEvents } from "./run-events";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 export type ProfileItem = {
@@ -51,7 +53,13 @@ export type JobAnalysis = {
     goal: string;
     deliverables: string[];
   }>;
-  report: { summary: string; recommendation: string; claim_policy: string };
+  report: {
+    summary: string;
+    recommendation: string;
+    claim_policy: string;
+    required_gap_count?: number;
+    weekly_hours?: number;
+  };
 };
 
 export type CareerReport = {
@@ -85,23 +93,46 @@ export type CareerReport = {
   created_at: string;
 };
 
+export type KnowledgeMode = "rag" | "wiki" | "hybrid";
+
+export type WikiPage = {
+  id: string;
+  slug: string;
+  title: string;
+  content: string;
+  version: number;
+  chunk_refs: string[];
+};
+
+type EvidenceItem = { id: string; source_name: string; content: string };
+
 export type ChatResult = {
   thread_id: string;
   intent: string;
   answer: string;
   evidence: Array<{
+    source_kind?: "rag";
     evidence_id: string;
     score: number;
     source_name: string;
     content: string;
     rerank_score: number;
     retrieval_method: string;
+  } | {
+    source_kind: "wiki";
+    page_id: string;
+    slug: string;
+    title: string;
+    content: string;
+    chunk_refs: string[];
   }>;
   retrieval: {
-    backend: string;
-    fusion: string;
-    reranker: string;
-    fallback: boolean;
+    mode?: KnowledgeMode;
+    backend?: string;
+    fusion?: string;
+    knowledge_fusion?: string;
+    reranker?: string;
+    fallback?: boolean;
     reason?: string;
   };
   model: { provider: string; model: string; fallback: boolean; reason?: string };
@@ -185,6 +216,107 @@ function authorizationHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+export type RunRequest =
+  | { operation: "job_analysis"; input: { title: string; jd_text: string; weekly_hours: number } }
+  | { operation: "report"; input: { job_analysis_id: string } }
+  | { operation: "wiki_compile"; input: {
+      slug: string; title: string; evidence_ids: string[]; base_version?: number;
+    }; requires_confirmation?: boolean };
+
+export type RunStatus = "queued" | "running" | "waiting_confirmation" |
+  "succeeded" | "failed" | "cancelled" | "interrupted";
+
+export type BackgroundRun = {
+  id: string;
+  user_id: string;
+  operation: RunRequest["operation"] | "file_import" | "media_import";
+  status: RunStatus;
+  confirmation: string;
+  attempts: number;
+  event_seq: number;
+  error_code: string | null;
+  result: null | {
+    job_analysis_id?: string;
+    report_id?: string;
+    wiki_slug?: string;
+    count?: number;
+    parse_status?: string;
+    version?: number;
+  };
+  created_at: string;
+};
+
+export type RunEvent = {
+  run_id: string;
+  seq: number;
+  generation: number;
+  event_type: string;
+  data: { step?: string; reason?: string; attempt?: number; citation_count?: number };
+};
+
+export const terminalRun = (status: RunStatus) =>
+  status === "succeeded" || status === "failed" || status === "cancelled";
+
+const runQuery = (userId: string) => new URLSearchParams({ user_id: userId }).toString();
+const runPath = (userId: string, id: string, suffix = "") =>
+  `/runs/${encodeURIComponent(id)}${suffix}?${runQuery(userId)}`;
+
+export function createRun(userId: string, payload: RunRequest, key: string) {
+  return request<BackgroundRun>("/runs", {
+    method: "POST",
+    headers: { "Idempotency-Key": key },
+    body: JSON.stringify({ user_id: userId, ...payload }),
+  });
+}
+
+export function createUploadRun(userId: string, file: File, media: boolean, key: string) {
+  const form = new FormData();
+  form.append("user_id", userId);
+  form.append("upload", file);
+  form.append("media", String(media));
+  return upload<BackgroundRun>("/runs/uploads", form, { "Idempotency-Key": key });
+}
+
+export function listRuns(userId: string, signal?: AbortSignal) {
+  return request<BackgroundRun[]>(`/runs?${runQuery(userId)}`, { signal });
+}
+
+export function getRun(userId: string, id: string, signal?: AbortSignal) {
+  return request<BackgroundRun>(runPath(userId, id), { signal });
+}
+
+export function cancelRun(userId: string, id: string) {
+  return request<BackgroundRun>(runPath(userId, id, "/cancel"), { method: "POST" });
+}
+
+export function decideRun(userId: string, id: string, approve: boolean) {
+  return request<BackgroundRun>(runPath(userId, id, "/decision"), {
+    method: "POST", body: JSON.stringify({ approve }),
+  });
+}
+
+export async function streamRun(
+  userId: string, id: string, after: number,
+  signal: AbortSignal, onEvent: (event: RunEvent) => void,
+) {
+  const response = await fetch(`${API_URL}${runPath(userId, id, "/stream")}`, {
+    headers: {
+      ...authorizationHeaders(), Accept: "text/event-stream", "Last-Event-ID": String(after),
+    },
+    signal, cache: "no-store",
+  });
+  if (!response.ok || !response.body) throw new Error(`无法订阅任务进度 (${response.status})`);
+  await readRunEvents(response.body, (event) => onEvent(event as RunEvent));
+}
+
+export function getJobAnalysis(id: string) {
+  return request<JobAnalysis>(`/jobs/${encodeURIComponent(id)}`);
+}
+
+export function getCareerReport(id: string) {
+  return request<CareerReport>(`/reports/${encodeURIComponent(id)}`);
+}
+
 export function setAccessToken(token: string) {
   window.sessionStorage.setItem("careerlens_access_token", token);
 }
@@ -205,10 +337,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
-async function upload<T>(path: string, form: FormData): Promise<T> {
+async function upload<T>(path: string, form: FormData, headers?: Record<string, string>): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     method: "POST",
-    headers: authorizationHeaders(),
+    headers: { ...authorizationHeaders(), ...headers },
     body: form,
   });
   const payload = await response.json();
@@ -323,7 +455,27 @@ export function downloadCareerReport(reportId: string) {
   return requestText(`/reports/${encodeURIComponent(reportId)}/markdown`);
 }
 
-export function sendChat(userId: string, message: string, threadId?: string, jobAnalysisId?: string) {
+export function listWikiEvidence(userId: string, offset = 0) {
+  const query = new URLSearchParams({ user_id: userId, limit: "50", offset: String(offset) });
+  return request<{ items: EvidenceItem[] }>(`/evidence?${query}`);
+}
+
+export function getWikiPage(userId: string, slug: string) {
+  const query = new URLSearchParams({ user_id: userId });
+  return request<WikiPage>(`/wiki/${encodeURIComponent(slug)}?${query}`);
+}
+
+export function compileWikiPage(userId: string, slug: string, title: string, evidenceIds: string[]) {
+  return request<{ page: WikiPage }>("/wiki/compile", {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, slug, title, evidence_ids: evidenceIds }),
+  });
+}
+
+export function sendChat(
+  userId: string, message: string, threadId?: string, jobAnalysisId?: string,
+  mode: KnowledgeMode = "rag",
+) {
   return request<ChatResult>("/chat", {
     method: "POST",
     body: JSON.stringify({
@@ -331,6 +483,7 @@ export function sendChat(userId: string, message: string, threadId?: string, job
       message,
       thread_id: threadId ?? null,
       job_analysis_id: jobAnalysisId ?? null,
+      mode,
     }),
   });
 }

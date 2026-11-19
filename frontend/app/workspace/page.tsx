@@ -1,17 +1,24 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { RunCenter } from "@/components/run-center";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { BrowserCaptureDraft, parseBrowserCaptureDraft } from "@/lib/browser-capture";
 import {
-  analyzeJob,
+  BackgroundRun,
   CareerReport,
   ChatResult,
+  createRun,
+  createUploadRun,
+  getCareerReport,
+  getJobAnalysis,
+  getWikiPage,
+  KnowledgeMode,
+  listWikiEvidence,
+  WikiPage,
   importEvidence,
   importBilibiliExport,
   importBrowserCapture,
-  importFile,
-  importMedia,
   importWeiboExport,
   JobAnalysis,
   Profile,
@@ -25,7 +32,6 @@ import {
   deleteEvidence,
   downloadCareerReport,
   exportUserData,
-  generateCareerReport,
   getAuditLog,
   getProfile,
   getEvaluationRuns,
@@ -54,6 +60,16 @@ export default function Home() {
   const [report, setReport] = useState<CareerReport | null>(null);
   const [chatInput, setChatInput] = useState("为什么认为我适合 Agent 开发？");
   const [chat, setChat] = useState<ChatResult | null>(null);
+  const [knowledgeMode, setKnowledgeMode] = useState<KnowledgeMode>("rag");
+  const [wikiSources, setWikiSources] = useState<{
+    userId: string;
+    items: Awaited<ReturnType<typeof listWikiEvidence>>["items"];
+    offset: number;
+  } | null>(null);
+  const [wikiSelection, setWikiSelection] = useState<string[]>([]);
+  const [wikiTitle, setWikiTitle] = useState("");
+  const [confirmWiki, setConfirmWiki] = useState(false);
+  const [openedWiki, setOpenedWiki] = useState<{ userId: string; page: WikiPage } | null>(null);
   const [memoryInput, setMemoryInput] = useState("我不再考虑纯 CV 岗位，更希望做 AI Agent 应用开发。");
   const [proposal, setProposal] = useState<ProfileProposal | null>(null);
   const [evaluation, setEvaluation] = useState<EvaluationRun | null>(null);
@@ -67,6 +83,10 @@ export default function Home() {
   const [notice, setNotice] = useState<Notice>(null);
   const [browserDraft, setBrowserDraft] = useState<{ capture: BrowserCaptureDraft; userId: string } | null>(null);
   const [selectedCaptureItems, setSelectedCaptureItems] = useState<number[]>([]);
+  const [latestRun, setLatestRun] = useState<BackgroundRun | null>(null);
+  const [tasksVersion, setTasksVersion] = useState(0);
+  const activeAction = useRef(false);
+  const submittedKeys = useRef(new Map<string, string>());
 
   const skills = useMemo(
     () => profile?.items.filter((item) => item.category === "skill") ?? [],
@@ -83,6 +103,8 @@ export default function Home() {
   }, []);
 
   async function run(label: string, action: () => Promise<void>) {
+    if (activeAction.current) return;
+    activeAction.current = true;
     setBusy(label);
     setNotice(null);
     try {
@@ -90,8 +112,39 @@ export default function Home() {
     } catch (error) {
       setNotice({ kind: "error", text: error instanceof Error ? error.message : "操作失败" });
     } finally {
+      activeAction.current = false;
       setBusy(null);
     }
+  }
+
+  async function submitTask(identity: string, submit: (key: string) => Promise<BackgroundRun>) {
+    const key = submittedKeys.current.get(identity) ?? crypto.randomUUID();
+    submittedKeys.current.set(identity, key);
+    const task = await submit(key);
+    submittedKeys.current.delete(identity);
+    setLatestRun(task);
+    setNotice({ kind: "ok", text: task.status === "waiting_confirmation"
+      ? "任务已创建，在后台任务中确认后执行。" : "已提交，可在后台任务中查看进度与结果。" });
+    document.getElementById("runs")?.scrollIntoView({ block: "start" });
+  }
+
+  function openRunResult(task: BackgroundRun) {
+    if (task.user_id !== userId || !task.result) return;
+    const result = task.result;
+    void run("run-result", async () => {
+      if (result.job_analysis_id) {
+        setAnalysis(await getJobAnalysis(result.job_analysis_id));
+        setReport(null);
+        document.getElementById("matching")?.scrollIntoView();
+      } else if (result.report_id) {
+        setReport(await getCareerReport(result.report_id));
+        document.getElementById("report")?.scrollIntoView();
+      } else if (result.wiki_slug) {
+        setOpenedWiki({ userId, page: await getWikiPage(userId, result.wiki_slug) });
+        setKnowledgeMode("hybrid");
+        document.getElementById("copilot")?.scrollIntoView();
+      }
+    });
   }
 
   function handleBuildProfile(event: FormEvent) {
@@ -110,28 +163,55 @@ export default function Home() {
   function handleJob(event: FormEvent) {
     event.preventDefault();
     void run("job", async () => {
-      const result = await analyzeJob(userId, jobTitle, jdText, weeklyHours);
-      setAnalysis(result);
-      setReport(null);
-      setNotice({ kind: "ok", text: "JD 已完成逐项证据匹配" });
+      const input = { title: jobTitle, jd_text: jdText, weekly_hours: weeklyHours };
+      await submitTask(JSON.stringify([userId, "job", input]), (key) =>
+        createRun(userId, { operation: "job_analysis", input }, key));
     });
   }
 
   function handleChat(event: FormEvent) {
     event.preventDefault();
     void run("chat", async () => {
-      const result = await sendChat(userId, chatInput, chat?.thread_id, analysis?.id);
+      const result = await sendChat(userId, chatInput, chat?.thread_id, analysis?.id, knowledgeMode);
       setChat(result);
       setTelemetry(await getObservabilitySummary());
+    });
+  }
+
+  function loadWikiSources(offset = 0, resetSelection = false) {
+    void run("wiki-sources", async () => {
+      const { items } = await listWikiEvidence(userId, offset);
+      setWikiSources({ userId, items, offset });
+      if (resetSelection || wikiSources?.userId !== userId) setWikiSelection([]);
+    });
+  }
+
+  function handleWikiCompile(event: FormEvent) {
+    event.preventDefault();
+    if (wikiSources?.userId !== userId || !wikiSelection.length || !wikiTitle.trim()) return;
+    void run("wiki-compile", async () => {
+      const title = wikiTitle.trim();
+      const ids = [...wikiSelection].sort();
+      await submitTask(JSON.stringify([userId, "wiki", title, ids, confirmWiki]), (key) =>
+        createRun(userId, {
+          operation: "wiki_compile", requires_confirmation: confirmWiki,
+          input: { slug: `topic-${key}`, title, evidence_ids: ids },
+        }, key));
+    });
+  }
+
+  function openWiki(slug: string) {
+    void run("wiki-page", async () => {
+      const page = await getWikiPage(userId, slug);
+      setOpenedWiki({ userId, page });
     });
   }
 
   function handleReport() {
     if (!analysis) return;
     void run("report", async () => {
-      const result = await generateCareerReport(userId, analysis.id);
-      setReport(result);
-      setNotice({ kind: "ok", text: `职业报告 v${result.version} 已生成并保存。` });
+      await submitTask(JSON.stringify([userId, "report", analysis.id]), (key) =>
+        createRun(userId, { operation: "report", input: { job_analysis_id: analysis.id } }, key));
     });
   }
 
@@ -164,7 +244,11 @@ export default function Home() {
     void run("decision", async () => {
       const result = await decideProfileUpdate(proposal.id, approve);
       setProposal(result);
-      if (approve) setProfile(await getProfile(userId));
+      if (approve) {
+        setProfile(await getProfile(userId));
+        setAnalysis(null);
+        setReport(null);
+      }
       setNotice({ kind: "ok", text: approve ? "已确认并写入长期画像。" : "已拒绝，本次没有修改画像。" });
     });
   }
@@ -230,24 +314,19 @@ export default function Home() {
   }
 
   function handleMedia(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    void run("media", async () => {
-      const result = await importMedia(userId, file);
-      setNotice({ kind: "ok", text: `媒体解析完成，生成 ${result.count} 条 Evidence。` });
-    });
-    event.target.value = "";
+    handleUpload(event, true);
   }
 
   function handleDocument(event: ChangeEvent<HTMLInputElement>) {
+    handleUpload(event, false);
+  }
+
+  function handleUpload(event: ChangeEvent<HTMLInputElement>, media: boolean) {
     const file = event.target.files?.[0];
     if (!file) return;
-    void run("document", async () => {
-      const result = await importFile(userId, file);
-      setNotice({
-        kind: "ok",
-        text: `文档解析完成，生成 ${result.count} 条 Evidence（重复内容已自动合并）。`,
-      });
+    void run(media ? "media" : "document", async () => {
+      const identity = JSON.stringify([userId, media, file.name, file.size, file.lastModified]);
+      await submitTask(identity, (key) => createUploadRun(userId, file, media, key));
     });
     event.target.value = "";
   }
@@ -274,6 +353,7 @@ export default function Home() {
       const result = await registerOwner(userId, registrationSecret);
       setAccessToken(result.token);
       setIssuedToken(result.token);
+      setTasksVersion((current) => current + 1);
       setNotice({ kind: "ok", text: "Owner Token 已创建并仅保存在当前浏览器会话中。" });
     });
   }
@@ -298,10 +378,16 @@ export default function Home() {
   }
 
   function handleDeleteEvidence() {
-    if (!deleteEvidenceId || !window.confirm("确认删除这条 Evidence？相关画像引用也会同步清理。")) return;
+    if (!deleteEvidenceId || !window.confirm("确认删除这条 Evidence？关联的解析块、Wiki 专题和版本也可能被删除。")) return;
     void run("delete", async () => {
       const result = await deleteEvidence(deleteEvidenceId);
       setDeleteEvidenceId("");
+      setOpenedWiki(null);
+      setChat(null);
+      setAnalysis(null);
+      setReport(null);
+      setWikiSources(null);
+      setWikiSelection([]);
       setAuditEvents(await getAuditLog(userId));
       setNotice({ kind: "ok", text: `Evidence 已删除，并清理 ${result.removed_profile_items} 个失去证据的画像条目。` });
     });
@@ -319,8 +405,14 @@ export default function Home() {
       setAnalysis(null);
       setReport(null);
       setChat(null);
+      setOpenedWiki(null);
+      setWikiSources(null);
+      setWikiSelection([]);
       setProposal(null);
       setAuditEvents([]);
+      setLatestRun(null);
+      submittedKeys.current.clear();
+      setTasksVersion((current) => current + 1);
       setNotice({ kind: "ok", text: `账号数据已删除。匿名回执：${result.receipt_id}` });
     });
   }
@@ -330,7 +422,7 @@ export default function Home() {
       <SiteHeader active="workspace" />
       <nav className="workspace-subnav" aria-label="工作台模块">
         <span>WORKSPACE / 真实业务接口 · 虚构预填内容</span>
-        <div><a href="#profile">职业画像</a><a href="#matching">岗位匹配</a><a href="#report">职业报告</a><a href="#copilot">Career Copilot</a><a href="#quality">质量评测</a><a href="#privacy">数据控制</a></div>
+        <div><a href="#profile">职业画像</a><a href="#matching">岗位匹配</a><a href="#report">职业报告</a><a href="#copilot">Career Copilot</a><a href="#runs">后台任务</a><a href="#quality">质量评测</a><a href="#privacy">数据控制</a></div>
       </nav>
 
       <section className="hero" id="top">
@@ -355,7 +447,18 @@ export default function Home() {
         </div>
         <div className="two-column">
           <form className="panel input-panel" onSubmit={handleBuildProfile}>
-            <label>用户标识<input value={userId} onChange={(event) => setUserId(event.target.value)} required /></label>
+            <label>用户标识<input value={userId} disabled={busy !== null} onChange={(event) => {
+              setUserId(event.target.value);
+              setLatestRun(null);
+              setProfile(null);
+              setChat(null);
+              setAnalysis(null);
+              setReport(null);
+              setProposal(null);
+              setOpenedWiki(null);
+              setWikiSources(null);
+              setWikiSelection([]);
+            }} required /></label>
             <label>个人经历与自述<textarea rows={9} value={evidenceText} onChange={(event) => setEvidenceText(event.target.value)} required /></label>
             <button disabled={busy !== null}>{busy === "profile" ? "正在构建…" : "导入并生成画像"}<span>↗</span></button>
           </form>
@@ -414,7 +517,10 @@ export default function Home() {
             <span>RULE-BASED MATCH</span>
             <strong>{analysis ? analysis.score : "—"}<small>{analysis && "%"}</small></strong>
             <p>{analysis?.report.recommendation ?? "完成画像后提交 JD"}</p>
-            {analysis && <small className="score-disclaimer">规则匹配分，不是录用概率</small>}
+            {analysis && <small className="score-disclaimer">
+              规则匹配分，不是录用概率
+              {analysis.report.required_gap_count !== undefined && ` · 必需缺口 ${analysis.report.required_gap_count} 项`}
+            </small>}
           </div>
         </form>
         {analysis && <div className="match-grid">
@@ -460,6 +566,44 @@ export default function Home() {
 
       <section className="workspace copilot" id="copilot">
         <div className="section-heading"><div><span>04</span><h2>Career Copilot</h2></div><p>追问结论，直接查看引用证据。</p></div>
+        <details className="wiki-controls">
+          <summary>从证据编译 Wiki 专题</summary>
+          <form onSubmit={handleWikiCompile}>
+            <label>专题标题<input value={wikiTitle} maxLength={255} onChange={(event) => setWikiTitle(event.target.value)} required /></label>
+            <label className="run-confirm"><input type="checkbox" checked={confirmWiki}
+              onChange={(event) => setConfirmWiki(event.target.checked)} /> 先创建任务，确认后编译</label>
+            <button type="button" className="secondary" disabled={busy !== null} onClick={() => loadWikiSources(0, true)}>加载证据</button>
+            {wikiSources?.userId === userId && <>
+              <p>已选 {wikiSelection.length} / 50 条证据。{wikiSources.items.length === 0 && "本页没有证据。"}</p>
+              <div className="wiki-source-list">
+                {wikiSources.items.map((item) => <label key={item.id}>
+                  <input type="checkbox" checked={wikiSelection.includes(item.id)}
+                    disabled={wikiSelection.length >= 50 && !wikiSelection.includes(item.id)}
+                    onChange={(event) => setWikiSelection((current) => event.target.checked
+                      ? [...current, item.id] : current.filter((id) => id !== item.id))} />
+                  <span>{item.source_name} · {item.content.slice(0, 100)}</span>
+                </label>)}
+              </div>
+              <div className="report-actions">
+                {wikiSources.offset > 0 && <button type="button" className="secondary" disabled={busy !== null} onClick={() => loadWikiSources(wikiSources.offset - 50)}>上一页</button>}
+                {wikiSources.items.length === 50 && <button type="button" className="secondary" disabled={busy !== null} onClick={() => loadWikiSources(wikiSources.offset + 50)}>下一页</button>}
+                <button disabled={busy !== null || !wikiSelection.length}>{busy === "wiki-compile" ? "编译中…" : "编译 Wiki"}</button>
+              </div>
+            </>}
+          </form>
+        </details>
+        {openedWiki?.userId === userId && <article className="wiki-controls">
+          <h3>{openedWiki.page.title} · v{openedWiki.page.version}</h3>
+          <p className="wiki-markdown">{openedWiki.page.content}</p>
+          <p>证据 ID：{openedWiki.page.chunk_refs.join(" · ")}</p>
+        </article>}
+        <label className="knowledge-mode">检索模式
+          <select value={knowledgeMode} onChange={(event) => setKnowledgeMode(event.target.value as KnowledgeMode)}>
+            <option value="rag">RAG · 原始证据</option>
+            <option value="wiki">Wiki · 已编译专题</option>
+            <option value="hybrid">混合 · 证据和专题</option>
+          </select>
+        </label>
         <div className="chat-shell">
           <div className="chat-context"><span>当前用户</span><strong>{userId}</strong><p>{skills.slice(0, 4).map((item) => item.name).join(" · ") || "等待画像"}</p></div>
           <div className="conversation">
@@ -471,12 +615,26 @@ export default function Home() {
                   {message.role === "assistant" && index === chat.messages.length - 1 && <div className="retrieval-badges"><span>{chat.model.provider} / {chat.model.model}</span><span>{chat.retrieval.backend}</span><span>{chat.retrieval.fusion}</span><span>{chat.retrieval.reranker}</span>{chat.model.fallback && <span className="fallback">model fallback</span>}{chat.retrieval.fallback && <span className="fallback">retrieval fallback</span>}</div>}
                 </div>
               ))}
-              {chat.evidence.length > 0 && <div className="evidence-stack"><b>引用证据 · {chat.retrieval.backend === "qdrant" ? "RRF + Rerank" : "Local Hybrid"}</b>{chat.evidence.map((item) => <details key={item.evidence_id}><summary>{item.source_name}<span>{Math.round(item.rerank_score * 100)}%</span></summary><p>{item.content}</p><code>{item.evidence_id}</code></details>)}</div>}
+              {chat.evidence.length > 0 && <div className="evidence-stack">
+                <b>引用来源 · {chat.retrieval.mode ?? "rag"}</b>
+                {chat.evidence.map((item) => item.source_kind === "wiki"
+                  ? <details key={item.page_id}><summary>{item.title}<span>Wiki</span></summary>
+                    <p>{item.content}</p>
+                    <button type="button" className="secondary" disabled={busy !== null} onClick={() => openWiki(item.slug)}>打开 Wiki 全文</button>
+                    <p>证据 ID：{item.chunk_refs.join(" · ")}</p>
+                  </details>
+                  : <details key={item.evidence_id}><summary>{item.source_name}<span>RAG</span></summary>
+                    <p>{item.content}</p><code>{item.evidence_id}</code>
+                  </details>)}
+              </div>}
             </> : <Empty text="试着问：为什么认为我适合 Agent 开发？" />}
             <form className="chat-input" onSubmit={handleChat}><input value={chatInput} onChange={(event) => setChatInput(event.target.value)} placeholder="询问你的职业画像…" required /><button aria-label="发送" disabled={busy !== null}>↑</button></form>
           </div>
         </div>
       </section>
+
+      <RunCenter key={`${userId}:${latestRun?.id ?? ""}:${tasksVersion}`} userId={userId}
+        latest={latestRun} refresh={tasksVersion} onOpen={openRunResult} />
 
       <section className="workspace quality-section" id="quality">
         <div className="section-heading">

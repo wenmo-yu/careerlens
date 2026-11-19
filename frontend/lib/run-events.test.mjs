@@ -1,0 +1,20 @@
+import assert from "node:assert/strict";
+import { readRunEvents } from "./run-events.ts";
+
+const event = { run_id: "run", seq: 3, event_type: "step.succeeded", data: { step: "核验" } };
+const source = new TextEncoder().encode(
+  `: heartbeat\r\n\r\nid: 3\r\nevent: run\r\ndata: ${JSON.stringify(event)}\r\n\r\n` +
+  `id: 4\nevent: run\ndata: ${JSON.stringify({ ...event, seq: 4 })}\n\n`,
+);
+const stream = new ReadableStream({
+  start(controller) {
+    for (let offset = 0; offset < source.length; offset += 2) {
+      controller.enqueue(source.slice(offset, offset + 2));
+    }
+    controller.close();
+  },
+});
+const got = [];
+await readRunEvents(stream, (item) => got.push(item));
+assert.deepEqual(got, [event, { ...event, seq: 4 }]);
+console.log("run progress streaming tests passed");
