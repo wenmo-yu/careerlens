@@ -4,11 +4,22 @@ All notable changes to CareerLens are documented here.
 
 ## Unreleased
 
+## 0.4.0 - 2026-11-19
+
+Runtime release: long-running work moves off the request thread into a durable,
+resumable background worker with a live task center in the workbench.
+
 ### Added
 
 - Durable background runs for document/media import, Wiki compilation, job analysis, and career reports. The workbench supports progress replay, approval, cancellation, and opening saved results.
 - A PostgreSQL-backed Worker with per-user serialization, idempotency, lease recovery, revision fencing, and structured specialist workflows; no Redis is required.
 - A transactional evidence index outbox retries Qdrant writes and deletes without blocking successful database ingestion.
+- Open-source maintenance setup: ROADMAP, Code of Conduct, Issue/PR templates, dependabot, and a Docker double-worker smoke job in the quality gate.
+
+### Fixed
+
+- Production build: SSE progress decoding now uses a manual `TextDecoder` instead of `TextDecoderStream`, which no longer type-checks under TypeScript's stricter `Uint8Array<ArrayBufferLike>` generic. `pnpm build` succeeds again.
+- Job matching and learning-plan computation: priority labels stay local to each JD clause, `weekly_hours` is validated, and required work is scheduled before optional gaps.
 
 ## 0.3.0 - 2026-11-18
 
