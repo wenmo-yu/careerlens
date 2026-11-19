@@ -11,6 +11,8 @@ from app.models.career_report import CareerReport
 from app.models.profile import ProfileItem
 from app.models.profile_suppression import ProfileSuppression
 from app.models.profile_update import ProfileUpdateProposal
+from app.runtime.index_outbox import try_index_now
+from app.runtime.store import scope
 from app.services.evidence import create_evidence_chunks
 
 
@@ -108,7 +110,18 @@ async def list_proposals(
 async def decide_proposal(
     session: AsyncSession, *, proposal_id: str, approve: bool
 ) -> ProfileUpdateProposal:
-    proposal = await session.get(ProfileUpdateProposal, proposal_id)
+    user_id = await session.scalar(
+        select(ProfileUpdateProposal.user_id).where(ProfileUpdateProposal.id == proposal_id)
+    )
+    if user_id is None:
+        raise LookupError("Profile update proposal not found")
+    await scope(session, user_id, bump=approve)
+    proposal = await session.scalar(
+        select(ProfileUpdateProposal)
+        .where(ProfileUpdateProposal.id == proposal_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if proposal is None:
         raise LookupError("Profile update proposal not found")
     if proposal.status != "pending":
@@ -201,4 +214,6 @@ async def decide_proposal(
     proposal.resolved_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(proposal)
+    if approve:
+        await try_index_now(session, [record.id for record in evidence])
     return proposal

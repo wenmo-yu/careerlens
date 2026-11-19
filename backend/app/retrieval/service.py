@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Any
 
 from qdrant_client import QdrantClient
 
@@ -40,7 +41,7 @@ async def index_evidence(evidence: list[Evidence], *, strict: bool = False) -> d
 
 
 async def search_evidence(
-    *, user_id: str, query: str, evidence: list[Evidence], limit: int = 5
+    *, user_id: str, query: str, evidence: list[Evidence] | list[dict[str, Any]], limit: int = 5
 ) -> tuple[list[dict], dict]:
     settings = get_settings()
     if settings.retrieval_backend != "local":
@@ -48,8 +49,17 @@ async def search_evidence(
             results = await get_qdrant_store().asearch(
                 user_id=user_id,
                 query=query,
-                limit=limit,
+                limit=min(100, limit * 4),
             )
+            live = {item["id"] if isinstance(item, dict) else item.id: item for item in evidence}
+            results = [
+                {
+                    **hit,
+                    "content": record["content"] if isinstance(record, dict) else record.content,
+                }
+                for hit in results
+                if (record := live.get(hit["evidence_id"])) is not None
+            ][:limit]
             if results or not evidence or settings.retrieval_backend == "qdrant":
                 return results, {
                     "backend": "qdrant",
@@ -78,7 +88,7 @@ async def search_evidence(
     }
 
 
-async def delete_evidence_index(evidence_id: str) -> dict:
+async def delete_evidence_index(evidence_id: str, *, strict: bool = False) -> dict:
     settings = get_settings()
     if settings.retrieval_backend == "local":
         return {"backend": "local", "status": "skipped"}
@@ -86,7 +96,7 @@ async def delete_evidence_index(evidence_id: str) -> dict:
         await get_qdrant_store().adelete(evidence_id)
         return {"backend": "qdrant", "status": "deleted"}
     except Exception as exc:
-        if settings.retrieval_backend == "qdrant":
+        if strict or settings.retrieval_backend == "qdrant":
             raise
         return {"backend": "local", "status": "fallback", "reason": type(exc).__name__}
 

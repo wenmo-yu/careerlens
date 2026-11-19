@@ -6,10 +6,11 @@ query time the caller picks a mode freely — no rebuild, no dual build-state:
 
 - ``rag``: evidence retrieval only
 - ``wiki``: compiled page retrieval only
-- ``hybrid``: both召回, fused by score, each hit tagged with source_kind so the
+- ``hybrid``: interleaved by rank, each hit tagged with source_kind so the
   UI can show and expand RAG blocks and Wiki pages separately (multi-source refs)
 """
 
+from itertools import zip_longest
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,14 +64,9 @@ async def search_knowledge(
     elif mode == "wiki":
         hits = wiki_hits
     else:
-        # Normalize wiki scores into the same rough band as rag rerank scores
-        # before fusing; both scorers are heuristic here, so a simple merge by
-        # score with stable source-kind ordering is deterministic.
-        hits = sorted(
-            rag_hits + wiki_hits,
-            key=lambda item: (float(item.get("score", 0.0)), item.get("source_kind", "")),
-            reverse=True,
-        )[:limit]
+        hits = [
+            hit for pair in zip_longest(rag_hits, wiki_hits) for hit in pair if hit is not None
+        ][:limit]
 
     diagnostics: dict[str, Any] = {
         "mode": mode,
@@ -80,6 +76,8 @@ async def search_knowledge(
     }
     # Preserve the underlying RAG diagnostics (backend/fusion/reranker/...) so
     # existing consumers — and the chat retrieval panel — keep working.
+    if mode == "hybrid":
+        diagnostics["knowledge_fusion"] = "rank_interleave"
     if rag_diag:
         diagnostics = {**rag_diag, **diagnostics}
     return hits, diagnostics

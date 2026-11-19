@@ -149,6 +149,8 @@ class CascadingReranker:
             return []
         try:
             coarse_scores = self._coarse.score(query, documents)
+            if len(coarse_scores) != len(documents) or not all(map(math.isfinite, coarse_scores)):
+                raise ValueError("Invalid coarse scores")
             # Rank document positions by coarse score, keep the top slice.
             ranked = sorted(
                 range(len(documents)),
@@ -157,21 +159,20 @@ class CascadingReranker:
             )[: self._coarse_top_k]
             shortlist = [documents[index] for index in ranked]
             fine_scores = self._fine.score(query, shortlist)
+            if len(fine_scores) != len(shortlist) or not all(map(math.isfinite, fine_scores)):
+                raise ValueError("Invalid fine scores")
             # Put the fine-ranked top-k strictly above everything else, and
             # preserve coarse ordering for the rest. Using a disjoint score band
             # avoids mixing fine (cross-encoder) and coarse scales.
-            fine_positions = ranked[: self._fine_top_k]
             result = [0.0] * len(documents)
             # Non-fine docs: coarse scores mapped into [0, 1) in coarse order.
             max_coarse = max((abs(score) for score in coarse_scores), default=1.0) or 1.0
             for index in range(len(documents)):
                 result[index] = (coarse_scores[index] / max_coarse) * 0.5
             # Fine docs: map into [1, 2] preserving fine score order.
-            fine_pairs = [
-                (index, fine_scores[position])
-                for position, index in enumerate(fine_positions)
-                if position < len(fine_scores)
-            ]
+            fine_pairs = sorted(
+                zip(ranked, fine_scores, strict=True), key=lambda pair: pair[1], reverse=True
+            )[: self._fine_top_k]
             if fine_pairs:
                 values = [value for _, value in fine_pairs]
                 low, high = min(values), max(values)

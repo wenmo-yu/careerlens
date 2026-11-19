@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.database import get_session
 from app.models.access_token import AccessToken
+from app.runtime.store import scope
 from app.schemas.auth import RegisterRequest, TokenCreated, TokenCreateRequest, TokenRead
 from app.security import authorize_user
 from app.security.auth import create_access_token
@@ -103,7 +104,9 @@ async def revoke_token(
         user_id=user_id,
         authorization=authorization,
         required_scope="manage",
+        touch=False,
     )
+    await scope(session, user_id)
     record = await session.get(AccessToken, token_id)
     if record is None or record.user_id != user_id:
         raise HTTPException(status_code=404, detail="Access token not found")

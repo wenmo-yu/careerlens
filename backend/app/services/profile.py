@@ -5,10 +5,15 @@ from app.models.career_report import CareerReport
 from app.models.evidence import Evidence
 from app.models.profile import ProfileItem
 from app.models.profile_suppression import ProfileSuppression
+from app.models.run import RunScope
 from app.profile.llm_extractor import extract_profile_with_fallback
+from app.runtime.store import DELETION, scope
 
 
 async def rebuild_profile(session: AsyncSession, user_id: str) -> list[ProfileItem]:
+    source_epoch = await session.scalar(
+        select(RunScope.generation).where(RunScope.user_id == user_id, RunScope.key == DELETION)
+    )
     evidence_result = await session.scalars(
         select(Evidence).where(Evidence.user_id == user_id).order_by(Evidence.created_at)
     )
@@ -17,6 +22,13 @@ async def rebuild_profile(session: AsyncSession, user_id: str) -> list[ProfileIt
         raise ValueError("Import evidence before rebuilding the profile")
 
     extracted = await extract_profile_with_fallback(evidence)
+    await scope(session, user_id)
+    if await scope(session, user_id, DELETION) != (source_epoch or 0):
+        raise ValueError("Evidence changed during profile rebuild; please retry")
+    live_ids = set(await session.scalars(select(Evidence.id).where(Evidence.user_id == user_id)))
+    if not {record.id for record in evidence} <= live_ids:
+        raise ValueError("Evidence changed during profile rebuild; please retry")
+    await scope(session, user_id, bump=True)
     confirmed_result = await session.scalars(
         select(ProfileItem).where(ProfileItem.user_id == user_id)
     )

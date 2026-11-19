@@ -160,3 +160,41 @@ async def test_api_compile_then_chat_mode_switch(client):
         json={"user_id": "km-user", "message": "x", "mode": "bogus"},
     )
     assert bad.status_code == 422
+
+
+async def test_wiki_revisions_restore_citations_and_delete_obsolete_sources(client):
+    user_id = "wiki-lineage"
+    compile_url = "/api/v1/wiki/compile"
+    page_url = "/api/v1/wiki/lineage"
+    query = {"user_id": user_id}
+    payload = {**query, "slug": "lineage", "title": "Project notes"}
+    evidence_ids = []
+    for content in ("Python project", "FastAPI project"):
+        result = await client.post("/api/v1/evidence/text", json={**query, "content": content})
+        evidence_ids.append(result.json()["items"][0]["id"])
+    first, second = evidence_ids
+    unavailable = await client.post(
+        compile_url, json={**payload, "evidence_ids": [first, "unavailable"]}
+    )
+    assert unavailable.status_code == 422
+    for base, evidence_id in [(None, first), (1, second)]:
+        compiled = await client.post(
+            compile_url,
+            json={**payload, "base_version": base, "evidence_ids": [evidence_id]},
+        )
+        assert compiled.status_code == 201
+    conflict = await client.post(compile_url, json={**payload, "evidence_ids": [first]})
+    assert conflict.status_code == 409
+
+    rollback = await client.post(f"{page_url}/revert", json={**query, "target_version": 1})
+    assert rollback.status_code == 200
+    assert rollback.json()["chunk_refs"] == [first]
+    assert rollback.json()["source_refs"] == [first]
+    await client.delete(f"/api/v1/evidence/{second}")
+    history = await client.get(f"{page_url}/revisions", params=query)
+    assert all(revision["version"] != 2 for revision in history.json())
+    assert (await client.get(page_url, params=query)).status_code == 200
+    await client.delete(f"/api/v1/evidence/{first}")
+    assert (await client.get(page_url, params=query)).status_code == 404
+    exported = (await client.get(f"/api/v1/privacy/{user_id}/export")).json()
+    assert exported["wiki_revisions"] == []

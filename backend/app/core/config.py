@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,13 +40,20 @@ class Settings(BaseSettings):
     # Two-stage cascading rerank: coarse cross-encoder narrows to top_k, then a
     # fine reranker produces the final top_k. Disabled by default (single stage).
     rerank_stages_enabled: bool = False
-    rerank_coarse_top_k: int = 15
-    rerank_fine_top_k: int = 5
+    rerank_coarse_top_k: int = Field(default=15, ge=1)
+    rerank_fine_top_k: int = Field(default=5, ge=1)
     ai_timeout_seconds: float = 60
     ai_input_price_per_million: float = 0
     ai_output_price_per_million: float = 0
     checkpoint_backend: str = "auto"
     checkpoint_database_url: str = ""
+    run_worker_concurrency: int = Field(default=2, ge=1, le=8)
+    run_global_concurrency: int = Field(default=4, ge=1, le=32)
+    run_pending_per_user: int = Field(default=12, ge=1, le=100)
+    run_lease_seconds: int = Field(default=30, ge=3, le=300)
+    run_timeout_seconds: int = Field(default=300, ge=5, le=1800)
+    run_upload_max_bytes: int = Field(default=20 * 1024 * 1024, ge=1, le=200 * 1024 * 1024)
+    run_pending_hours: int = Field(default=24, ge=1, le=168)
     auth_mode: str = "disabled"
     auth_token_pepper: str = "change-me-in-production"
     auth_registration_secret: str = ""
@@ -85,6 +93,12 @@ class Settings(BaseSettings):
 
     def model_for_role(self, role: str) -> str:
         return self.role_models.get(role, self.ai_model)
+
+    @model_validator(mode="after")
+    def validate_rerank_limits(self):
+        if self.rerank_fine_top_k > self.rerank_coarse_top_k:
+            raise ValueError("RERANK_FINE_TOP_K cannot exceed RERANK_COARSE_TOP_K")
+        return self
 
     model_config = SettingsConfigDict(
         env_file=".env",

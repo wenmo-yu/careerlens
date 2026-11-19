@@ -189,7 +189,7 @@ async def compose_answer(state: CareerState) -> dict:
         )
         answer = str(generated["answer"]).strip()
         allowed = {
-            str(item["evidence_id"] or item["page_id"])
+            str(item.get("evidence_id") or item.get("page_id"))
             for item in state.get("retrieved_evidence", [])
             if item.get("evidence_id") or item.get("page_id")
         }

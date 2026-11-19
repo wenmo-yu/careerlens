@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, Protocol
 
 from app.core.config import get_settings
+from app.ingestion.contract import ParsedBlock, ParsedDocument
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 AUDIO_VIDEO_SUFFIXES = {".mp3", ".wav", ".m4a", ".mp4", ".mov", ".webm", ".mkv"}
@@ -73,8 +74,10 @@ class OptionalMultimodalExtractor:
             if not isinstance(data, dict):
                 continue
             data = data.get("res", data)
-            texts = data.get("rec_texts", []) or []
-            boxes = data.get("rec_boxes", data.get("rec_polys", [])) or []
+            texts = data.get("rec_texts")
+            boxes = data.get("rec_boxes", data.get("rec_polys"))
+            texts = [] if texts is None else texts
+            boxes = [] if boxes is None else boxes
             for index, value in enumerate(texts):
                 if not value:
                     continue
@@ -161,6 +164,22 @@ class OptionalMultimodalExtractor:
             "language_probability": first_meta.get("language_probability", 0.0),
             "segment_count": len(blocks),
         }
+
+
+def parse_media(extractor: MediaExtractor, filename: str, content: bytes) -> ParsedDocument:
+    structured = getattr(extractor, "extract_blocks", None)
+    raw_blocks = (
+        structured(filename, content)
+        if structured is not None
+        else MediaExtractor.extract_blocks(extractor, filename, content)
+    )
+    blocks = [ParsedBlock(block_index=index, **block) for index, block in enumerate(raw_blocks)]
+    metadata = dict(blocks[0].source_metadata) if blocks else {}
+    if blocks and blocks[0].block_type == "ocr":
+        metadata["line_count"] = len(blocks)
+    elif blocks and blocks[0].block_type == "asr_segment":
+        metadata["segment_count"] = len(blocks)
+    return ParsedDocument(doc_id="", blocks=blocks, source_type="media", metadata=metadata)
 
 
 @lru_cache

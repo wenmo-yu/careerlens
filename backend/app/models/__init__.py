@@ -17,11 +17,13 @@ from app.models.parsed_block import ParsedBlock
 from app.models.profile import ProfileItem
 from app.models.profile_suppression import ProfileSuppression
 from app.models.profile_update import ProfileUpdateProposal
+from app.models.run import AgentRun, EvidenceIndexWork, RunEvent, RunScope, RunStep
 from app.models.source_document import SourceDocument
 from app.models.wiki import WikiPage, WikiRevision
 
 __all__ = [
     "AccessToken",
+    "AgentRun",
     "AccountDeletionReceipt",
     "AuditEvent",
     "CareerReport",
@@ -29,11 +31,15 @@ __all__ = [
     "ConversationMessage",
     "EvaluationRun",
     "Evidence",
+    "EvidenceIndexWork",
     "JobAnalysis",
     "ParsedBlock",
     "ProfileItem",
     "ProfileSuppression",
     "ProfileUpdateProposal",
+    "RunEvent",
+    "RunScope",
+    "RunStep",
     "SourceDocument",
     "WikiPage",
     "WikiRevision",

@@ -290,3 +290,27 @@ async def test_media_upload_reports_missing_optional_runtime(client, monkeypatch
     )
     assert response.status_code == 503
     assert response.json()["detail"] == "ASR runtime is unavailable"
+
+
+async def test_media_upload_persists_segment_times(client, monkeypatch):
+    class TimedExtractor:
+        def extract_blocks(self, filename, content):
+            return [{
+                "content": "FastAPI project",
+                "block_type": "asr_segment",
+                "source_type": "asr",
+                "time_start": 1.25,
+                "time_end": 4.5,
+            }]
+
+    monkeypatch.setattr(evidence_routes, "get_media_extractor", TimedExtractor)
+    response = await client.post(
+        "/api/v1/evidence/media",
+        data={"user_id": "timed-media"},
+        files={"upload": ("demo.mp3", b"test", "audio/mpeg")},
+    )
+    assert response.status_code == 201
+    exported = (await client.get("/api/v1/privacy/timed-media/export")).json()
+    block = exported["parsed_blocks"][0]
+    assert (block["time_start"], block["time_end"]) == (1.25, 4.5)
+    assert block["evidence_id"] == response.json()["items"][0]["id"]

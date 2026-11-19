@@ -14,6 +14,7 @@ from app.schemas.wiki import (
 )
 from app.security import authorize_user
 from app.services.wiki_pages import (
+    StaleWikiWriteError,
     WikiRevisionNotFound,
     get_page,
     list_pages,
@@ -53,9 +54,13 @@ async def compile_wiki_page(
                 )
             )
         )
-        sources = [
-            {"evidence_id": item.id, "content": item.content} for item in records
-        ]
+        by_id = {item.id: item for item in records}
+        ids = list(dict.fromkeys(payload.evidence_ids))
+        if set(ids) != set(by_id):
+            raise HTTPException(
+                status_code=422, detail="One or more evidence sources are unavailable"
+            )
+        sources = [{"evidence_id": item_id, "content": by_id[item_id].content} for item_id in ids]
     try:
         page, diagnostics = await compile_page(
             session,
@@ -65,12 +70,11 @@ async def compile_wiki_page(
             sources=sources,
             base_version=payload.base_version,
             edit_source=payload.edit_source,
-            source_refs=payload.evidence_ids,
+            verify_sources=True,
         )
+    except StaleWikiWriteError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except WikiCompileError as exc:
-        # A stale base_version is wrapped by the compiler; detect via message.
-        if "version changed" in str(exc):
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return WikiCompileRead(page=WikiPageRead.model_validate(page), diagnostics=diagnostics)
 
@@ -126,6 +130,8 @@ async def revert_wiki_page(
         )
     except WikiRevisionNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except StaleWikiWriteError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return WikiPageRead.model_validate(reverted)
 
 
@@ -149,6 +155,7 @@ async def get_wiki_revisions(
             "edit_source": r.edit_source,
             "title": r.title,
             "summary": r.summary,
+            "can_revert": r.source_refs is not None and r.chunk_refs is not None,
             "edited_at": r.edited_at.isoformat(),
         }
         for r in revisions
