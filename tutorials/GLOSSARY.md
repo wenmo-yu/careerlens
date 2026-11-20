@@ -6,18 +6,18 @@
 
 | 术语 | 人话解释 | 项目位置 | 用到它的篇章 |
 | --- | --- | --- | --- |
-| Evidence（证据） | 一条被授权导入、带来源和编号的原始材料。系统的「事实底稿」。 | `backend/app/models/evidence.py` | 00-2（计划中） · [02](02-data-model.md) |
-| 画像（ProfileItem） | 从证据里抽出来的结构化条目，如「技能：Python」，并且记着支撑它的证据 ID。 | `backend/app/models/profile.py`、`backend/app/profile/` | 00-4（计划中） · [02](02-data-model.md) |
-| 证据可追溯 | 任何结论都能点回到具体的 evidence_id；找不到依据就写「证据不足」。这是全项目的第一原则。 | `backend/app/services/jobs.py` | 00-1（计划中） · 04（计划中） |
-| Agent（智能体） | 能在给定范围内自己拆步骤、调用工具去办事的程序；和「固定流程」相对，也不保证每次都做对。 | `backend/app/graph/career.py` | 00-1（计划中） |
-| 提示词（Prompt） | 给模型的任务说明，写清目标、给什么材料、要什么输出。流畅不等于可靠。 | `backend/app/llm/`、`backend/app/profile/llm_extractor.py` | 00-2（计划中） |
+| Evidence（证据） | 一条被授权导入、带来源和编号的原始材料。系统的「事实底稿」。 | `backend/app/models/evidence.py` | [00-2](00-foundations/00-2-prompt-and-evidence.md) · [02](02-data-model.md) |
+| 画像（ProfileItem） | 从证据里抽出来的结构化条目，如「技能：Python」，并且记着支撑它的证据 ID。 | `backend/app/models/profile.py`、`backend/app/profile/` | [00-4](00-foundations/00-4-data-model-in-plain-words.md) · [02](02-data-model.md) |
+| 证据可追溯 | 任何结论都能点回到具体的 evidence_id；找不到依据就写「证据不足」。这是全项目的第一原则。 | `backend/app/services/jobs.py` | [00-1](00-foundations/00-1-what-is-agent.md) · 04（计划中） |
+| Agent（智能体） | 能在给定范围内自己拆步骤、调用工具去办事的程序；和「固定流程」相对，也不保证每次都做对。 | `backend/app/graph/career.py` | [00-1](00-foundations/00-1-what-is-agent.md) |
+| 提示词（Prompt） | 给模型的任务说明，写清目标、给什么材料、要什么输出。流畅不等于可靠。 | `backend/app/llm/`、`backend/app/profile/llm_extractor.py` | [00-2](00-foundations/00-2-prompt-and-evidence.md) |
 
 ## 检索层：怎么从一堆材料里找证据
 
 | 术语 | 人话解释 | 项目位置 | 用到它的篇章 |
 | --- | --- | --- | --- |
-| RAG | 检索增强生成：先从材料里检索相关证据，再让模型基于证据回答，而不是凭空说。 | `backend/app/services/knowledge.py` | 00-3（计划中） · 04（计划中） |
-| 向量 / Embedding | 把一段文字变成一组数字（坐标），意思接近的文字坐标也接近，于是能按「意思」而非字面找材料。 | `backend/app/retrieval/` | 00-3（计划中） |
+| RAG | 检索增强生成：先从材料里检索相关证据，再让模型基于证据回答，而不是凭空说。 | `backend/app/services/knowledge.py` | [00-3](00-foundations/00-3-rag-and-vector.md) · 04（计划中） |
+| 向量 / Embedding | 把一段文字变成一组数字（坐标），意思接近的文字坐标也接近，于是能按「意思」而非字面找材料。 | `backend/app/retrieval/` | [00-3](00-foundations/00-3-rag-and-vector.md) |
 | Dense + Sparse | 两路检索：Dense 按语义（意思接近），Sparse 按关键词（字面命中）。 | `backend/app/retrieval/providers.py` | 04（计划中） |
 | RRF | 把两路检索的榜单合并成一个排名的规则（Reciprocal Rank Fusion）。 | `backend/app/retrieval/` | 04（计划中） |
 | 重排（Reranker） | 粗排选出一批候选后，再精挑一次，把最相关的放前面。项目用粗排 Top15 → 精排 Top5。 | `backend/app/retrieval/providers.py`（`CascadingReranker`） | 04（计划中） |
