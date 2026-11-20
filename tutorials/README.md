@@ -35,7 +35,10 @@
 | 序号 | 主题 | 你将做到 | 状态 / 对应源码 |
 | --- | --- | --- | --- |
 | — | [从这里开始](START-HERE.md) | 零安装做完第一道证据判断题，选好学习路线 | 已发布 |
-| 0 | 阶段 0：看得懂 | 从材料指出支持证据与「证据不足」 | 计划中（`00-foundations/`）· [开始页第一题](START-HERE.md#我能不能学先花-10-分钟试试)可先练 |
+| [00-1](00-foundations/00-1-what-is-agent.md) | Agent 是什么 | 分清语言模型、固定流程与 Agent | 已发布 · 零安装 |
+| [00-2](00-foundations/00-2-prompt-and-evidence.md) | 提示词与证据 | 看出「说得顺不等于说得对」 | 已发布 · 零安装 |
+| [00-3](00-foundations/00-3-rag-and-vector.md) | RAG 与检索 | 分清关键词与语义检索，知道「相关 ≠ 支持」 | 已发布 · 零安装 |
+| [00-4](00-foundations/00-4-data-model-in-plain-words.md) | 数据模型大白话 | 说清证据→画像→匹配→报告这条链 | 已发布 · 零安装 |
 | [01](01-quickstart.md) | 从零跑通 | 本机启动闭环，走一遍数据流 | 已发布 · `docker-compose.yml`、`frontend/app/workspace` |
 | [02](02-data-model.md) | 数据模型 | 理解 Evidence、ProfileItem、Run 三张表 | 已发布 · `backend/app/models/` |
 | 03 | 解析层 | 结构化解析与 PDF/DOCX/XLSX | 计划中 · `backend/app/ingestion/` |
