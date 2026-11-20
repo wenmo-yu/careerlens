@@ -36,9 +36,23 @@
 
 「纯文本导入被 Demo 误认成技能」按方案留到阶段 5 的对照实验，不在入门制造矛盾。同步更新 `START-HERE.md`、`README.md`、`GLOSSARY.md` 的阶段 0 链接。
 
-### 第 3 批 · 实现篇与练习（计划中）
+### 第 3 批 · 实现篇与练习（进行中）
 
 `03`–`08` 实现与进阶篇、四个最小练习 `examples/tutorials/`、结课小项目模板。
+
+- `03-parsing.md`（已交付）：解析与去重、支持格式、扫描页不伪造文字、`source_metadata` 定位字段；含最小去重函数复刻题。
+- `04-retrieval-agent.md`（已交付）：Dense+Sparse → RRF → 两级重排 → 引用核验；三种模式切换与诊断字段；wiki 模式诊断缺 backend 键的诚实说明。
+- `05-wiki.md`（已交付）：短句柄 `c000`、表格行守卫、版本不变量、`base_version` 乐观并发、回滚即普通编辑。
+- `06-runtime.md`（已交付）：Run/Step/Event 状态机、`Idempotency-Key`、`interrupted` vs `cancelled`、租约、fencing 代次、SSE `after_seq` 续看、Worker 必需。
+- `07-integration.md`（已交付）：系统全景、三种状态区分、评测接口路径与口径、API/MCP 共用业务服务。
+- `08-advanced/08-1-real-models.md`（已交付）：Demo vs 真实链路、`AI_PROVIDER` 无 `qwen` 值、收藏卡对照实验。
+- `08-advanced/08-2-evaluation.md`（已交付）：四项指标、复跑冻结基线、开发集分数边界。
+- `08-advanced/08-3-contribute.md`（已交付）：可复查 PR、结课项目结构。
+- `examples/tutorials/`（已交付）：四个标准库脚本（证据、去重、三模式、事件）+ 索引；`tutorials/capstone-template.md` 结课模板。
+
+接口与字段逐条对照源码核对：chat 的 `mode` 是请求体字段、诊断在 `retrieval`、证据在顶层 `evidence`；wiki 编译的同步接口与后台 run 两种方式的 `edit_source` 差异；`Idempotency-Key` 是请求头；评测接口无裸 `/evaluation`。
+
+**运行验证状态**：四个示例脚本已通过 Python 语法编译检查；本环境无 Docker，**未能在运行中的服务上实测执行**，脚本所依赖的接口/字段已静态核对源码。到有 Docker 的环境按 `examples/tutorials/README.md` 跑一遍即可确认。
 
 ### 第 4 批 · Docsify 在线教程站（计划中）
 
