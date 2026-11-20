@@ -1,0 +1,71 @@
+name: Docsify Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs-site/**"
+      - "tutorials/**"
+      - "docs/**"
+      - "README.md"
+      - ".github/workflows/docs-pages.yml"
+  pull_request:
+    paths:
+      - "docs-site/**"
+      - "tutorials/**"
+      - "docs/**"
+      - "README.md"
+      - ".github/workflows/docs-pages.yml"
+  workflow_dispatch:
+
+# 只给部署 job 最小权限；PR 不需要 pages 权限
+permissions:
+  contents: read
+
+concurrency:
+  group: docsify-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build site artifact
+        run: python3 docs-site/build.py _site "${{ github.sha }}"
+
+      - name: Verify artifact essentials
+        run: |
+          test -f _site/index.html
+          test -f _site/_sidebar.md
+          test -f _site/tutorials/START-HERE.md
+          test -f _site/vendor/docsify.min.js
+          test -f _site/.nojekyll
+          echo "artifact files: $(find _site -type f | wc -l)"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    # PR 只打包校验，不发布；只有 push 到 main 或手动触发才部署
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
