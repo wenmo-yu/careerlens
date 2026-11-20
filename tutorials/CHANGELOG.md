@@ -8,7 +8,7 @@
 
 目标：零基础可见、可跑通、有在线教程站。范围以 [`CareerLens零基础教程体系方案`](https://github.com/wenmo-yu/careerlens) 与仓库内 `README` 为准；第 4 批（Docsify 站点）完成后再打 `docs-tutorials-v1.0` 快照标签。
 
-### 第 1 批 · 入口与首次运行（进行中）
+### 第 1 批 · 入口与首次运行（已合并）
 
 - 新增 [`START-HERE.md`](START-HERE.md)：两条学习路线、按时间选学法、阶段成果、零安装第一题（含自查）、何时装软件、求助方式。
 - 新增 [`GLOSSARY.md`](GLOSSARY.md)：按概念 / 检索 / 知识组织 / 运行时 / 隐私分层解释术语。
@@ -25,7 +25,7 @@
 
 **验证状态**：本批内容以代码核对为准，健康路径、端口、返回字段、Compose 服务均已对照实现与冒烟脚本；Windows / macOS / Linux 的实际安装走查按实施方案逐系统记录，未实测组合会在对应篇章明确标注。
 
-### 第 2 批 · 阶段 0（已交付）
+### 第 2 批 · 阶段 0（已合并）
 
 四篇 `00-foundations/` 全部发布，统一使用虚构人物林澈与同一组教学卡片，严格零安装、只用浏览器，每篇含一张图（Mermaid + 文字替代）、先做后看的练习与常见误判：
 
@@ -36,7 +36,7 @@
 
 「纯文本导入被 Demo 误认成技能」按方案留到阶段 5 的对照实验，不在入门制造矛盾。同步更新 `START-HERE.md`、`README.md`、`GLOSSARY.md` 的阶段 0 链接。
 
-### 第 3 批 · 实现篇与练习（进行中）
+### 第 3 批 · 实现篇与练习（已合并）
 
 `03`–`08` 实现与进阶篇、四个最小练习 `examples/tutorials/`、结课小项目模板。
 
@@ -54,9 +54,17 @@
 
 **运行验证状态**：四个示例脚本已通过 Python 语法编译检查；本环境无 Docker，**未能在运行中的服务上实测执行**，脚本所依赖的接口/字段已静态核对源码。到有 Docker 的环境按 `examples/tutorials/README.md` 跑一遍即可确认。
 
-### 第 4 批 · Docsify 在线教程站（计划中）
+### 第 4 批 · Docsify 站点（已合并，部署待启用 Pages）
 
-发布工作流、站点壳、README 在线教程链接与快照标签；验收通过后才在 README 挂站点入口。
+Docsify 站点壳（`docs-site/`）、固定版本本地资源、打包脚本、GitHub Pages 工作流均已合并进 main。PR #20 的 build / backend / frontend / docker-smoke 四项 CI 全绿；期间修复过一次漏交的 `.nojekyll`。
+
+**部署状态**：main 上的 `Docsify Pages` 工作流 build 成功，但 deploy 失败并给出明确指引——仓库尚未在 Settings → Pages 启用 GitHub Pages（Source 选 GitHub Actions）。这一步必须仓库管理员手动完成，token 通过 API 配置返回 404。`actions/deploy-pages` 的错误日志已确认原因。
+
+站点未上线前，README **不挂**在线教程链接，避免坏链；GitHub 阅读入口始终保留。
+
+### 第 5 批 · 教程 v1.0 发布收尾（待 Pages 上线）
+
+Pages 启用并实测通过后：README 挂在线教程链接、本文件标记 v1.0 已发布、打 `docs-tutorials-v1.0` 标签，并对搜索 / 复制 / Mermaid 渲染 / 无 JS 降级 / 深链接做人工点检。
 
 ## 约定
 
