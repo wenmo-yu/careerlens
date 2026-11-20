@@ -15,9 +15,10 @@
 | [评测与运维](evaluation-and-operations.md) | 评测口径、本地验收和故障定位 |
 | [API 与配置参考](api-and-configuration.md) | 完整接口清单、非 Docker 启动、迁移、真实模型与生产配置 |
 
-- **想快速上手**：先看[项目首页](../README.md)的 Quick Start。
-- **想理解设计**：按“[架构](architecture.md) → [数据模型](data-and-evidence.md) → [Agent 与检索](agent-and-retrieval.md) → [评测](evaluation-and-operations.md)”阅读。
-- **想动手复刻**：走[实现教程](../tutorials/README.md)，按依赖顺序逐层实现。
+- **零基础入门**：从[教程开始页](../tutorials/START-HERE.md)进入——10 分钟零安装做完第一道证据判断题，再按基础选路线。
+- **想快速上手**：先看[项目首页](../README.md)的 Quick Start；想本机跑通，走[第 01 篇](../tutorials/01-quickstart.md)。
+- **想理解设计**：按"[架构](architecture.md) → [数据模型](data-and-evidence.md) → [Agent 与检索](agent-and-retrieval.md) → [评测](evaluation-and-operations.md)"阅读。
+- **想动手复刻**：走[实现教程](../tutorials/README.md)，按依赖顺序逐层实现。查词用[术语表](../tutorials/GLOSSARY.md)，卡住看[常见问题](../tutorials/FAQ.md)。
 - **集成外部客户端**：参阅[接入、MCP 与安全](integrations-and-security.md)；完整接口见[API 与配置](api-and-configuration.md)。
 
 ## 运行与验证范围
