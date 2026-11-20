@@ -41,12 +41,14 @@
 | [00-4](00-foundations/00-4-data-model-in-plain-words.md) | 数据模型大白话 | 说清证据→画像→匹配→报告这条链 | 已发布 · 零安装 |
 | [01](01-quickstart.md) | 从零跑通 | 本机启动闭环，走一遍数据流 | 已发布 · `docker-compose.yml`、`frontend/app/workspace` |
 | [02](02-data-model.md) | 数据模型 | 理解 Evidence、ProfileItem、Run 三张表 | 已发布 · `backend/app/models/` |
-| 03 | 解析层 | 结构化解析与 PDF/DOCX/XLSX | 计划中 · `backend/app/ingestion/` |
-| 04 | 检索 Agent | 双路召回、RRF、重排、引用校验 | 计划中 · `backend/app/retrieval/`、`backend/app/graph/` |
-| 05 | 知识组织 | Wiki 编译、短句柄引用、版本与回滚 | 计划中 · `backend/app/wiki/`、`backend/app/services/wiki_pages.py` |
-| 06 | 后台运行时 | 幂等提交、租约、fencing、SSE 续看 | 计划中 · `backend/app/runtime/`、`backend/app/api/routes/runs.py` |
-| 07 | 组装与部署 | API 路由、权限、前端任务中心 | 计划中 · `backend/app/api/`、`frontend/components/run-center.tsx` |
-| 08 | 进阶 | 真实模型、评测、贡献 | 计划中 · `backend/app/llm/`、`eval/` |
+| [03](03-parsing.md) | 解析层 | 结构化解析与去重、PDF/DOCX/XLSX | 已发布 · `backend/app/ingestion/` |
+| [04](04-retrieval-agent.md) | 检索 Agent | 双路召回、RRF、重排、引用校验、三模式切换 | 已发布 · `backend/app/retrieval/`、`backend/app/graph/` |
+| [05](05-wiki.md) | 知识组织 | Wiki 编译、短句柄引用、版本与回滚 | 已发布 · `backend/app/wiki/`、`backend/app/services/wiki_pages.py` |
+| [06](06-runtime.md) | 后台运行时 | 幂等提交、租约、fencing、SSE 续看 | 已发布 · `backend/app/runtime/`、`backend/app/api/routes/runs.py` |
+| [07](07-integration.md) | 接入与验证 | API、工作台、数据库、Worker、质量门禁 | 已发布 · `backend/app/api/`、`frontend/components/run-center.tsx` |
+| [08-1](08-advanced/08-1-real-models.md) | 真实模型 | Demo 与真实链路、配置、收藏卡对照实验 | 已发布 · `backend/app/llm/` |
+| [08-2](08-advanced/08-2-evaluation.md) | 评测 | 复跑冻结基线、四项指标口径 | 已发布 · `eval/`、`backend/app/evaluation/` |
+| [08-3](08-advanced/08-3-contribute.md) | 贡献与结课 | 提交可复查 PR、结课小项目 | 已发布 · `CONTRIBUTING.md` |
 
 ## 工具书与辅助路线
 
@@ -55,6 +57,8 @@
 - [Python 选做准备](setup/python-basics.md)——只有写脚本或开发时才需要；跑 Docker 不用装。
 - [静态观察路线](observe-only.md)——设备装不了软件时学原理，明确不计为「本机跑通」。
 - [教程更新记录](CHANGELOG.md)——增改、验证版本与破坏性变更。
+- [四个最小示例](../examples/tutorials/README.md)——用标准库调本机 API，各验证一个机制。
+- [结课小项目模板](capstone-template.md)——用「结论 + 引用 + 缺口 + 验证」交付一页纸。
 
 ## 开始前需要什么
 
