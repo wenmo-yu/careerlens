@@ -4,7 +4,7 @@
 
 **把经历变成证据，再用证据回答"我适合什么岗位、还缺什么、下一步怎么做"。**
 
-[文档](docs/README.md) · [5 分钟上手](#快速开始) · [架构](docs/architecture.md) · [教程](tutorials/README.md) · [API 与配置](docs/api-and-configuration.md) · [路线图](ROADMAP.md)
+[在线教程](https://wenmo-yu.github.io/careerlens/) · [文档](docs/README.md) · [5 分钟上手](#快速开始) · [架构](docs/architecture.md) · [教程](tutorials/README.md) · [API 与配置](docs/api-and-configuration.md) · [路线图](ROADMAP.md)
 
 [![Quality Gate](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml)
 [![Release](https://img.shields.io/github/v/release/wenmo-yu/careerlens)](https://github.com/wenmo-yu/careerlens/releases)
@@ -134,7 +134,7 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 
 ## 零基础入门与教程
 
-**没写过代码也能开始**：[从这里开始](tutorials/START-HERE.md)——10 分钟、只用浏览器做完第一道证据判断题，再按你的基础选学习路线。只需理解原理的话，不必安装任何软件。
+**没写过代码也能开始**：[从这里开始](tutorials/START-HERE.md)——10 分钟、只用浏览器做完第一道证据判断题，再按你的基础选学习路线。只需理解原理的话，不必安装任何软件。也可在[在线教程站](https://wenmo-yu.github.io/careerlens/)阅读同样的内容（支持搜索与深链接）。
 
 想亲手跑或复刻？教程按依赖顺序编排，每篇都有目标、前置、步骤与验收：
 

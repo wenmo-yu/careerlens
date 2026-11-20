@@ -4,9 +4,12 @@
 
 未发布篇章在[进度总览](README.md)里标为「计划中」，不在此处提前登记为已交付。
 
-## 课程 v1.0（筹备中）
+## 课程 v1.0（已发布）
 
-目标：零基础可见、可跑通、有在线教程站。范围以 [`CareerLens零基础教程体系方案`](https://github.com/wenmo-yu/careerlens) 与仓库内 `README` 为准；第 4 批（Docsify 站点）完成后再打 `docs-tutorials-v1.0` 快照标签。
+在线教程站：**https://wenmo-yu.github.io/careerlens/**
+快照标签：`docs-tutorials-v1.0`
+
+目标已完成：零基础可见（阶段 0 零安装）、可跑通（01–08 与四个示例）、有在线教程站。范围以仓库 `README` 与教程总览为准。后续小修直接记入本文件，不再另发产品版本。
 
 ### 第 1 批 · 入口与首次运行（已合并）
 
@@ -54,17 +57,19 @@
 
 **运行验证状态**：四个示例脚本已通过 Python 语法编译检查；本环境无 Docker，**未能在运行中的服务上实测执行**，脚本所依赖的接口/字段已静态核对源码。到有 Docker 的环境按 `examples/tutorials/README.md` 跑一遍即可确认。
 
-### 第 4 批 · Docsify 站点（已合并，部署待启用 Pages）
+### 第 4 批 · Docsify 站点（已合并并上线）
 
 Docsify 站点壳（`docs-site/`）、固定版本本地资源、打包脚本、GitHub Pages 工作流均已合并进 main。PR #20 的 build / backend / frontend / docker-smoke 四项 CI 全绿；期间修复过一次漏交的 `.nojekyll`。
 
-**部署状态**：main 上的 `Docsify Pages` 工作流 build 成功，但 deploy 失败并给出明确指引——仓库尚未在 Settings → Pages 启用 GitHub Pages（Source 选 GitHub Actions）。这一步必须仓库管理员手动完成，token 通过 API 配置返回 404。`actions/deploy-pages` 的错误日志已确认原因。
+**部署**：仓库管理员在 Settings → Pages 把 Source 设为 GitHub Actions 后重新触发部署成功。线上 `https://wenmo-yu.github.io/careerlens/` 首页、Docsify 资源、START-HERE、侧栏均返回 HTTP 200，页面标题与 `homepage` / `basePath` 配置正确。
 
-站点未上线前，README **不挂**在线教程链接，避免坏链；GitHub 阅读入口始终保留。
+### 第 5 批 · 教程 v1.0 发布收尾（已交付）
 
-### 第 5 批 · 教程 v1.0 发布收尾（待 Pages 上线）
+- 根 `README.md` 顶部与教程段、`START-HERE.md` 常用入口加入在线教程链接；GitHub 阅读入口保留。
+- 课程状态标记为 v1.0 已发布。
+- 打 `docs-tutorials-v1.0` 快照标签（不触发产品 Release，现有 `release.yml` 只匹配 `v*`）。
 
-Pages 启用并实测通过后：README 挂在线教程链接、本文件标记 v1.0 已发布、打 `docs-tutorials-v1.0` 标签，并对搜索 / 复制 / Mermaid 渲染 / 无 JS 降级 / 深链接做人工点检。
+**上线验收口径**：首页 / 资源 / 篇章 / 侧栏的 HTTP 可达性与配置已核对；搜索框、代码复制按钮、Mermaid 实际渲染、`<noscript>` 降级、深链接刷新属于浏览器交互项，建议在手机和桌面各点检一次（本地无无头浏览器工具，未自动测）。
 
 ## 约定
 
