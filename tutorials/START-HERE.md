@@ -140,6 +140,7 @@ B 是「收藏了教程」——这只说明他感兴趣，不等于学过，更
 
 ## 常用入口
 
+- [在线教程站](https://wenmo-yu.github.io/careerlens/)（搜索、复制代码、手机阅读；内容与本仓库同步）
 - [教程总览与学习路径](README.md)
 - [术语表](GLOSSARY.md) · [常见问题](FAQ.md) · [教程更新记录](CHANGELOG.md)
 - [技术文档首页](../docs/README.md) · [项目首页](../README.md)
