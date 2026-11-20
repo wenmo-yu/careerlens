@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CareerLens 零基础教程</title>
+  <meta name="description" content="CareerLens 证据驱动的职业决策 Agent：从零开始的教程、数据模型、检索、Wiki 与后台运行时。">
+  <link rel="stylesheet" href="vendor/prism.min.css">
+  <style>
+    :root { --theme-color: #2f6f4f; }
+    body { margin: 0; font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif; }
+    /* Mermaid 容器可横向滚动，避免窄屏溢出 */
+    .mermaid { overflow-x: auto; }
+    /* 让代码块复制按钮在浅色主题下可见 */
+    .docsify-copy-code-button { background: var(--theme-color); }
+  </style>
+</head>
+<body>
+  <div id="app">正在加载教程…</div>
+
+  <noscript>
+    <div style="max-width:720px;margin:40px auto;padding:20px;font-family:sans-serif;line-height:1.8">
+      <h1>CareerLens 零基础教程</h1>
+      <p>本站阅读需要启用 JavaScript。若无法启用，可直接在 GitHub 阅读全部教程：</p>
+      <ul>
+        <li><a href="https://github.com/wenmo-yu/careerlens/tree/main/tutorials">教程目录（GitHub）</a></li>
+        <li><a href="https://github.com/wenmo-yu/careerlens/blob/main/tutorials/START-HERE.md">从这里开始（GitHub）</a></li>
+        <li><a href="https://github.com/wenmo-yu/careerlens#readme">项目首页（GitHub）</a></li>
+      </ul>
+    </div>
+  </noscript>
+
+  <script>
+    window.$docsify = {
+      name: 'CareerLens 教程',
+      repo: 'wenmo-yu/careerlens',
+      loadSidebar: true,
+      homepage: 'tutorials/START-HERE.md',
+      subMaxLevel: 3,
+      maxLevel: 4,
+      auto2top: true,
+      basePath: '/careerlens/',
+      // 搜索：索引本页标题与正文，深度 6
+      search: {
+        depth: 6,
+        noData: '没有找到匹配内容',
+        placeholder: '搜索教程（试试「证据」「幂等」）',
+        paths: 'auto'
+      },
+      // 代码复制
+      copyCode: { buttonText: '复制', errorText: '失败', successText: '已复制' },
+      // 分页：正文链接作为上一课/下一课
+      pagination: {
+        previousText: '上一课',
+        nextText: '下一课',
+        crossChapter: true,
+        crossChapterText: true
+      },
+      // Mermaid 由 docsify-mermaid 插件渲染；文字版在图下方 details 中，不依赖图
+      mermaid: true,
+      // 每页底部的 GitHub 原文入口
+      formatUpdated: '{YYYY}/{MM}/{DD}',
+      plugins: [
+        function (hook) {
+          hook.doneEach(function () {
+            var main = document.querySelector('.markdown-section');
+            if (!main || document.getElementById('github-source-link')) return;
+            var path = (location.hash || '').replace(/^#\/?/, '').split('?')[0];
+            if (!path) path = 'tutorials/START-HERE.md';
+            if (path.indexOf('..') !== -1) return;
+            var link = document.createElement('div');
+            link.id = 'github-source-link';
+            link.style.cssText = 'margin-top:48px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:13px;';
+            link.innerHTML = '在 <a href="https://github.com/wenmo-yu/careerlens/blob/main/' +
+              path + '" target="_blank" rel="noopener">GitHub 查看本文原文</a> · ' +
+              '<a href="https://github.com/wenmo-yu/careerlens/issues" target="_blank" rel="noopener">反馈问题</a>';
+            main.appendChild(link);
+          });
+        }
+      ]
+    };
+  </script>
+
+  <script src="vendor/vue.min.js"></script>
+  <script src="vendor/docsify.min.js"></script>
+  <script src="vendor/prism-core.min.js"></script>
+  <script src="vendor/prism-clike.min.js"></script>
+  <script src="vendor/prism-python.min.js"></script>
+  <script src="vendor/prism-bash.min.js"></script>
+  <script src="vendor/prism-json.min.js"></script>
+  <script src="vendor/prism-js.min.js"></script>
+  <script src="vendor/docsify-copy-code.min.js"></script>
+  <script src="vendor/docsify-pagination.min.js"></script>
+  <script src="vendor/docsify-tabs.min.js"></script>
+  <script src="vendor/mermaid.min.js"></script>
+  <script src="vendor/docsify-mermaid.min.js"></script>
+</body>
+</html>
