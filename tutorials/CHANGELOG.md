@@ -39,6 +39,12 @@
 - [01](01-quickstart.md) 精确化 strong/partial/gap 三档含义（系数、是否进排期、gap 含证据被删的情况），补「分数不是录用概率」。
 - 全站相对链接与锚点 0 坏链。
 
+### 第 9 批 A · 站点搜索与链接校验（未发布）
+
+- **修复搜索缺失**：`index.html` 配了 `search` 却没有加载搜索插件，搜索框一直不出现。新增固定版本 `vendor/docsify-search.min.js`（docsify@4.13.1），`index.html` 在核心之后加载，`VERSIONS.md` 记录。无头 Chrome 验证 `type="search"` 输入框真实渲染、插件脚本加载、正文与侧栏正常。
+- **修 build.py 链接校验盲区**：原先 `rewrite_links` 会把指向不存在源文件的相对链接**洗白**成 GitHub 404 链接，且改写时丢失锚点。现在改写前先校验源目标存在（不存在则报错并让 build 返回 1），并保留 `#锚点`。已用「指向不存在文件的坏链」实测：build 正确返回 1 并打印 BROKEN LOCAL LINKS；正常打包 63 文件、45 处改写、0 坏链。
+- 修 [GLOSSARY](GLOSSARY.md) 两处失效路径 `backend/app/security.py` → `backend/app/security/` 与 `backend/app/security/auth.py`。
+
 ## 课程 v1.0（已发布）
 
 在线教程站：**https://wenmo-yu.github.io/careerlens/**

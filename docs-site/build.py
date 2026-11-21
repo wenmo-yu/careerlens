@@ -82,9 +82,13 @@ def copy_sources(out: Path) -> None:
             shutil.copy2(src, out / name)
 
 
-def rewrite_links(out: Path, sha: str) -> int:
-    """把指向未打包文件的相对链接改成 GitHub 链接。返回改写数量。"""
+def rewrite_links(out: Path, sha: str) -> tuple[int, list[str]]:
+    """把指向未打包文件的相对链接改成 GitHub 链接。返回 (改写数, 错误列表)。
+
+    错误包括：源目标在仓库里根本不存在（不能洗白成 404 的 GitHub 链接）。
+    """
     count = 0
+    problems: list[str] = []
     link_re = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
     packed = {
         str(p.relative_to(out)).replace("\\", "/")
@@ -116,19 +120,25 @@ def rewrite_links(out: Path, sha: str) -> int:
             md_rel = md.relative_to(out).as_posix()          # 如 docs/architecture.md
             original_md = (ROOT / md_rel).parent             # 仓库里该 md 的原始目录
             original_target = (original_md / path_part).resolve()
+            # 源目标不存在就不能改写成 GitHub 链接——那会生成一个 404 的坏链
+            if not original_target.exists():
+                problems.append(f"{md.relative_to(out)}: {target} (source not found)")
+                return m.group(0)
             try:
                 rel_to_root = original_target.relative_to(ROOT.resolve()).as_posix()
             except ValueError:
                 return m.group(0)
             new = github_url(rel_to_root.rstrip("/"), sha)
+            # 保留锚点（如 #L10），改写时不能丢
+            anchor = target[len(path_part):]
             changed = True
             count += 1
-            return f"[{label}]({new})"
+            return f"[{label}]({new}{anchor})"
 
         new_text = link_re.sub(repl, text)
         if changed:
             md.write_text(new_text, encoding="utf-8")
-    return count
+    return count, problems
 
 
 def check_no_local_links(out: Path) -> list[str]:
@@ -171,8 +181,8 @@ def main() -> int:
     out.mkdir(parents=True)
 
     copy_sources(out)
-    rewritten = rewrite_links(out, sha)
-    problems = check_no_local_links(out)
+    rewritten, rewrite_problems = rewrite_links(out, sha)
+    problems = check_no_local_links(out) + rewrite_problems
     denied = deny_scan(out)
 
     print(f"artifact: {out}")
