@@ -25,7 +25,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -e ".[dev]"
-      - run: ruff check .
+      - run: ruff check --config pyproject.toml . ../examples/tutorials
       - run: pytest
       - name: Run frozen regression gate
         run: >-
@@ -72,6 +72,11 @@ jobs:
       - name: Run disposable end-to-end smoke test
         shell: pwsh
         run: ./scripts/docker-smoke.ps1
+      - name: Run published tutorial exercises twice and check the failure case
+        run: |
+          git rev-parse HEAD
+          docker compose version
+          python3 -u examples/tutorials/smoke_check.py
       - name: Show container logs on failure
         if: failure()
         run: docker compose logs --no-color --tail 200

@@ -15,12 +15,12 @@ python3 examples/tutorials/lesson-01-evidence/main.py
 
 ```text
 HTTP 201，count=1
-新证据 ID：<一串 ID，每次可能不同>
+返回的证据 ID：<一串 ID>
 来源类型：self_statement
 OK：拿到非空 Evidence ID。
 ```
 
-脚本只校验「返回 201、拿到非空 ID、内容对得上」，不比对固定 ID 字符串。
+脚本只校验「返回 201、拿到非空 ID、内容对得上」，不比对固定 ID 字符串。同一教学用户重跑时会复用证据，响应仍是 201；验证去重见[练习 02](../lesson-02-dedup/)。
 
 ## 它做了什么
 

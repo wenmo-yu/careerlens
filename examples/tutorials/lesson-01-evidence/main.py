@@ -7,9 +7,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _client import check, request  # noqa: E402
+from _client import check, request, tutorial_user  # noqa: E402
 
-USER = "lesson-01-evidence"
+USER = tutorial_user("lesson-01-evidence")
 
 
 def main() -> None:
@@ -31,7 +31,7 @@ def main() -> None:
     check(items[0].get("content", "").startswith("我用 Python"), "返回内容不对")
 
     print(f"HTTP {status}，count={payload.get('count')}")
-    print(f"新证据 ID：{evidence_id}")
+    print(f"返回的证据 ID：{evidence_id}")
     print(f"来源类型：{items[0].get('source_type')}")
     print("OK：拿到非空 Evidence ID。")
 
