@@ -20,6 +20,12 @@
 - 修 [02](02-data-model.md)、[05](05-wiki.md) 两处过期跳转。全站相对链接 0 坏链。
 - 样板课需两位读者独立试学（建议一位零安装、一位懂基础编程）后才批量套用，结果待补。
 
+### 第 8 批 A · 证据链实验（未发布）
+
+- [02](02-data-model.md)、[03](03-parsing.md) 改成可预测实验：同一段文字改 `source_name`/`user_id`/空白/大小写，先预测 ID 是否复用再看结果。补足去重事实：键只有 `(user_id, content_hash)` 且为唯一索引；`source_name` 不参与去重；文本接口先 `normalize_text` 再 `content_fingerprint` 两层规范化；文件/媒体走 `ingest_source_document`，与文本路径不同；来源在 `source_metadata.sources[]`，`EvidenceRead` 不返回哈希本身。
+- 复刻函数修正为两层规范化，断言已实际运行通过：`a\n\n\nb` 与 `a\n\nb` 同哈希、`a\n\nb` 与 `a\nb` 不同哈希、大小写敏感。
+- 全站相对链接 0 坏链。同批 B/C 组（05-06、01-07）随后跟进。
+
 ## 课程 v1.0（已发布）
 
 在线教程站：**https://wenmo-yu.github.io/careerlens/**

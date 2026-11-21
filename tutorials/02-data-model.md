@@ -29,7 +29,7 @@ class Evidence(Base):
     id: str                    # 稳定 ID，被画像和引用系统使用
     user_id: str               # 用户隔离
     source_type: str           # self_statement / resume / personal_media ...
-    source_name: str           # 来源名，去重时作为来源标识
+    source_name: str           # 来源名；不参与去重键，只作为来源条目里的标识
     content: str               # 正文
     content_hash: str | None   # 规范化文本的 sha256，用户级去重键
     source_metadata: dict      # 位置、时间、多来源引用等
@@ -38,10 +38,12 @@ class Evidence(Base):
 
 两个设计点值得注意：
 
-1. **`content_hash` + `(user_id, content_hash)` 索引**：重复导入同一段文本时复用原 Evidence，把新来源追加到 `source_metadata["sources"]`，而不是新建一行。否则重复上传会虚增画像置信度。
-2. **`source_metadata` 保留结构信息**：解析层给出的页码、bbox、时间戳都存在这里，供后续 Wiki 引用和核验使用。
+1. **去重键只有 `(user_id, content_hash)`**，并且是**唯一索引**（`models/evidence.py:31`，迁移 `a7b8c9d0e1f2` 把初始的普通索引加严为唯一）。重复导入同一段文本时复用原 Evidence，把新来源追加到 `source_metadata["sources"]`（数组）并把 `source_count` 加一，而不是新建一行——否则重复上传会虚增画像置信度。原样重传不会重复追加：整个来源条目字典相等就跳过（`services/evidence.py:22`）。`content_hash` 可为 NULL，唯一索引允许多个 NULL，所以不去重的行不冲突。
+2. **定位字段分两层**：页码、bbox、时间在 `ParsedBlock` 上是 `page_no` / `bbox` / `time_start` / `time_end` 一等列；进入 Evidence 时，`source_ingestion.py:74-83` 把其中一部分（不含字符级的 `char_start`/`char_end`）复制进 `source_metadata["sources"][]` 每条来源。顶层定位字段只代表第一次写入的来源，要看「同一段文字的两个位置」得看 `sources` 数组。
 
-去重逻辑的单一入口在 `services/evidence.py::create_evidence_chunks`——所有导入（文本、文件、媒体、Connector）都走它。
+**导入路径有两条，别记成一条**：文本与 Connector 走 `services/evidence.py::create_evidence_chunks`；文件/媒体走 `services/source_ingestion.py::ingest_source_document`。两者共用 `resolve_evidence` 的 `(user_id, content_hash)` 去重和 `sources` 追加逻辑，但分块与定位处理不同——文本接口会先做一层额外规范化（见 [03](03-parsing.md)）。
+
+> **一个 API 边界**：`EvidenceRead` 不返回 `content_hash` 本身。想验证「两条文字算出同一个哈希」只能靠 ID 相同 + `source_count` 变大，读不到哈希值。
 
 ## 画像层：ProfileItem
 
