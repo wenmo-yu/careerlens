@@ -37,6 +37,14 @@
 
 `MODEL_ROLE_BINDINGS` 的格式是 `answer=model-a,wiki=model-b,...`，可用角色有 `answer`、`wiki`、`analysis`、`profile`。不绑定的角色回退到 `AI_MODEL`。模型不可用时会自动回退到确定性结果，并在诊断里记录。
 
+**先看源码再配**（`backend/app/llm/provider.py`）：
+
+1. `get_provider()` 按 `AI_PROVIDER` 返回实现：`demo` / `deepseek` / `openai_compatible` / `local`；非 `qwen` 分支走哈希 Embedding（`hash-v1`，维度 384）。
+2. `MODEL_ROLE_BINDINGS` 按角色解析，某角色没绑定就用 `AI_MODEL`；调用失败时 `provider_diagnostics` 如实记录 `fallback`，回到确定性结果——所以「接了模型」不等于「每次都用了模型」，要在响应诊断里核实。
+3. 重排角色单独配：`RERANK_STAGES_ENABLED` 默认 `false`，只有开启后才是粗排 Top15 → 精排 Top5（`config.py:42-44`）。
+
+> **先预测再验证**：把 `AI_PROVIDER` 设成一个不存在的值会怎样？按源码它会回退而不是崩溃——但诊断里会留下痕迹。改配置后务必看 `model` 诊断字段，别只看回答通顺就以为用了新模型。
+
 > 成本相关：`AI_INPUT_PRICE_PER_MILLION` / `AI_OUTPUT_PRICE_PER_MILLION` 用于估算调用成本并记录到模型指标里，按自己的模型价格设置。别把 Key 提交到 Git——`.env` 已被忽略。
 
 ## 对照实验：为什么入门时不制造矛盾

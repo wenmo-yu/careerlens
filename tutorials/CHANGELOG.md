@@ -52,6 +52,13 @@
 - 补 XLSX 入口：后端支持 XLSX 但工作台漏配，Documents 卡的说明加 `XLSX`、`accept` 加 `.xlsx`。
 - 本地无 pnpm 未跑 lint/build；纯 CSS 值与 JSX 属性改动，由 CI 的 frontend-quality 验证。
 
+### 第 10 批 · 进阶与结课（未发布）
+
+- [08-2](08-advanced/08-2-evaluation.md) 四项指标从「大概评什么」升级为可复算公式表（微平均 F1、查询平均 Recall@K、支持率代理），每项配一个会让分数下降的失败样例；保留「全 1.0 不是真实准确率」的边界。
+- [08-1](08-advanced/08-1-real-models.md) 补模型路由/回退的源码落点（provider.py 的 AI_PROVIDER 分派、MODEL_ROLE_BINDINGS 角色回退、重排默认关闭），加「改配置后看 model 诊断而非只看回答通顺」的预测验证。
+- [capstone-template.md](capstone-template.md) 结课升级为「可复现实验 + 有证据的报告」：新增实验四格（固定输入/改一个变量/改前预测/结果原因）与负例，自查加「能否复算/失败能否解释」。
+- 全站相对链接与锚点 0 坏链。本轮为 v1.0 之后的教程打磨版本，走查后再发布，不移动 `docs-tutorials-v1.0` 标签、不触发产品 Release。
+
 ## 课程 v1.0（已发布）
 
 在线教程站：**https://wenmo-yu.github.io/careerlens/**
