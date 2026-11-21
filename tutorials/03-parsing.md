@@ -27,14 +27,14 @@ flowchart LR
     P -.位置信息.-> M[页码/时间/表格位置<br/>写进 source_metadata]
 ```
 
-**文字版**：文件或文本先被解析成一块块结构化内容，每块算出规范化文本的 hash。若同一用户已有相同 hash，就复用原证据并追加一条来源信息；否则新建。解析得到的位置（页码、时间、表格位置等）写进证据的 `source_metadata`。
+**文字版**：文件或文本先被解析成一块块结构化内容，每块算出规范化文本的 hash。若同一用户已有相同 hash，就复用原证据并追加一条来源信息；否则新建。同一段文字在两个文件各出现一次时，Evidence 仍是一条、`sources` 有两项，而两个 ParsedBlock 行（不同 `doc_id`/`block_index`）都指向同一个 `evidence_id`。解析得到的位置（页码、时间、表格位置等）写进证据的 `source_metadata`。
 
 </details>
 
 三个要点：
 
 1. **解析与存储分离**：解析层只管把内容拆成带位置的块，不管去重；去重在证据服务里完成。
-2. **位置不丢**：页码、时间、表格位置跟着证据走，供后面 Wiki 引用和核验使用。
+2. **位置不丢**：页码、时间、表格位置跟着证据走，供后面 Wiki 引用和核验使用。逐来源看 `source_metadata.sources[]`（每项含 `source_type`、`source_name` 及定位字段），`source_metadata.source_count` 是来源数；顶层的定位字段只代表第一次写入的来源。
 3. **扫描 PDF 页不造假**：识别为扫描页时只标记「待 OCR」，**不编造文字**。
 
 ## 支持什么格式
@@ -74,16 +74,35 @@ flowchart LR
 { "items": [{ "id": "<证据ID>", "...": "..." }], "count": 1 }
 ```
 
-取 `items[0].id` 记下来。现在**原样再提交一次相同请求**（`user_id` 和 `content` 都不变），你会看到：
+取 `items[0].id` 记下来。**先预测，再提交**：下面四种改动，哪些会复用同一个 ID，哪些会新建？把答案写在纸上，再用 Swagger 逐个验证。
 
-- 返回的 `items[0].id` **和第一次相同**；
-- 没有产生第二条证据。
+| 改动（同一 `user_id=learner`） | 你的预测 | 实际 | 为什么 |
+| --- | --- | --- | --- |
+| 原样再提交一次 | （先填） | 同一 ID，`source_count` 不变 | 来源条目字典完全相等就跳过追加（`evidence.py:22`） |
+| 只把 `source_name` 改成 `notes` | （先填） | 同一 ID，`sources` 多一项 | 去重键不含 `source_name`，新来源被追加 |
+| 只把 `user_id` 改成别的 | （先填） | 不同 ID | 去重键含 `user_id` |
+| 内容末尾多一个换行 / 中间加双空格 | （先填） | 同一 ID | 文本接口会做额外规范化（见下） |
+| 把 `Python` 改成 `python`（小写） | （先填） | 不同 ID | 规范化**不**折叠大小写 |
 
-这就是去重：同一用户 + 相同规范化文本，复用同一条 Evidence，不会虚增证据数量。规范化规则只是统一换行符并去掉首尾空白，所以「同样的内容、末尾多一个换行」也会命中同一条。
+<details>
+<summary>核对与解释</summary>
 
-### 观察 2：换个来源名，看来源被追加
+去重键是 `(user_id, content_hash)` 唯一索引（`models/evidence.py:31`）。`source_name` 不在键里，改它只会给同一条证据追加来源。命中重复时复用原 Evidence，把新来源追加到 `source_metadata.sources[]` 并把 `source_count` 加一，不新建行。
 
-把 `source_name` 从 `goal` 改成 `notes`，内容完全不变，再提交一次。证据 ID 仍然相同，但这条证据的来源列表多了一项。去[术语表](GLOSSARY.md)查 `source_metadata`，理解「一条证据可以有多个来源」。
+**规范化分两层**（这是上一版容易记错的地方）：
+
+1. 文本接口 `POST /evidence/text` 先走 `chunk_text → normalize_text`（`ingestion/chunking.py:4-8`）：删 `\x00`、折叠 `[ \t]+` 为单空格、把 `\n{3,}` 折叠成 `\n\n`、去首尾空白。
+2. 再走 `content_fingerprint`（`ingestion/contract.py:23-26`）：CRLF/CR → LF、去首尾空白、`sha256(utf-8)`。
+
+所以双空格、NUL、多余空行在文本接口里都会命中同一条；但大小写、全角/半角、标点、词序**不**归一化，改了就是不同哈希。文件/媒体导入不走第一层，更接近底层规则。
+
+</details>
+
+> 验证时读不到 Evidence 的 `content_hash` 本身（`EvidenceRead` 不返回它），靠「ID 相同 + `source_count` 变大」判断即可。
+
+### 观察 2：看来源被追加
+
+把 `source_name` 从 `goal` 改成 `notes`，内容完全不变，再提交一次：证据 ID 相同，`sources` 多一项。用 `GET /api/v1/evidence/{id}` 看返回里的 `source_metadata`：逐来源的条目在 `sources[]`，来源是几项看 `source_count`。去[术语表](GLOSSARY.md)查 `source_metadata`。
 
 ### 观察 3：上传文件，看位置信息
 
@@ -93,7 +112,7 @@ flowchart LR
 - `source_type` 默认 `resume`，可改；
 - `upload` 选一个本地 `.txt` 或 `.md` 文件。
 
-返回同样是 `EvidenceBatchRead`。在返回的 `source_metadata` 里能看到 `block_count`（块数）、`doc_id`、`block_index` 等字段；PDF 还会有页码 `page_no` 和 `bbox`，音视频会有 `time_start` / `time_end`。
+返回同样是 `EvidenceBatchRead`。在返回的 `source_metadata` 里能看到来源条目数组 `sources[]`（每项含 `source_type`、`source_name` 及 `doc_id`、`block_index`、`page_no`、`bbox`、`time_start`、`time_end` 等定位字段）和 `source_count`；PDF 有 `page_no`/`bbox`，音视频有 `time_start`/`time_end`。顶层定位字段只代表第一次写入的来源，两个不同文件里的同一段文字要看 `sources[]` 里的多项。
 
 > 注意：`char_start` / `char_end` 这种字符级位置**不在**证据的 `source_metadata` 里，而是在结构化的 ParsedBlock 行上；要看到它们需要用数据导出接口（`GET /api/v1/privacy/{user_id}/export`）。
 
@@ -110,26 +129,38 @@ flowchart LR
 
 ## 选做复刻挑战：写一个最小去重判断
 
-不用连数据库，写一个 20 行的小函数，模拟「同一用户 + 规范化文本相同则复用」的判断逻辑：
+不用连数据库，写一个约 20 行的小函数，模拟**文本接口**的指纹判断。要能预测上面观察 1 里的行为，就不能只照搬底层 hash——文本接口多了一层规范化：
 
 ```python
-import hashlib
+import hashlib, re
+
+def normalize_text(text: str) -> str:
+    text = text.replace("\x00", "")
+    text = re.sub(r"[ \t]+", " ", text)      # 折叠空格/Tab
+    text = re.sub(r"\n{3,}", "\n\n", text)   # 折叠多余空行
+    return text.strip()
 
 def fingerprint(text: str) -> str:
-    normalized = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    normalized = normalize_text(text).replace("\r\n", "\n").replace("\r", "\n").strip()
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
-# 期望：fingerprint("你好") == fingerprint("你好\n")
-assert fingerprint("你好") == fingerprint("你好\n")
-assert fingerprint("你好") != fingerprint("你坏")
+# 文本接口会复用：双空格、NUL、多余空行、末尾换行都被规范化掉
+assert fingerprint("我用 Python") == fingerprint("我用  Python")     # 双空格
+assert fingerprint("a\x00b") == fingerprint("ab")                     # NUL
+assert fingerprint("a\n\n\nb") == fingerprint("a\n\nb")              # 3 个换行折叠成 2 个
+assert fingerprint("a\n\nb") != fingerprint("a\nb")                  # 但 1 个换行不会被凑成 2 个
+assert fingerprint("你好") == fingerprint("你好\n")                   # 末尾换行
+# 不会复用：大小写、词序不同
+assert fingerprint("Python") != fingerprint("python")
+assert fingerprint("我用 Python") != fingerprint("Python 我")
 ```
 
 <details>
 <summary>参考答案要点</summary>
 
-- 规范化只做三件事：统一 CRLF、统一 CR、去首尾空白。不要改动中间内容。
-- 真实系统里，去重键是「用户 ID + 这个 hash」组成的数据库唯一索引；hash 只针对规范化后的文本，不把用户 ID 拼进去做哈希。
-- 命中重复时返回的是**原来那条证据**，只是把新来源追加进去；不是新建一条。
+- 两层：先 `normalize_text`（删 NUL / 折叠空格与多换行 / strip），再 `content_fingerprint`（CRLF/CR → LF、strip、sha256）。少了第一层，就无法解释为什么双空格在文本接口里也会命中同一条。
+- 真实系统里，去重键是「用户 ID + 这个 hash」组成的**唯一索引**；hash 只针对规范化后的文本，不把用户 ID 拼进去。
+- 命中重复时返回**原来那条证据**，把新来源追加到 `sources[]`，不是新建一条。
 
 </details>
 
