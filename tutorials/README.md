@@ -56,6 +56,7 @@
 - [常见问题](FAQ.md)——按「看到什么 → 怎么确认 → 怎么恢复」排好序。
 - [Python 选做准备](setup/python-basics.md)——只有写脚本或开发时才需要；跑 Docker 不用装。
 - [静态观察路线](observe-only.md)——设备装不了软件时学原理，明确不计为「本机跑通」。
+- [样板课试学走查指南](walkthrough-guide.md)——给组织者：找两位读者独立试学 04 的任务卡、记录表与判定标准。
 - [教程更新记录](CHANGELOG.md)——增改、验证版本与破坏性变更。
 - [四个最小示例](../examples/tutorials/README.md)——用标准库调本机 API，各验证一个机制。
 - [结课小项目模板](capstone-template.md)——用「结论 + 引用 + 缺口 + 验证」交付一页纸。

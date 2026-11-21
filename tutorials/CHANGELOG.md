@@ -12,7 +12,7 @@
 - 四例加入 Docker 冒烟：同一批隔离账号首跑和重跑，缺画像的任务必须非零退出，完成后清理教学账号。练习 01 保留显式 HTTP 请求。
 - 本地验证：临时 SQLite、真实 FastAPI Demo 和 Worker 下，四例首跑和重跑均通过；缺画像负例按预期失败。真实 Compose（PostgreSQL / Qdrant）以 CI 新增步骤的实际运行记录为准，本轮四项 CI 全绿。
 
-### 第 7 批 · 04 样板课（未发布）
+### 第 7 批 · 04 样板课（PR #25，已合并）
 
 - 按 v3.1 把 [04](04-retrieval-agent.md) 重写成四环节：先手算 RRF → 改变量与名次交错 → 接回真实实现 → 榜首判错迁移。标题写清要解决的问题，技术名词做副标题；每步「先预测、再核对」，答案分层。
 - 新增离线练习 [lesson-05-rrf](../examples/tutorials/lesson-05-rrf/)：纯标准库、不开服务，手算 `k=2` 的融合分数，改变量、名次交错、榜首判错四步都用断言核对，已实际运行通过。
@@ -20,44 +20,58 @@
 - 修 [02](02-data-model.md)、[05](05-wiki.md) 两处过期跳转。全站相对链接 0 坏链。
 - 样板课需两位读者独立试学（建议一位零安装、一位懂基础编程）后才批量套用，结果待补。
 
-### 第 8 批 A · 证据链实验（未发布）
+### 第 8 批 A · 证据链实验（PR #26，已合并）
 
 - [02](02-data-model.md)、[03](03-parsing.md) 改成可预测实验：同一段文字改 `source_name`/`user_id`/空白/大小写，先预测 ID 是否复用再看结果。补足去重事实：键只有 `(user_id, content_hash)` 且为唯一索引；`source_name` 不参与去重；文本接口先 `normalize_text` 再 `content_fingerprint` 两层规范化；文件/媒体走 `ingest_source_document`，与文本路径不同；来源在 `source_metadata.sources[]`，`EvidenceRead` 不返回哈希本身。
 - 复刻函数修正为两层规范化，断言已实际运行通过：`a\n\n\nb` 与 `a\n\nb` 同哈希、`a\n\nb` 与 `a\nb` 不同哈希、大小写敏感。
 - 全站相对链接 0 坏链。同批 C 组（01-07）随后跟进。
 
-### 第 8 批 B · Wiki 与运行时实验（未发布）
+### 第 8 批 B · Wiki 与运行时实验（PR #27，已合并）
 
 - [05](05-wiki.md) 表格守卫加「先预测→看结果」矩阵（大小写、重复行删一、改第二格、无表格），点明守卫只取第一行首格、只查含表格的源证据，防的是整行被删而非单元格改写。`base_version` 补乐观并发的实现与两路径差异：同步 409、后台 run `stale_input` failed。
 - [06](06-runtime.md) 修一处实质错误：轮询 `GET .../events` 超界返回空列表 `[]`，不是 409（409 属于 SSE `/stream`）。fencing 字段名改为 `fencing_token`，列出与 `input_epoch`/`target_generation`/`RunScope.generation` 是独立字段；`interrupted` 补充多种来源、明确三种终态；租约标注默认 30 秒可配。
 - 全站相对链接 0 坏链。
 
-### 第 8 批 C · 匹配与排期实验（未发布）
+### 第 8 批 C · 匹配与排期实验（PR #28，已合并）
 
 - [07](07-integration.md) 新增可手算的匹配分/排期实验：固定 JD 与画像先猜再核对，按 `jobs.py`/`learning_path.py` 公式算出 76.5%、必需缺口优先提示、18h 缺口 6 小时 3 周 / 9 小时 2 周，明确标注为「按公式构造的推算」而非文档原例或录用概率。
 - 修 [07](07-integration.md) 一处事实错误：岗位分析是同步 `POST /api/v1/jobs/analyze`，当场返回 score/matches/gaps/learning_path，不走 Run/Worker；只有生成报告是后台任务。源码路径 `backend/app/security.py` 更正为 `backend/app/security/`。
 - [01](01-quickstart.md) 精确化 strong/partial/gap 三档含义（系数、是否进排期、gap 含证据被删的情况），补「分数不是录用概率」。
 - 全站相对链接与锚点 0 坏链。
 
-### 第 9 批 A · 站点搜索与链接校验（未发布）
+### 第 9 批 A · 站点搜索与链接校验（PR #29，已合并并上线）
 
 - **修复搜索缺失**：`index.html` 配了 `search` 却没有加载搜索插件，搜索框一直不出现。新增固定版本 `vendor/docsify-search.min.js`（docsify@4.13.1），`index.html` 在核心之后加载，`VERSIONS.md` 记录。无头 Chrome 验证 `type="search"` 输入框真实渲染、插件脚本加载、正文与侧栏正常。
 - **修 build.py 链接校验盲区**：原先 `rewrite_links` 会把指向不存在源文件的相对链接**洗白**成 GitHub 404 链接，且改写时丢失锚点。现在改写前先校验源目标存在（不存在则报错并让 build 返回 1），并保留 `#锚点`。已用「指向不存在文件的坏链」实测：build 正确返回 1 并打印 BROKEN LOCAL LINKS；正常打包 63 文件、45 处改写、0 坏链。
 - 修 [GLOSSARY](GLOSSARY.md) 两处失效路径 `backend/app/security.py` → `backend/app/security/` 与 `backend/app/security/auth.py`。
 
-### 第 9 批 B · 工作台可用性（未发布）
+### 第 9 批 B · 工作台可用性（PR #30，已合并）
 
 - 修通知遮挡：`.notice` 的 `top` 从 92px 调到 130px、`z-index` 从 30 提到 60，确保不被 sticky 子导航（z-index 40）盖住，窄屏也成立。
 - 修导入卡错位：`.connector-strip` 桌面网格从 5 列改为 6 列（`1.15fr repeat(5,.72fr)`），匹配「介绍 div + 5 张上传卡」共 6 个子元素，消除第 6 张卡单独换行；≤900px 单列规则不变。
 - 补 XLSX 入口：后端支持 XLSX 但工作台漏配，Documents 卡的说明加 `XLSX`、`accept` 加 `.xlsx`。
 - 本地无 pnpm 未跑 lint/build；纯 CSS 值与 JSX 属性改动，由 CI 的 frontend-quality 验证。
 
-### 第 10 批 · 进阶与结课（未发布）
+### 第 10 批 · 进阶与结课（PR #31，已合并）
 
 - [08-2](08-advanced/08-2-evaluation.md) 四项指标从「大概评什么」升级为可复算公式表（微平均 F1、查询平均 Recall@K、支持率代理），每项配一个会让分数下降的失败样例；保留「全 1.0 不是真实准确率」的边界。
 - [08-1](08-advanced/08-1-real-models.md) 补模型路由/回退的源码落点（provider.py 的 AI_PROVIDER 分派、MODEL_ROLE_BINDINGS 角色回退、重排默认关闭），加「改配置后看 model 诊断而非只看回答通顺」的预测验证。
 - [capstone-template.md](capstone-template.md) 结课升级为「可复现实验 + 有证据的报告」：新增实验四格（固定输入/改一个变量/改前预测/结果原因）与负例，自查加「能否复算/失败能否解释」。
-- 全站相对链接与锚点 0 坏链。本轮为 v1.0 之后的教程打磨版本，走查后再发布，不移动 `docs-tutorials-v1.0` 标签、不触发产品 Release。
+- 全站相对链接与锚点 0 坏链。本轮为 v1.0 之后的教程打磨版本，不移动 `docs-tutorials-v1.0` 标签、不触发产品 Release。
+
+### 走查与功能点检（2026-11-21 补记）
+
+**功能点检已用无头浏览器自动完成，6/6 通过**（Chrome DevTools Protocol，标准库手写 WebSocket）：
+
+- 搜索框渲染；输入「幂等」出现结果面板，`div.search` 有 12 处 `em.search-keyword` 高亮，结果含 06 与术语表；
+- 深链接 `#/tutorials/06-runtime.md` 直接打开与刷新后都渲染对应篇章；
+- 代码复制按钮渲染（01 篇 15 个 pre / 15 个按钮）并可点击；
+- 禁用 JavaScript 时首页显示直达 GitHub 原文的降级链接。
+- 附：复制按钮点击后因无头环境权限读不到剪贴板内容，未核剪贴板实际文本；按钮存在与可点击已验证。
+
+**外部读者试学仍需真人**，已备好自包含的 [样板课试学走查指南](walkthrough-guide.md)：两位读者画像（零安装 / 懂基础）、可直接转发的任务卡、边做边填的观察记录表、四项判定标准与结果写回格式。组织者照此执行即可，不把机器点检冒充读者学习结果。
+
+**仓库卫生**：用 API 推送时一度把 Windows 工作区的 CRLF 字节传上远端，与本地 `core.autocrlf=true` 提交（LF）形成 31 个文件的行尾差异。经逐 blob 核对确认内容零差异后，用规范化提交（PR #32）把 31 个文件统一为 LF，远端与本地对象库现已一致。
 
 ## 课程 v1.0（已发布）
 
