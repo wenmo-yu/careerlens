@@ -46,10 +46,12 @@ flowchart TD
 | 机制 | 防什么 | 怎么工作 |
 | --- | --- | --- |
 | 幂等键 `Idempotency-Key` | 重复提交让任务做两遍 | 同一键 + 同一输入返回同一个 run；同一键不同输入报 409 |
-| 租约 lease | Worker 崩溃后任务永久卡住 | 领取时拿 30 秒租约，心跳续租；续不上就可被别人接管 |
-| fencing 代次 generation | 过期 Worker 的旧回调污染新状态 | 领取、中断、取消都会递增代次；提交前校验代次，不符就丢弃 |
+| 租约 lease | Worker 崩溃后任务永久卡住 | 领取时拿默认 30 秒租约（`RUN_LEASE_SECONDS` 可配 3–300），心跳每约 2 秒续租；续不上就可被别人接管 |
+| fencing token | 过期 Worker 的旧回调污染新状态 | 字段名是 `fencing_token`（事件的 `generation` 只是它的快照）；领取、中断、取消都会递增；提交前校验，不符就丢弃 |
 
-**还需要知道**：`interrupted`（租约过期）不是终态，同一个 run 会被重新领取、attempts 加一；`cancelled` 是终态，取消后用同一个幂等键再提交只会拿回那个已取消的 run，**要重跑必须用新的键**。取消后重跑是一个全新任务，不是接着上一次的模型输出继续生成。
+**这几个「代次」是独立的字段，别混成一个**：`fencing_token` 管 Worker 租约 fencing；`input_epoch` 是提交时的输入代次；`target_generation` 是目标（如 `wiki:{slug}`）的代次；`RunScope.generation` 是目标计数器。提交前分别校验，防止用过期输入产出脏结果（`models/run.py:36-43`）。
+
+**还需要知道**：`interrupted` **不是终态**——租约过期、Worker 关闭、超时或可重试错误都会进入它（`worker.py:120,139`），同一个 run 会被重新领取、attempts 加一、从头重算。三种终态是 `succeeded` / `failed` / `cancelled`。`cancelled` 后取消是终态，用同一个幂等键再提交只会拿回那个已取消的 run，**要重跑必须用新的键**，且是全新任务、从头重算，不是接着上一次的模型输出继续生成。
 
 ## 用真实接口观察
 
@@ -100,7 +102,17 @@ GET /api/v1/runs/<run_id>/events?user_id=...  看有序事件
 
 `GET /api/v1/runs/<run_id>/stream?user_id=learner&after_seq=0` 是 SSE 进度流：服务端一条条推事件，帧里 `id` 就是 seq。刷新后带 `after_seq=<上次的序号>`（或请求头 `Last-Event-ID`）接着看，不会从头开始。工作台的任务中心就是这么做的。
 
-> 轮询接口 `GET .../events` 支持 `after_seq`，一次最多返回 100 条。若给的游标超过当前事件数，会返回 409。
+**先预测，再看**：如果 `after_seq` 给得比当前事件数还大，轮询和 SSE 流分别会怎样？
+
+<details>
+<summary>核对（两种接口行为不同，容易记错）</summary>
+
+- **轮询** `GET .../events`：支持 `after_seq`，一次最多返回 100 条；游标超过当前事件数时**返回空列表 `[]`，不报错**（`runs.py:161-168`）。
+- **SSE 流** `GET .../stream`：同样支持 `after_seq` / `Last-Event-ID`，但游标超过 `event_seq` 会返回 **409**（`runs.py:184-185`），非数字的 `Last-Event-ID` 返回 400。
+
+这是两种接口的有意区分：轮询拿不到更多事件就是「暂时没有」，流则明确告诉你游标越界了。上一版把两者混写成「都返回 409」，是错的。
+
+</details>
 
 ## Worker 必须运行
 

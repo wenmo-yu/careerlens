@@ -24,7 +24,13 @@
 
 - [02](02-data-model.md)、[03](03-parsing.md) 改成可预测实验：同一段文字改 `source_name`/`user_id`/空白/大小写，先预测 ID 是否复用再看结果。补足去重事实：键只有 `(user_id, content_hash)` 且为唯一索引；`source_name` 不参与去重；文本接口先 `normalize_text` 再 `content_fingerprint` 两层规范化；文件/媒体走 `ingest_source_document`，与文本路径不同；来源在 `source_metadata.sources[]`，`EvidenceRead` 不返回哈希本身。
 - 复刻函数修正为两层规范化，断言已实际运行通过：`a\n\n\nb` 与 `a\n\nb` 同哈希、`a\n\nb` 与 `a\nb` 不同哈希、大小写敏感。
-- 全站相对链接 0 坏链。同批 B/C 组（05-06、01-07）随后跟进。
+- 全站相对链接 0 坏链。同批 C 组（01-07）随后跟进。
+
+### 第 8 批 B · Wiki 与运行时实验（未发布）
+
+- [05](05-wiki.md) 表格守卫加「先预测→看结果」矩阵（大小写、重复行删一、改第二格、无表格），点明守卫只取第一行首格、只查含表格的源证据，防的是整行被删而非单元格改写。`base_version` 补乐观并发的实现与两路径差异：同步 409、后台 run `stale_input` failed。
+- [06](06-runtime.md) 修一处实质错误：轮询 `GET .../events` 超界返回空列表 `[]`，不是 409（409 属于 SSE `/stream`）。fencing 字段名改为 `fencing_token`，列出与 `input_epoch`/`target_generation`/`RunScope.generation` 是独立字段；`interrupted` 补充多种来源、明确三种终态；租约标注默认 30 秒可配。
+- 全站相对链接 0 坏链。
 
 ## 课程 v1.0（已发布）
 
