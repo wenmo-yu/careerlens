@@ -5,6 +5,7 @@
 | 文件 | 来源 | 版本 |
 | --- | --- | --- |
 | `docsify.min.js` | `docsify@4.13.1/lib/docsify.min.js` | 4.13.1 |
+| `docsify-search.min.js` | `docsify@4.13.1/lib/plugins/search.min.js` | 4.13.1（全文搜索插件，配置在 index.html，需显式加载） |
 | `docsify-theme.css` | `docsify@4.13.1/lib/themes/vue.css` | 4.13.1（已去掉 Google Fonts `@import`，改用系统字体，完全本地化） |
 | `vue.min.js` | `vue@2.7.16/dist/vue.min.js` | 2.7.16（Docsify 4 依赖） |
 | `docsify-copy-code.min.js` | `docsify-copy-code@2.1.1/dist/docsify-copy-code.min.js` | 2.1.1 |

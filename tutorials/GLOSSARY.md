@@ -49,8 +49,8 @@
 
 | 术语 | 人话解释 | 项目位置 | 用到它的篇章 |
 | --- | --- | --- | --- |
-| 用户隔离 | 检索和接口都按 `user_id` 过滤，一个用户看不到另一个用户的数据。 | `backend/app/security.py`、`backend/app/services/` | [07](07-integration.md) |
-| Scope Token | 限制调用方能读还是能写的令牌。 | `backend/app/security.py` | [07](07-integration.md) |
+| 用户隔离 | 检索和接口都按 `user_id` 过滤，一个用户看不到另一个用户的数据。 | `backend/app/security/`、`backend/app/services/` | [07](07-integration.md) |
+| Scope Token | 限制调用方能读还是能写的令牌。 | `backend/app/security/auth.py` | [07](07-integration.md) |
 | preference_signal | 「点赞 / 收藏 / 关注」这类互动记录的标记：只算兴趣线索，**不写入技能或经历**。 | `backend/app/connectors/browser_capture.py`、`backend/app/profile/extractor.py` | [阶段 5 对照实验](../README.md) · [FAQ](FAQ.md#模型与数据) |
 | 数据导出 / 账号清理 | 导出自己的数据副本；永久删除会同时清理数据库、向量、对话状态与令牌，只留不含原文的审计记录。 | `backend/app/services/privacy.py` | [FAQ](FAQ.md#模型与数据) · [07](07-integration.md) |
 
