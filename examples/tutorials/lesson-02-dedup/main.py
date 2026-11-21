@@ -8,10 +8,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _client import check, request  # noqa: E402
+from _client import check, request, tutorial_user  # noqa: E402
 
-USER_A = "lesson-02-dedup-a"
-USER_B = "lesson-02-dedup-b"
+USER_A = tutorial_user("lesson-02-dedup-a")
+USER_B = tutorial_user("lesson-02-dedup-b")
 CONTENT = "我用 Python 做过一个课程项目，只在本机演示。"
 
 

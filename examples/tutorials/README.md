@@ -32,14 +32,23 @@ python3 examples/tutorials/lesson-01-evidence/main.py http://localhost:8000
 | --- | --- | --- |
 | [lesson-01-evidence](lesson-01-evidence/) | 写入一条合成自述，打印非空 Evidence ID | [03 解析层](../../tutorials/03-parsing.md) |
 | [lesson-02-dedup](lesson-02-dedup/) | 同用户导入两次比对 ID；不同用户不复用 | [03 解析层](../../tutorials/03-parsing.md) |
-| [lesson-03-chat-modes](lesson-03-chat-modes/) | 同一问题切三种模式，看诊断与引用 | [04 检索 Agent](../../tutorials/04-retrieval-agent.md) |
-| [lesson-04-events](lesson-04-events/) | 提交任务、带超时轮询事件，核对终态与序号 | [06 运行时](../../tutorials/06-runtime.md) |
+| [lesson-03-chat-modes](lesson-03-chat-modes/) | 比较三种检索模式，核对实际命中和原始证据 | [04 检索 Agent](../../tutorials/04-retrieval-agent.md) |
+| [lesson-04-events](lesson-04-events/) | 同键返回同一任务；验证成功结果与事件；可跑缺画像负例 | [06 运行时](../../tutorials/06-runtime.md) |
 
 ## 约定
 
-- 固定使用**专用教学用户**（`lesson-*` 前缀），不碰你的真实资料。
-- 所有内容都是合成材料，**不向外部服务发送任何数据**——只请求 `localhost`。
-- 每个脚本自带退出码：断言失败返回非 0，方便你判断「跑对了没有」。
-- 输出里 ID、分数等是运行时生成的，脚本只校验「结构正确 / 关系成立」，不比对固定字符串。
+- 只使用以 `lesson-` 开头的专用教学用户和合成材料。命令可覆盖 API 地址；只指向自己控制的隔离 Demo，不要使用真实资料、共享服务或生产实例。
+- 成功才打印 `OK` 并退出 0；失败返回非零。ID 和事件数按实际返回核对，不把文档占位符当固定字段值。
+- 手动例程默认保留数据供回看。可以重跑，不用先删库；要清理时，在工作台隐私区核对并删除对应的**教学用户**，不要选自己的账号。
 
-想留着这些数据？默认会保留在 Demo 库里，用工作台的隐私区删除即可。
+## 维护者：整组复跑
+
+在独立的默认 Demo Compose 环境中，从仓库根目录运行（Windows 可将 `python3` 换成 `py`）：
+
+```bash
+python3 -u examples/tutorials/smoke_check.py http://127.0.0.1:8000
+```
+
+这也是 CI 执行的命令。检查数据库与 Qdrant 就绪，在同一批新教学账号上跑四例两轮，不在两轮间清库；检查练习 03 的证据检索确实走 Qdrant，再验证练习 04 缺画像时失败且不打印 `OK`。最后用隐私接口清理本轮专用账号；任何一项不符合预期，整组非零退出。
+
+若用隔离的 SQLite＋本地检索 Demo（API 与 Worker 仍需运行），可加 `--local-demo` 检查脚本行为。这不等于 Compose/PostgreSQL/Qdrant 验收。
