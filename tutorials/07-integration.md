@@ -6,7 +6,7 @@
 
 **对应版本**：接口按当前 `main` 核对。
 
-**对应源码**：`backend/app/api/`、`frontend/app/workspace`、`backend/app/security.py`、`.github/workflows/`。
+**对应源码**：`backend/app/api/`、`frontend/app/workspace`、`backend/app/security/`、`backend/app/services/jobs.py`、`backend/app/services/learning_path.py`、`.github/workflows/`。
 
 ---
 
@@ -46,9 +46,12 @@ flowchart TD
 | 打开工作台 | 前端从 API 读数据 | Web → FastAPI → PostgreSQL |
 | 导入自述 | 文本写成带 ID 的证据，入检索索引 | API → 证据服务 → PostgreSQL → outbox → Qdrant |
 | 构建画像 | 从证据抽条目，带 `evidence_ids` | Worker 或 API → 画像服务 |
-| 分析岗位 → 报告 | 耗时操作走后台 | Run → Worker → 协调器 → 报告服务 |
+| 分析岗位 | **同步 API**，直接返回匹配分与排期 | `POST /api/v1/jobs/analyze` → 匹配服务 |
+| 生成报告 | 耗时操作走后台 | Run → Worker → 协调器 → 报告服务 |
 | 追问题 | 检索证据 + 生成回答 | Copilot → 检索 → LangGraph → SSE |
 | 导出 / 删除 | 数据可收回 | API → 隐私服务 → 各表 + 向量 |
+
+注意「分析岗位」和「生成报告」是两条不同的路径：前者是同步接口，当场返回 `score` / `matches` / `gaps` / `learning_path`；只有后者才进 Run/Worker。别把岗位分析也当成后台任务。
 
 ## 观察：分清三种状态
 
@@ -61,6 +64,33 @@ flowchart TD
 | 后台任务已完成 | `GET /api/v1/runs/{id}` 状态为 `succeeded` | 不代表结果质量好 |
 
 按顺序查，能解决大部分「为什么没反应」的问题。健康接口是 `/health/ready`（无 `/api/v1` 前缀），依赖不可用时返回 503。
+
+## 实验：匹配分怎么算，排期为什么会变
+
+这是 CareerLens 最值得亲手复算的部分。规则在 `jobs.py` 和 `learning_path.py`，**全部可手算**——不需要模拟录用概率，也不靠模型判断。
+
+**先固定输入**（合成，虚构）：JD 要求 4 项必需（Python、FastAPI、PostgreSQL、Docker）+ 2 项加分（RAG、MCP）。画像里 Python/FastAPI/PostgreSQL/MCP 有有效证据且 level≥3（strong），RAG 有证据但 level=2（partial），Docker 没有有效证据（gap）。
+
+**先猜，再算**：
+
+| 要算什么 | 你的答案 | 按公式核对 |
+| --- | --- | --- |
+| 匹配分 | （先填） | `strong` 系数 1、`partial` 0.65、`gap` 0；必需权重 1、加分 0.5。分子 `1+1+1+0+0.5×0.65+0.5×1 = 3.825`，分母 `4×1+2×0.5 = 5`，`round(100×3.825/5,1) = 76.5` |
+| 有 Docker 这个必需缺口，分数又 ≥70，建议是什么？ | （先填） | **仍是「先补齐 1 项必需能力缺口，再判断是否重点投递」**——`jobs.py:115-120` 里必需缺口优先于分数分支 |
+| 18 小时的必需缺口，每周 6 小时要几周？改成 9 小时呢？ | （先填） | `weeks = max(1, ceil(18/weekly_hours))`：6 小时 → 3 周，9 小时 → 2 周 |
+
+<details>
+<summary>三条规则的源码落点</summary>
+
+1. **分数**：`match_requirements`（`jobs.py:21-54`）——`level≥3` 且有证据 = strong(1.0)，有证据但 level<3 = partial(0.65)，无有效证据 = gap(0)；权重必需 1.0、加分 0.5；`score = round(100×Σ权重×系数 / Σ权重, 1)`。报告里明写「这不是录用概率」（`jobs.py:122`）。
+2. **缺口优先**：`prepare_analysis`（`jobs.py:115-120`）——只要有 required gap，就不进 `score>=70` 的分支。
+3. **排期**：`build_learning_path`（`learning_path.py:16-59`）——必需缺口 → 必需弱项 → 加分缺口 → 加分弱项，最多 4 阶段；无基础必需项估 18h、`level=2` 估 9h；`weeks = max(1, ceil(hours/weekly_hours))`，阶段串行；`weekly_hours` 限 1–80。
+
+</details>
+
+**改变量再跑一次**：在 `POST /api/v1/jobs/analyze` 里把 `weekly_hours` 从 6 改成 9，重新分析同一份 JD，看学习路径的周数从 3 变 2。注意必须**重新调用分析接口**才会重算——已保存的岗位分析是历史快照（改了证据或画像后读取会被判过期，返回 409 让你重分析）。
+
+> 上面 76.5% 和「6→9 小时」是**按源码公式构造的推算**，不是文档里的原例；文档原例是 `(1+0+0.5×0.65)/2.5×100 = 53.0%`。两者都只说明规则怎么算，不代表录用概率或就业承诺。完整规则见 [docs/job-matching-and-planning.md](../docs/job-matching-and-planning.md)。
 
 ## 质量门禁怎么看
 

@@ -32,6 +32,13 @@
 - [06](06-runtime.md) 修一处实质错误：轮询 `GET .../events` 超界返回空列表 `[]`，不是 409（409 属于 SSE `/stream`）。fencing 字段名改为 `fencing_token`，列出与 `input_epoch`/`target_generation`/`RunScope.generation` 是独立字段；`interrupted` 补充多种来源、明确三种终态；租约标注默认 30 秒可配。
 - 全站相对链接 0 坏链。
 
+### 第 8 批 C · 匹配与排期实验（未发布）
+
+- [07](07-integration.md) 新增可手算的匹配分/排期实验：固定 JD 与画像先猜再核对，按 `jobs.py`/`learning_path.py` 公式算出 76.5%、必需缺口优先提示、18h 缺口 6 小时 3 周 / 9 小时 2 周，明确标注为「按公式构造的推算」而非文档原例或录用概率。
+- 修 [07](07-integration.md) 一处事实错误：岗位分析是同步 `POST /api/v1/jobs/analyze`，当场返回 score/matches/gaps/learning_path，不走 Run/Worker；只有生成报告是后台任务。源码路径 `backend/app/security.py` 更正为 `backend/app/security/`。
+- [01](01-quickstart.md) 精确化 strong/partial/gap 三档含义（系数、是否进排期、gap 含证据被删的情况），补「分数不是录用概率」。
+- 全站相对链接与锚点 0 坏链。
+
 ## 课程 v1.0（已发布）
 
 在线教程站：**https://wenmo-yu.github.io/careerlens/**
