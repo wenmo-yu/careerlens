@@ -36,16 +36,24 @@ flowchart LR
 
 </details>
 
-## 四项指标
+## 四项指标：先看懂公式，再看分数
 
-| 指标 | 大概在评什么 |
-| --- | --- |
-| `profile_extraction_f1` | 从证据抽画像条目，和预期条目的吻合度 |
-| `evidence_recall_at_k` | 检索问题在前 K 条里找回相关证据的比例（默认 Recall@5） |
-| `supported_claim_rate` | 结论里的说法有多少能被证据 ID 支持（代理校验） |
-| `requirement_matching_f1` | 岗位要求匹配状态（strong/partial/gap）和预期的吻合度 |
+分数是算出来的，不是模型给的。四项都在 `backend/app/evaluation/runner.py`，可以逐行复算：
 
-注意 `supported_claim_rate` 是**别名与证据 ID 的代理校验**，不是语义层面的事实核查；`profile_extraction_f1` 用的是集合微平均。指标定义见 `backend/app/evaluation/runner.py`。
+| 指标 | 精确算法 | 一个会让它下降的失败样例 |
+| --- | --- | --- |
+| `profile_extraction_f1` | 把所有 case 的 `(case_id, category, name)` 元组并成**一个全局集合**算 F1（微平均），不是逐 case F1 再平均；`F1 = 2PR/(P+R)`，`P=TP/预测数`、`R=TP/预期数` | 抽取器把「Python」误抽成「Python 3」（元组不匹配），TP 减少、FP 增加 |
+| `evidence_recall_at_k` | 每条查询 `Recall@K = \|检索∩相关\| / \|相关\|`，再对所有查询取**算术平均**（默认 K=5） | 相关证据排在第 6 位，Recall@5 里漏掉它 |
+| `supported_claim_rate` | `supported_claims / claim_count`。每条画像项 +1 claim；当名字在别名表、有 `evidence_ids`、且至少一条证据原文命中别名时才算 supported | 画像项无证据 ID，或证据原文对不上别名——代理校验失败 |
+| `requirement_matching_f1` | 与画像同理，`(case_id, requirement_name, status)` 元组全局集合的 F1 | 岗位要求本该 `gap` 却判成 `strong`，元组不匹配 |
+
+**先猜再核对**：如果一个抽取器把所有 case 的画像条目都多报了一个「Python 3」（假阳性），`profile_extraction_f1` 会怎么变？微平均模式下，TP 不变但预测集合变大 → precision 下降 → F1 下降。这就是「微平均」和「逐 case 平均」的差别：全局集合里一次假阳性影响所有 case 分母。
+
+三项重要边界：
+
+- `supported_claim_rate` 是**别名与证据 ID 的代理校验**，不是语义层面的事实核查——它无法判断「收藏教程」是否真能支持「会 Kubernetes」。
+- `evidence_recall_at_k` 的分母是**相关证据数**（recall 口径），不是检索条数。
+- 冻结开发集用来**防回归**（分数掉了说明规则被改坏），不证明所选真实模型的质量。详见下方边界一节与 [08-1](08-1-real-models.md)。
 
 ## 动手：复跑冻结基线
 
