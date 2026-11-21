@@ -45,6 +45,13 @@
 - **修 build.py 链接校验盲区**：原先 `rewrite_links` 会把指向不存在源文件的相对链接**洗白**成 GitHub 404 链接，且改写时丢失锚点。现在改写前先校验源目标存在（不存在则报错并让 build 返回 1），并保留 `#锚点`。已用「指向不存在文件的坏链」实测：build 正确返回 1 并打印 BROKEN LOCAL LINKS；正常打包 63 文件、45 处改写、0 坏链。
 - 修 [GLOSSARY](GLOSSARY.md) 两处失效路径 `backend/app/security.py` → `backend/app/security/` 与 `backend/app/security/auth.py`。
 
+### 第 9 批 B · 工作台可用性（未发布）
+
+- 修通知遮挡：`.notice` 的 `top` 从 92px 调到 130px、`z-index` 从 30 提到 60，确保不被 sticky 子导航（z-index 40）盖住，窄屏也成立。
+- 修导入卡错位：`.connector-strip` 桌面网格从 5 列改为 6 列（`1.15fr repeat(5,.72fr)`），匹配「介绍 div + 5 张上传卡」共 6 个子元素，消除第 6 张卡单独换行；≤900px 单列规则不变。
+- 补 XLSX 入口：后端支持 XLSX 但工作台漏配，Documents 卡的说明加 `XLSX`、`accept` 加 `.xlsx`。
+- 本地无 pnpm 未跑 lint/build；纯 CSS 值与 JSX 属性改动，由 CI 的 frontend-quality 验证。
+
 ## 课程 v1.0（已发布）
 
 在线教程站：**https://wenmo-yu.github.io/careerlens/**
