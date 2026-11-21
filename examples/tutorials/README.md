@@ -1,6 +1,6 @@
 # 最小示例脚本
 
-四个用 **Python 标准库**写的脚本，各自只演示一个机制。它们调用本机运行中的 CareerLens Demo API，**不导入生产后端模块、不需要第三方依赖、不需要 API Key**。
+五个用 **Python 标准库**写的脚本，各自只演示一个机制。其中四个调用本机运行中的 CareerLens Demo API，**不导入生产后端模块、不需要第三方依赖、不需要 API Key**；第五个（lesson-05）纯离线手算，连服务都不用开。
 
 先按 [01 快速开始](../../tutorials/01-quickstart.md) 把服务跑起来（默认 Compose，`AUTH_MODE=disabled`），再回来跑脚本。
 
@@ -34,6 +34,7 @@ python3 examples/tutorials/lesson-01-evidence/main.py http://localhost:8000
 | [lesson-02-dedup](lesson-02-dedup/) | 同用户导入两次比对 ID；不同用户不复用 | [03 解析层](../../tutorials/03-parsing.md) |
 | [lesson-03-chat-modes](lesson-03-chat-modes/) | 比较三种检索模式，核对实际命中和原始证据 | [04 检索 Agent](../../tutorials/04-retrieval-agent.md) |
 | [lesson-04-events](lesson-04-events/) | 同键返回同一任务；验证成功结果与事件；可跑缺画像负例 | [06 运行时](../../tutorials/06-runtime.md) |
+| [lesson-05-rrf](lesson-05-rrf/) | 离线手算排名融合；改变量、名次交错、榜首判错（不用开服务） | [04 样板课](../../tutorials/04-retrieval-agent.md) |
 
 ## 约定
 

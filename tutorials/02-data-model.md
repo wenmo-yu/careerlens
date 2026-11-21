@@ -101,4 +101,4 @@ python -m app.migration_runner      # 全新库执行 alembic upgrade head
 
 ## 下一步
 
-数据模型清楚了。下一篇解析层（原始文件如何变成带位置的 Evidence）正在编写中，可先按[教程总览](README.md)里的"对应源码"一栏探索 `backend/app/ingestion/`。
+数据模型清楚了。下一篇看[解析层](03-parsing.md)：原始文件如何变成带位置的 Evidence。也可按[教程总览](README.md)里的"对应源码"一栏先探索 `backend/app/ingestion/`。

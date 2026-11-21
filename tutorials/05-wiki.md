@@ -76,7 +76,7 @@ flowchart LR
 }
 ```
 
-走后台的好处是能观察进度事件（见 06（计划中））。注意 run 方式会把 `edit_source` 写死为 `agent`，而同步接口的 `edit_source` 可选（默认 `pipeline`）。
+走后台的好处是能观察进度事件（见 [06 · 后台运行时](06-runtime.md)）。注意 run 方式会把 `edit_source` 写死为 `agent`，而同步接口的 `edit_source` 可选（默认 `pipeline`）。
 
 ### 看页面和版本
 
