@@ -6,6 +6,14 @@
 
 ## 打磨轮次（v1.0 之后）
 
+### 复查补强 · 配图与分层习题（已合并）
+
+- 对照参考开源教程（didilili/ai-agents-from-zero、microsoft/ai-agents-for-beginners、datawhalechina/hello-agents）复查：此前 23 篇教程 **0 张图片引用**，而参考项目每章 4–8 张图。本轮把仓库已有的 9 张 `docs/assets/` 截图接入 5 篇正文（开始页、01、02、04、07），均配描述性 alt；本地打包后 9 张图进站，无头 Chrome 实测图片以 `/careerlens/docs/assets/*.jpg` 渲染、HTTP 200，全站链接 0 坏链。
+- 04 样板课补「课后习题」三档：概念辨析（有答案）、改代码/改变量（可验证）、开放设计（无标准答案、给判定标准），对标 hello-agents 的分层习题写法；前两档答案放 `<details>`，明确「开放题写好坏看取舍而非数量」。
+- 修 README 配图说明：首页图标注由「工作台」更正为「产品首页」。
+- 工具链核对：`docs-site/build.py` 的坏链拦截与锚点保留确认生效；前端第 9 批三处修复（notice z-index、connector-strip 6 列、XLSX 入口）逐行核对无误。`examples/tutorials/` 七个脚本编译通过、无死代码；联网 lesson 的 HTTP 调用已统一到 `_client.py::request`。
+- 复查确认：PR #17–#33 全合并；`docs-tutorials-v1.0` 标签 SHA 未动；release.yml 仅 3 次且全由 `v*` 触发；线上 7 路径 + 26 侧栏链接全 200；本地与远端 301 个 blob 内容零差异（本轮前已将本地 main 从分叉对齐到远端）。
+
 ### 第 6 批 · 教学示例可复现（PR #24，已合并）
 
 - 练习 03 补齐画像与 Wiki 版本，等待真实证据可检索，再验证三种模式的命中与原始引用。练习 04 使用单次实验的独立幂等键，验证岗位分析已保存和成功事件；失败不再打印 `OK`。

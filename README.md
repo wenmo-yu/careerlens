@@ -55,9 +55,9 @@ docker compose up -d --build
 
 ## 界面预览
 
-![CareerLens 工作台：证据驱动的职业决策](docs/assets/overview.jpg)
+![CareerLens 产品首页：证据驱动的职业决策](docs/assets/overview.jpg)
 
-首页用于快速理解项目，交互工作台保留完整业务操作。截图来自本地 Docker 环境，案例为虚构资料。[查看更多页面展示](docs/showcase.md)。
+上面是产品首页，用于快速理解项目；完整的交互在工作台。截图来自本地 Docker 环境，案例为虚构资料。[查看更多页面展示](docs/showcase.md)。
 
 ## 工作流
 

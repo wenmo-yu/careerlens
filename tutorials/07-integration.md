@@ -10,6 +10,10 @@
 
 ---
 
+先看一眼成品的全貌，再往下读每一部分各自负责什么。
+
+![CareerLens 系统设计页面：从证据、检索到报告与对话的分层结构](../docs/assets/architecture.jpg)
+
 ## 一张系统图
 
 <details>
