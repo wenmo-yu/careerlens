@@ -1,3 +1,42 @@
+from pathlib import Path
+
+
+async def test_tutorial_docx_fixtures_deduplicate_the_shared_paragraph(client):
+    fixtures = Path(__file__).resolve().parents[2] / "examples/tutorials/fixtures"
+    content = "我用 Python 做过一个课程项目，只在本机演示。"
+    mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    async def upload(user_id, name):
+        response = await client.post(
+            "/api/v1/evidence/file",
+            data={"user_id": user_id},
+            files={"upload": (name, (fixtures / name).read_bytes(), mime)},
+        )
+        assert response.status_code == 201, response.text
+        return {item["content"]: item for item in response.json()["items"]}
+
+    first = await upload("lesson-docx", "demo-a.docx")
+    second = await upload("lesson-docx", "demo-b.docx")
+    repeated = await upload("lesson-docx", "demo-a.docx")
+    separate = await upload("lesson-docx-other", "demo-a.docx")
+    shared_id = first[content]["id"]
+
+    assert first["演示 A"]["id"] != second["演示 B"]["id"]
+    assert second[content]["id"] == repeated[content]["id"] == shared_id
+    assert separate[content]["id"] != shared_id
+
+    response = await client.get(f"/api/v1/evidence/{shared_id}")
+    assert response.status_code == 200
+    metadata = response.json()["source_metadata"]
+    assert metadata["source_count"] == 2
+    sources = metadata["sources"]
+    assert len({source["doc_id"] for source in sources}) == 2
+    assert {
+        (source["source_name"], source["block_index"], source["section_path"])
+        for source in sources
+    } == {("demo-a.docx", 1, "演示 A"), ("demo-b.docx", 1, "演示 B")}
+
+
 async def test_ingest_and_list_text_evidence(client):
     response = await client.post(
         "/api/v1/evidence/text",

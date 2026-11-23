@@ -119,13 +119,9 @@ GET /api/v1/wiki/{slug}/revisions?user_id=...  看历史版本
 
 ### 3. 版本不变量：只在可见变化时才递增
 
-一个容易踩的坑：模型重编译一次，内容其实没变，版本却 +1，历史里堆满无意义快照。这里的规则是：
+假设 A 和 B 都读到了第 1 版。A 先改名成功，版本号变为 2。此时 B 手里的修改仍基于第 1 版，直接保存会覆盖 A 的改动。调用方把它读到的版本放进 `base_version`，数据库在更新时用 `WHERE version = ...` 再检查一次。SQL 这次实际更新了几行，决定谁的修改能提交。见 [Wiki 写入服务](../backend/app/services/wiki_pages.py)的 `update_page`。
 
-- 只有**用户可见的字段**（标题、正文、摘要等）或引用发生变化，才生成快照并把 `version + 1`；
-- 仅仅刷新时间戳不算一次编辑；
-- `base_version` 做乐观并发：如果你基于第 1 版编辑，但提交时已经是第 2 版，写入会被拒绝，避免过期覆盖。实现是「预检 + SQL `UPDATE ... WHERE version=? RETURNING id`」双保险（`wiki_pages.py:146-149,167-175`）。**两种路径的表现不同**：同步接口 `POST /api/v1/wiki/compile` 返回 **409**；后台 run 则是任务失败、`error_code="stale_input"`，不是 HTTP 409；
-- 版本号只在可见字段或 `source_refs`/`chunk_refs` 变化时 `+1`（新建从 1 开始）；只刷 `updated_at` 不递增；
-- 回滚 = 拿旧版本内容做一次普通编辑（`edit_source="revert"`），**保留全部历史**，不删除未来版本。
+新页从版本 1 开始。标题、正文、摘要或引用有变化时，才记一份新快照。用相同输入重编译通常仍是同一个版本，只有更新时间可能变化。回滚会把旧内容写成一次新编辑，之前的版本都能继续查。
 
 ## 可复跑实验：丢行被拒与版本冲突
 
@@ -141,7 +137,23 @@ GET /api/v1/wiki/{slug}/revisions?user_id=...  看历史版本
 | 删掉一行 `Docker` | `["docker","python"]` | `1/3 ≈ 33%` | **是**，默认阈值 0 |
 | 只改某行第二列文字 | 不变（身份只取首个非空单元格） | `0` | 否 |
 
-注意 `1/3` 是「丢了 1/3 的**行实例**」（多重集缺失 1÷3），不是「独特身份少了 1/3」——`{docker, python}` 这个集合没变。两行相同的场景（`A/A` 丢一行）才是 50%（`test_table_guard_counts_repeated_row_keys`）。
+把旧表里的每个首格按出现次数记一笔。这里旧表是 `docker: 2, python: 1`，新表是 `docker: 1, python: 1`。欠一笔，所以损失是 `1/3`。如果只用集合，两边都是 `{docker, python}`，这次丢行就会被掩盖。
+
+在已装后端依赖的 `backend/` 目录把下面保存为 `wiki_rows_demo.py`，用虚拟环境的 Python 运行 `python wiki_rows_demo.py`。
+
+```python
+from app.wiki.tables import DroppedTableRowsError, assert_rows_preserved, row_identity_loss_ratio
+
+before = "| 能力 | 证据 |\n| --- | --- |\n| Docker | 本机启动 |\n| Docker | 健康检查 |\n| Python | 课程作业 |"
+after = before.replace("| Docker | 健康检查 |\n", "")
+print(row_identity_loss_ratio(before, after))
+try:
+    assert_rows_preserved(before, after)
+except DroppedTableRowsError as error:
+    print(error)
+```
+
+两行输出分别是 `0.3333333333333333` 和 `rewrite dropped 33% of table rows (limit 0%)`。恢复旧表，再把「健康检查」换成另一句话，损失会是 `0`。这解释了为什么仍要抽查第二列的出处。
 
 **怎么用 API 观察**：Demo provider 会**原样拼接证据成页**（`compiler.py:83-84`），所以靠调 API 造不出「模型丢行」——这一步只能通过后端测试注入。可复跑命令：
 
@@ -154,7 +166,7 @@ pytest tests/test_wiki_compile.py -k "table_guard or dropped_table_rows" -v
 - `test_compile_rejects_dropped_table_rows`：模拟丢行 → 抛 `WikiCompileError`，消息含 `table rows`。
 - `test_table_guard_counts_repeated_row_keys`：`A/A` 丢一行 → 0.5。
 
-**版本冲突**可以直接用 API 复现：先 `POST /api/v1/wiki/compile` 建页（记返回的 `version`，比如 1），再用 `base_version: 1` 编译一次让它变成 2，然后**仍用 `base_version: 1`** 提交——同步接口返回 **409**，detail 为 `page version changed: expected 1, found 2`（`wiki.py:75-76`、`test_wiki_compile.py:88-98`）。换成后台 `wiki_compile` run，同样的过期版本会得到 `status="failed"`、`error_code="stale_input"`，**不是** HTTP 409。
+版本冲突可以直接用上面的同步 API 验证。选一个新 `slug`，建页后记下版本 1。保留同一个 `slug` 和证据，**改一下 `title`**（例如「林澈的实践」改成「林澈的实践 第二版」），带 `base_version: 1` 提交，确认版本变成 2。接着用旧的 `base_version: 1` 再提交，预期 HTTP `409`，`detail` 中能看到期望版本和当前版本。后台入口的同一次拒写记录在任务结果，状态为 `failed`，`error_code` 为 `stale_input`。
 
 **可核对的产物**：一张表，列「改动 / 损失比例 / 是否写入 / 写入后 version」，三行实验各填一行；再附一条 409 的 detail 原文。参考实现：`backend/app/wiki/tables.py:20-109`、`backend/tests/test_wiki_compile.py:50-58,88-98,128-174`。
 

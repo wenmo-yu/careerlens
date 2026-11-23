@@ -78,7 +78,7 @@ source .venv/bin/activate
 - **`py` 和 `python3` 该用哪个**：Windows 用 `py`（启动器），macOS / Linux 用 `python3`。不要把系统自带的 `python` 当成项目 Python。
 - **装了但还是找不到命令**：关掉终端重新打开（PATH 要刷新）；仍不行就检查安装时是否勾选了加入 PATH。
 - **版本低于 3.11**：项目要求 3.11+，请升级后重试。
-- **虚拟环境激活失败（Windows PowerShell）**：若提示脚本被禁止，先在管理员 PowerShell 里执行一次 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`，再重试。
+- **虚拟环境激活失败（Windows PowerShell）**：可在 `backend/` 目录直接运行 `.\.venv\Scripts\python.exe --version`。用同一个解释器安装依赖或运行脚本即可。
 
 ## 下一步
 

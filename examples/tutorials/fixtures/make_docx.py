@@ -19,12 +19,14 @@ import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-# 两份文档的正文段落必须逐字节一致，才会命中同一条 Evidence。
+# 两份文档固定使用同一段正文，方便跟做时定位共享证据。
 SHARED_PARAGRAPH = "我用 Python 做过一个课程项目，只在本机演示。"
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 _DOC_CT = "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
+_STYLES_CT = "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"
 _OFFICE_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+_STYLES_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"
 
 CONTENT_TYPES = (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -33,6 +35,7 @@ CONTENT_TYPES = (
     'ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
     '<Default Extension="xml" ContentType="application/xml"/>'
     f'<Override PartName="/word/document.xml" ContentType="{_DOC_CT}"/>'
+    f'<Override PartName="/word/styles.xml" ContentType="{_STYLES_CT}"/>'
     '</Types>'
 )
 
@@ -40,6 +43,13 @@ RELS = (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
     f'<Relationship Id="rId1" Type="{_OFFICE_REL}" Target="word/document.xml"/>'
+    '</Relationships>'
+)
+
+DOCUMENT_RELS = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    f'<Relationship Id="rId1" Type="{_STYLES_REL}" Target="styles.xml"/>'
     '</Relationships>'
 )
 
@@ -57,6 +67,8 @@ def document_xml(title: str) -> str:
     body = paragraph(title, heading=True) + paragraph(SHARED_PARAGRAPH)
     styles = (
         '<w:styles xmlns:w="' + W + '">'
+        '<w:style w:type="paragraph" w:default="1" w:styleId="Normal">'
+        '<w:name w:val="Normal"/></w:style>'
         '<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/></w:style>'
         '</w:styles>'
     )
@@ -73,6 +85,7 @@ def write_docx(path: Path, title: str) -> None:
         z.writestr("[Content_Types].xml", CONTENT_TYPES)
         z.writestr("_rels/.rels", RELS)
         z.writestr("word/document.xml", doc)
+        z.writestr("word/_rels/document.xml.rels", DOCUMENT_RELS)
         z.writestr("word/styles.xml", styles)
 
 

@@ -59,7 +59,7 @@ flowchart LR
 
 项目把“有来源”作为必要条件，不把它误写成“结论一定正确”。真实评估需覆盖：Evidence 是否充分、画像抽取是否准确、JD 要求是否完整、错误证据是否被引用，以及用户修正后结果是否如预期变化。现有[开发回归基准](evaluation-and-operations.md)主要验证确定性规则与本地检索，无法证明真实 Qwen/DeepSeek 的质量。
 
-## 与 WeKnora / WorkBuddy 的实现对照
+## 与 WeKnora 和 WorkBuddy 的实现对照
 
 CareerLens 的 Wiki 版本链与后台运行时参考了 WeKnora 与 WorkBuddy 的架构，但按本项目规模做了取舍。为避免把"参考"误读成"等价"，这里列出关键对照：
 

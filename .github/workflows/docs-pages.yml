@@ -38,7 +38,9 @@ jobs:
           python-version: "3.11"
 
       - name: Build site artifact
-        run: python3 docs-site/build.py _site "${{ github.sha }}"
+        run: |
+          python3 -m unittest discover -s docs-site
+          python3 docs-site/build.py _site "${{ github.sha }}"
 
       - name: Verify artifact essentials
         run: |

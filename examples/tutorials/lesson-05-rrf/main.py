@@ -1,16 +1,15 @@
 """练习 05：手算排名融合（RRF），理解「榜首不一定支持结论」。
 
 对应课程：tutorials/04-检索Agent.md（样板课）。
-不需要安装、不需要服务、不需要第三方依赖——只用 Python 标准库。
+使用 Python 标准库。在装好 Python 的终端运行即可。
 
-三种入口，互不干扰：
+内置算例：
   python3 examples/tutorials/lesson-05-rrf/main.py          # 默认：四环节回归断言
   python3 examples/tutorials/lesson-05-rrf/main.py --k 10   # 变体一：只改 k
   python3 examples/tutorials/lesson-05-rrf/main.py --drop-b # 变体二：从榜 A 移除 B
 
-变体入口专门给「只改一个变量」用：它们输出可复算的分数，不跑默认的
-固定断言（默认断言写死了初始分数，改变量后必然失败）。三种入口都能
-正常退出 0，便于 CI 逐个检查。
+自定义榜单通过 --rankings 传入，格式为两组用逗号分隔的证据 ID。
+内置算例核对固定分数。自定义榜单交由读者按公式核对。
 """
 from __future__ import annotations
 
@@ -108,20 +107,39 @@ def run_variant(k: int, drop_b: bool) -> None:
     elif drop_b and k == 2:
         assert approx(a, 1 / 2) and approx(b, 1 / 3) and approx(c, 1 / 2)
         assert order[0] == "A" and order[1] == "C"
-    print("排名第一：", order[0], "（变体输出与手算一致，未跑默认固定断言）")
+    print("按脚本排序规则排第一：", order[0])
     print("OK：变体入口执行完成。")
+
+
+def parse_ranking(value: str) -> list[str]:
+    ids = [doc.strip() for doc in value.split(",")]
+    if not all(ids) or len(ids) != len(set(ids)):
+        raise argparse.ArgumentTypeError("榜内 ID 用逗号分隔，每一项非空且只出现一次")
+    return ids
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="RRF 手算练习：默认回归 + 可调变体")
     parser.add_argument("--k", type=int, default=None, help="替换教学常数 k，例如 --k 10")
-    parser.add_argument("--drop-b", action="store_true", help="从榜单 A 移除 B")
+    rankings = parser.add_mutually_exclusive_group()
+    rankings.add_argument("--drop-b", action="store_true", help="从内置榜单 A 移除 B")
+    rankings.add_argument(
+        "--rankings", nargs=2, type=parse_ranking, metavar=("榜单A", "榜单B"),
+        help='自定义两张榜，例如 --rankings "A,X,Y,B" "C,U,V,B"',
+    )
     args = parser.parse_args()
+    k = args.k if args.k is not None else K
+    if k < 1:
+        parser.error("--k 必须为正整数")
 
-    if args.k is None and not args.drop_b:
-        run_default()
+    if args.rankings is not None:
+        print(f"自定义榜单，k={k}：", *args.rankings)
+        show("融合后", fuse(*args.rankings, k=k))
+        print("OK：自定义榜单计算完成。")
+    elif args.k is not None or args.drop_b:
+        run_variant(k, args.drop_b)
     else:
-        run_variant(args.k if args.k is not None else K, args.drop_b)
+        run_default()
 
 
 if __name__ == "__main__":

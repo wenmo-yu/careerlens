@@ -45,7 +45,17 @@
 
 用 Python 标准库实现刚才的手算，然后**改一个变量**：把 B 从榜单 A 移除，重新算，看谁第一。再看一种完全不同的合并方式——按名次交错。
 
-现成脚本：[lesson-05-rrf](../examples/tutorials/lesson-05-rrf/)（不用安装、不用连服务，但要有一份可用的 Python）。它有三个入口：**默认**跑回归断言，**两个变体**分别只改一个变量。三种都能正常结束，变体不跑写死的初始断言——所以你改变量时不会撞上「断言失败」。
+本篇使用[练习 05](../examples/tutorials/lesson-05-rrf/)的脚本。从仓库根目录运行，Python 标准库就够。先跑原始榜单，再各改一个参数。每条成功的命令会打印 `OK`。
+
+Windows PowerShell 先运行 `python --version` 确认命令可用，再复制下面几行。习惯用 `py` 的读者可以先用 `py --version` 确认版本。
+
+```powershell
+python examples/tutorials/lesson-05-rrf/main.py
+python examples/tutorials/lesson-05-rrf/main.py --k 10
+python examples/tutorials/lesson-05-rrf/main.py --drop-b
+```
+
+macOS 或 Linux 用 `python3`。
 
 ```bash
 python3 examples/tutorials/lesson-05-rrf/main.py            # 默认：原始两榜，k=2
@@ -83,32 +93,40 @@ def fuse(*lists, k=2):
 
 名次交错（`rank_interleave`）是 `hybrid` 模式合并 RAG 与 Wiki 两路的方式（`backend/app/services/knowledge.py:66-69`），它和 RRF 分数融合是**两件不同的事**——前者按名次轮流取，后者按倒数名次累加分。脚本里两种都算了，就是让你看清它们的依据不同。
 
-想自己改：`LIST_A`、`LIST_B` 换成别的两张榜，或直接用 `--k` / `--drop-b` 改一个变量。迁移验证：两张长榜里 B 都在第 10 名（从 0 计）、A 只在一张榜第 0 名、`k=2` 时，B 是 `2/12≈0.167`、A 是 `1/2`，**A 反而更高**——两榜都命中并不总能赢。
-
 </details>
+
+试一组新输入。两张榜里 B 都在第 4 个位置，从 0 数就是名次 3。先算 B 能否超过只出现在一张榜首的 A，用这条命令核对。
+
+```bash
+python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
+```
+
+这次 A、C 各拿 `1/(2+0)=0.5`，B 的两个名次各贡献 `1/(2+3)=0.2`，合计 `0.4`。命中次数和名次都参与得分。如果想继续改，按顺序替换引号里的 ID，可加 `--k 10` 比较同一对榜单。直接运行默认命令仍用于核对原始算例。
 
 ## 环节三 · 接回真实实现：诊断里到底走了哪条链（可选，需本机服务）
 
-手算懂了公式，再看真实服务怎么处理。跟读这四处源码，然后用同一个问题跑三种模式：
+问「林澈做过哪些 Python 项目」时，系统先要找出一批值得读的原文，再给这批候选排次序。把下面四步和刚才的两张榜单对起来读：
 
-| 源码位置 | 看什么 |
-| --- | --- |
-| `backend/app/retrieval/qdrant_store.py:93-118` | Dense + Sparse 两路召回后，用 Qdrant 原生 RRF 融合；**没有自写 RRF、没有指定 k**。 |
-| `backend/app/retrieval/hybrid.py:44-52` | Qdrant 不可用时的本地回退：词频余弦 + 手写 IDF 加权（`0.45` 稠密 / `0.55` 稀疏 + 精确命中 `0.25`），**不是标准 BM25**。 |
-| `backend/app/retrieval/service.py:43-88` | 何时走 Qdrant、何时回退本地；诊断如实报 `backend`、`fusion`、`fallback`、`reason`。 |
-| `backend/app/services/knowledge.py:51-82` | 三种模式怎么分；`hybrid` 才写 `knowledge_fusion: "rank_interleave"`。 |
+| 步骤 | 实现 | 你可以检查什么 |
+| --- | --- | --- |
+| 稠密召回 | `HashEmbeddingProvider` 默认把词映射到固定长度的向量，按余弦相似度查邻居。余弦计算向量点积除以两边的长度，比较方向。可选的 Qwen provider 换成学习出来的文本向量。 | 默认 `hash-v1` 擅长复现词重合，换成同义表达后未必能搜到同一条。 |
+| 稀疏召回 | `sparse_vector` 只提交出现过的词及其计数。Qdrant 的 IDF 修正降低常见词的影响，使少见的术语有机会排到前面。 | IDF 和 BM25 都会考虑词在多少文档中出现。标准 BM25 还考虑词频饱和和文档长度，这条路径用的是词计数加 IDF。 |
+| 榜单融合 | Qdrant 对两张榜做原生 RRF。这里的代码提交两路候选和融合类型，`k=2` 来自课堂示例。 | 看到 `backend=qdrant` 和 `fusion=rrf` 后，再用刚手算过的名次贡献去理解次序。 |
+| 重排 | 默认 `lexical-v1` 用候选与问句的词集交集大小除以并集大小。比如问句的词集是 `{python, docker}`，候选词集再多一个 `compose`，这一分就是 `2/3`。 | 看 `rerank_score`。重排只处理已经召回的候选，第一步漏掉的材料到这里仍拿不到。 |
 
-**先备好前置**：按 [01](01-第一次跑起来.md) 导入合成资料、生成画像；再编译至少一页 Wiki（见 [05](05-Wiki知识组织.md)），否则 `wiki`/`hybrid` 会得到空结果。然后打开 `http://localhost:8000/docs`，展开 `POST /api/v1/chat`，请求体：
+沿 [Qdrant 检索](../backend/app/retrieval/qdrant_store.py) 的 `ensure_collection` 和 `search` 看这四步。配置允许回退时， [本地检索](../backend/app/retrieval/hybrid.py) 直接计算 `0.45 × 词频余弦 + 0.55 × 稀有词得分 + 短语加分`。问句完整出现在正文时，加分为 `0.25`。[第 08-2 篇](08-advanced/08-2-评测.md) 会让你观察这项加分怎样改变一个实际指标。
+
+先用 [01](01-第一次跑起来.md) 已建好画像的用户跑一次 `rag`。工作台默认是 `demo-user`，如果你用的是另一个教学 ID，就替换下面的值。在 `http://localhost:8000/docs` 展开 `POST /api/v1/chat` 并填入这份请求。
 
 ```json
 {
-  "user_id": "learner",
+  "user_id": "demo-user",
   "message": "我做过哪些 Python 项目？",
   "mode": "rag"
 }
 ```
 
-`mode` 是**请求体字段**，取值 `rag` / `wiki` / `hybrid`，默认 `rag`；chat 前必须有画像，否则返回 422（`backend/app/api/routes/chat.py:50-52`）。依次改成三种模式各跑一次，用 [lesson-03-chat-modes](../examples/tutorials/lesson-03-chat-modes/) 自动核对，或手动看返回的三个地方：
+如果暂时没编译 Wiki，完成 `rag` 这一组就可以继续读。想比较 Wiki 时，先按[第 05 篇](05-Wiki知识组织.md)为同一个用户编译一页相关材料，再把 `mode` 分别改为 `wiki` 和 `hybrid`，问句保持不变。也可以用 [lesson-03-chat-modes](../examples/tutorials/lesson-03-chat-modes/) 自动核对。三次响应重点看这些字段。
 
 - `retrieval.backend` / `retrieval.fusion`：Qdrant 成功时是 `qdrant` / `rrf`；本地回退时是 `local` / `weighted_score`，且 `fallback: true`、`reason` 说明原因。**本机回退不走 RRF**——这正是环节一公式和真实链路要分开看的地方。
 - `evidence[*].source_kind`：`rag` 或 `wiki`。`wiki` 模式不查证据检索器，所以它的诊断里**没有** `backend`/`fusion`/`reranker` 键——不是 bug，是它根本没走那条链。
@@ -148,14 +166,14 @@ def fuse(*lists, k=2):
 | 怎么触发 | 会看到什么 | 怎么确认 | 怎么恢复 |
 | --- | --- | --- | --- |
 | 没建画像直接 `POST /api/v1/chat` | HTTP **422** | 响应体提示缺画像；对照 `backend/app/api/routes/chat.py:50-52` 的前置检查 | 先按 [01](01-第一次跑起来.md) 导入合成资料并 `POST /api/v1/profiles/{user_id}/rebuild` |
-| `mode` 传成 `wiki`/`hybrid`，但没编译 Wiki | 返回成功但 `evidence` 为空、`source_kind` 找不到 wiki 条目 | 看 `retrieval` 诊断与 `evidence` 数组是否为空；不是报错，是没材料可查 | 按 [05](05-Wiki知识组织.md) 编译至少一页 Wiki，再重跑 |
+| 还没编译 Wiki | `wiki` 可能没有候选。 `hybrid` 仍可返回 RAG 候选 | 看 `retrieval.wiki_count` 是否为 0，以及 `evidence[].source_kind` | 按 [05](05-Wiki知识组织.md) 编译一页相关 Wiki，再用原问句重跑 |
 | 回答里出现未知的行内引用 ID | 请求失败，`validated_citations` 抛「unknown Evidence citation」 | 源码 `backend/app/services/citations.py:15-16`：ID 不在允许范围就拒绝 | 这是**引用合法性**被系统挡住（见环节四）；重新提问或核对证据 ID |
 
 前两种是「前置没备好」，补上就能继续；第三种是系统**故意**拒绝非法引用，别把它当 bug。**注意系统不会拦「合法 ID 但原文不支持结论」**——那一步只能你自己核对（环节四）。
 
 ## 课后习题
 
-对标开源教程的分层设计，三档由浅入深。前两档有参考答案，第三档开放、没有标准答案——重点是把理由说清楚，而不是背结论。
+先选一道能独立解释的题。想继续写代码，就用下一组榜单检查你的解释。
 
 ### A · 概念辨析（有答案）
 

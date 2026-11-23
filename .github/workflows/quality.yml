@@ -27,12 +27,13 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check --config pyproject.toml . ../examples/tutorials
       - run: pytest
-      - name: Run offline RRF tutorial exercise (default and both variants)
+      - name: Run offline RRF tutorial exercise with default and custom rankings
         working-directory: .
         run: |
           python3 examples/tutorials/lesson-05-rrf/main.py
           python3 examples/tutorials/lesson-05-rrf/main.py --k 10
           python3 examples/tutorials/lesson-05-rrf/main.py --drop-b
+          python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
       - name: Run evaluation tutorial exercise (Recall@2 demo)
         working-directory: .
         run: python3 examples/tutorials/lesson-06-eval/main.py
