@@ -1,6 +1,6 @@
 """练习 04：提交后台任务、验证幂等、轮询事件。
 
-对应课程：tutorials/06-runtime.md
+对应课程：tutorials/06-后台运行时.md
 核对：幂等键复用得到同一 run；任务成功并有结果；事件序号递增。
 运行：python3 examples/tutorials/lesson-04-events/main.py
 """

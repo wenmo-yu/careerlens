@@ -142,6 +142,60 @@ def rewrite_links(out: Path, sha: str) -> tuple[int, list[str]]:
     return count, problems
 
 
+def fix_homepage_links(out: Path, homepage_rel: str = "tutorials/从这里开始.md") -> int:
+    """修正首页正文里的相对链接，使其在 Docsify 的 #/ 路由下可用。
+
+    Docsify 把 homepage 渲染在站点根路由（#/），正文相对链接基于站点根解析；
+    而 从这里开始.md 的原文链接基于 tutorials/ 目录（GitHub 浏览正确）。
+    两边基准不同，无法用一份相对链接同时满足。打包时给首页正文的相对链接
+    补上 tutorials/ 前缀（../ 开头的去掉 ..），GitHub 原文保持不变，两边都对。
+    返回改写数量。
+    """
+    home = out / homepage_rel
+    if not home.exists():
+        return 0
+    text = home.read_text(encoding="utf-8")
+    count = 0
+
+    def repl(m: re.Match) -> str:
+        nonlocal count
+        label, target = m.group(1), m.group(2).strip()
+        if target.startswith(("http://", "https://", "mailto:", "#")):
+            return m.group(0)
+        path_part, sep, anchor = target.partition("#")
+        if not path_part:
+            return m.group(0)
+        # 指向 docs/ 或仓库根 README 的 ../ 链接：去掉 .. 即为站点根相对路径
+        if path_part.startswith("../"):
+            new_path = path_part[3:]
+        elif path_part.startswith("./"):
+            new_path = "tutorials/" + path_part[2:]
+        elif "/" in path_part and path_part.split("/")[0] in ("tutorials", "docs", "examples"):
+            return m.group(0)  # 已是站点根相对路径
+        else:
+            new_path = "tutorials/" + path_part
+        count += 1
+        return f"[{label}]({new_path}{sep}{anchor})"
+
+    new_text = re.sub(r"\[([^\]]*)\]\(([^)]+)\)", repl, text)
+    if count:
+        home.write_text(new_text, encoding="utf-8")
+    return count
+
+
+def resolve_link(md: Path, out: Path, path_part: str) -> Path:
+    """解析站内相对链接。普通篇章按 md 所在目录解析；首页（站点根路由）按 out 根解析。
+
+    同一路径两种基准都试，任一命中即返回，兼顾 GitHub 原文的目录相对语义
+    与 Docsify 首页的站点根语义。
+    """
+    candidates = [(md.parent / path_part), (out / path_part)]
+    for c in candidates:
+        if c.resolve().exists():
+            return c.resolve()
+    return candidates[0].resolve()
+
+
 def check_no_local_links(out: Path) -> list[str]:
     """校验输出里没有指向仓库内未打包文件的相对链接。"""
     problems: list[str] = []
@@ -154,7 +208,7 @@ def check_no_local_links(out: Path) -> list[str]:
             path_part = target.split("#")[0]
             if not path_part:
                 continue
-            if not (md.parent / path_part).resolve().exists():
+            if not resolve_link(md, out, path_part).exists():
                 problems.append(f"{md.relative_to(out)}: {target}")
     return problems
 
@@ -204,7 +258,7 @@ def check_anchors(out: Path) -> list[str]:
             path_part, sep, anchor = target.partition("#")
             if not sep or not anchor or anchor.startswith("L"):
                 continue
-            dest = (md.parent / path_part).resolve() if path_part else md.resolve()
+            dest = resolve_link(md, out, path_part) if path_part else md.resolve()
             if not dest.exists() or dest.suffix.lower() != ".md":
                 continue  # 坏文件由 check_no_local_links 负责
             try:
@@ -240,6 +294,7 @@ def main() -> int:
 
     copy_sources(out)
     rewritten, rewrite_problems = rewrite_links(out, sha)
+    home_fixed = fix_homepage_links(out)
     # 同一坏文件会被 check_no_local_links 和 rewrite_links 各报一次，去重保持输出干净
     problems = list(dict.fromkeys(check_no_local_links(out) + rewrite_problems + check_anchors(out)))
     denied = deny_scan(out)
@@ -248,6 +303,7 @@ def main() -> int:
     print(f"files: {sum(1 for p in out.rglob('*') if p.is_file())}")
     print(f"commit link sha: {sha}")
     print(f"links rewritten to GitHub: {rewritten}")
+    print(f"homepage links prefixed with tutorials/: {home_fixed}")
     if denied:
         print("DENIED FILES FOUND:", denied, file=sys.stderr)
         return 1

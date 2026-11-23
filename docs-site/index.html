@@ -14,6 +14,10 @@
     .mermaid { overflow-x: auto; }
     /* 让代码块复制按钮在浅色主题下可见 */
     .docsify-copy-code-button { background: var(--theme-color); }
+    /* 「说明」引用块：Docsify 不支持 GitHub 的 [!NOTE] alert，统一用带底色的引用块 */
+    .markdown-section blockquote { border-left: 4px solid var(--theme-color); background: #f4f7f5; padding: 10px 16px; margin: 16px 0; }
+    .markdown-section blockquote > p:first-child { margin-top: 0; }
+    .markdown-section blockquote > p:last-child { margin-bottom: 0; }
   </style>
 </head>
 <body>
@@ -25,7 +29,7 @@
       <p>本站阅读需要启用 JavaScript。若无法启用，可直接在 GitHub 阅读全部教程：</p>
       <ul>
         <li><a href="https://github.com/wenmo-yu/careerlens/tree/main/tutorials">教程目录（GitHub）</a></li>
-        <li><a href="https://github.com/wenmo-yu/careerlens/blob/main/tutorials/START-HERE.md">从这里开始（GitHub）</a></li>
+        <li><a href="https://github.com/wenmo-yu/careerlens/blob/main/tutorials/从这里开始.md">从这里开始（GitHub）</a></li>
         <li><a href="https://github.com/wenmo-yu/careerlens#readme">项目首页（GitHub）</a></li>
       </ul>
     </div>
@@ -36,11 +40,14 @@
       name: 'CareerLens 教程',
       repo: 'wenmo-yu/careerlens',
       loadSidebar: true,
-      homepage: 'tutorials/START-HERE.md',
+      homepage: 'tutorials/从这里开始.md',
       subMaxLevel: 3,
       maxLevel: 4,
       auto2top: true,
       basePath: '/careerlens/',
+      // 篇章页正文相对链接按 md 所在目录解析（否则 [术语表](术语表.md) 会被当成站点根路径而 404）。
+      // 首页 homepage 渲染在 #/ 路由、基准是站点根，其链接由 build.py 统一补 tutorials/ 前缀。
+      relativePath: true,
       // 搜索：索引本页标题与正文，深度 6
       search: {
         depth: 6,
@@ -67,7 +74,7 @@
             var main = document.querySelector('.markdown-section');
             if (!main || document.getElementById('github-source-link')) return;
             var path = (location.hash || '').replace(/^#\/?/, '').split('?')[0];
-            if (!path) path = 'tutorials/START-HERE.md';
+            if (!path) path = 'tutorials/从这里开始.md';
             if (path.indexOf('..') !== -1) return;
             var link = document.createElement('div');
             link.id = 'github-source-link';
