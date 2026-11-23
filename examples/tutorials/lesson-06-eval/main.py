@@ -28,7 +28,12 @@ DATASETS = [
     ("无收藏卡", ROOT / "eval/datasets/recall2-demo.json"),
     ("有收藏卡", ROOT / "eval/datasets/recall2-demo-bookmark.json"),
 ]
-METRICS = ["profile_extraction_f1", "evidence_recall_at_k", "supported_claim_rate", "requirement_matching_f1"]
+METRICS = [
+    "profile_extraction_f1",
+    "evidence_recall_at_k",
+    "supported_claim_rate",
+    "requirement_matching_f1",
+]
 
 
 def main() -> None:
