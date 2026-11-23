@@ -46,7 +46,7 @@ flowchart TD
 | 机制 | 防什么 | 怎么工作 |
 | --- | --- | --- |
 | 幂等键 `Idempotency-Key` | 重复提交让任务做两遍 | 同一键 + 同一输入返回同一个 run；同一键不同输入报 409 |
-| 租约 lease | Worker 崩溃后任务永久卡住 | 领取时拿默认 30 秒租约（`RUN_LEASE_SECONDS` 可配 3–300），心跳每约 2 秒续租；续不上就可被别人接管 |
+| 租约 lease | Worker 崩溃后任务永久卡住 | 领取时拿默认 30 秒租约（`RUN_LEASE_SECONDS` 可配 3–300），心跳间隔 `min(2, 租约/3)`（默认正好 2 秒，`worker.py:46`）；续不上就可被别人接管 |
 | fencing token | 过期 Worker 的旧回调污染新状态 | 字段名是 `fencing_token`（事件的 `generation` 只是它的快照）；领取、中断、取消都会递增；提交前校验，不符就丢弃 |
 
 **这几个「代次」是独立的字段，别混成一个**：`fencing_token` 管 Worker 租约 fencing；`input_epoch` 是提交时的输入代次；`target_generation` 是目标（如 `wiki:{slug}`）的代次；`RunScope.generation` 是目标计数器。提交前分别校验，防止用过期输入产出脏结果（`models/run.py:36-43`）。
@@ -123,6 +123,33 @@ python -m app.runtime.worker
 ```
 
 **任务一直 queued 十有八九是 Worker 没起来。** Worker 领取任务后，一边执行一边心跳续租；它和协调器（Coordinator）配合——协调器把任务分派给不同角色的专家子流程（需求分析、Wiki 整理、报告撰写、证据核验），每次分派都产生进度事件。关键设计：业务记录、终态、最终事件在**同一个事务**提交，所以「提交即终态」，不会出现「状态成功了但业务数据没写」。
+
+## 可复跑实验：租约重领与旧 Worker 拒写
+
+幂等和事件续看能直接用 API 观察（观察 1、3）。**租约重领和 fencing 拒写不能纯靠 HTTP 复现**——它们依赖"时间过去、租约到期"，需要一个冻结的时钟，所以走后端测试。
+
+**固定输入**（合成）：一个 `job_analysis` run，Worker A 领取（拿到旧 `fencing_token`），把时钟往前推 120 秒（租约只有 30 秒），Worker B 重新领取同一个 run（拿到更高的 token），然后让 A 尝试提交旧结果。
+
+可复跑命令（在 `backend/` 目录）：
+
+```bash
+pytest tests/test_run_runtime.py::test_expired_lease_restarts_with_new_fence -v
+```
+
+**先预测，再核对**：
+
+| 要观察什么 | 预期 | 依据 |
+| --- | --- | --- |
+| 两个 Worker 拿到的是不是同一个 run？ | 是，`old.run_id == new.run_id` | `test_run_runtime.py:173` |
+| 重领后的 fencing token | `new.token > old.token`（领取与中断都会 +1） | `store.py:289,299` |
+| Worker A 用旧 token 提交 | 抛 `store.LeaseLost`，**没有 HTTP 状态码**——被 `perform` 静默吞掉，不改任务状态 | `store.py:334-337`、`worker.py:114-115` |
+| 最终结果 | `status="succeeded"`、`attempts==2`（第二个 Worker 从头重算） | `test_run_runtime.py:179` |
+
+测试里冻结时钟的做法：`clock=[100]`，把 `store.now_seconds` 替换成 `lambda: clock[0]`，领取后 `clock[0] += 120`。**必须 patch `store.now_seconds`**（不是 `datetime`），因为 `live_claim`/`claim_next`/`heartbeat` 都调它（`store.py:251,292,316,323`）。
+
+**可核对的产物**：一段记录，写清 run ID、两次领取的 token 大小关系、旧 token 提交的 `LeaseLost`、最终 `succeeded` + `attempts=2`。补充实验 `test_cancel_while_computing_fences_off_late_result` 演示取消后迟到的旧结果同样被挡住。
+
+> 一个常见误解：以为"旧 Worker 拒写"会看到某个 HTTP 错误码。不会——它是进程内部的 `LeaseLost` 异常，被 Worker 捕获后**什么都不做**（不改状态、不写错误码）。可观测的是"旧结果没生效、新结果写入、attempts 加一"，以及在单测里直接断言 `pytest.raises(LeaseLost)`。
 
 ## 自查清单
 

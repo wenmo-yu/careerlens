@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import string
 import subprocess
 import sys
 from pathlib import Path
@@ -158,6 +159,63 @@ def check_no_local_links(out: Path) -> list[str]:
     return problems
 
 
+def slugify_heading(text: str) -> str:
+    """按 Docsify 4.x 实测的标题锚点规则生成 id（用无头 Chrome 核对过）。
+
+    实测规则：去 markdown 强调符（`*_`）、小写化、空白转 `-`，
+    去掉 **ASCII 标点**（如 `/`、`&`、`.`），但保留 **全角标点**
+    （`：？（）｜，`）——slugify 库只处理 ASCII punctuation。
+    例：「观察 3：用两份合成 DOCX，亲手验证两级去重」→
+    `观察-3：用两份合成-docx，亲手验证两级去重`；
+    「与 WeKnora / WorkBuddy 的实现对照」→
+    `与-weknora-workbuddy-的实现对照`（ASCII `/` 被删）。
+    """
+    text = re.sub(r"`|\*", "", text).strip().lower()
+    ascii_punct = set(string.punctuation)
+    slug = "".join("-" if ch.isspace() else ("" if ch in ascii_punct else ch) for ch in text)
+    return re.sub(r"-+", "-", slug)   # 删标点后相邻空格会留下双 -,Docsify 会折叠
+
+
+def check_anchors(out: Path) -> list[str]:
+    """校验站内 md 链接的 #anchor 确实指向目标文件的某个标题。
+
+    只检查指向已打包 .md 的相对链接；外链、mailto、纯锚点和源码行号锚点
+    （#L10 这类）跳过，它们不是标题锚点。
+    """
+    problems: list[str] = []
+    link_re = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
+    anchor_cache: dict[Path, set[str]] = {}
+
+    def headings(md: Path) -> set[str]:
+        if md not in anchor_cache:
+            found = set()
+            for line in md.read_text(encoding="utf-8").splitlines():
+                m = re.match(r"^#{1,6}\s+(.*)$", line)
+                if m:
+                    found.add(slugify_heading(m.group(1)))
+            anchor_cache[md] = found
+        return anchor_cache[md]
+
+    for md in out.rglob("*.md"):
+        for m in link_re.finditer(md.read_text(encoding="utf-8")):
+            target = m.group(2).strip()
+            if target.startswith(("http://", "https://", "mailto:", "#")):
+                continue
+            path_part, sep, anchor = target.partition("#")
+            if not sep or not anchor or anchor.startswith("L"):
+                continue
+            dest = (md.parent / path_part).resolve() if path_part else md.resolve()
+            if not dest.exists() or dest.suffix.lower() != ".md":
+                continue  # 坏文件由 check_no_local_links 负责
+            try:
+                dest.relative_to(out.resolve())
+            except ValueError:
+                continue  # 指向站外的链接，改写阶段会处理
+            if anchor.lower() not in headings(dest):
+                problems.append(f"{md.relative_to(out)}: {target} (anchor not found)")
+    return problems
+
+
 def deny_scan(out: Path) -> list[str]:
     """拒绝敏感/无关文件进入站点。"""
     hits = []
@@ -182,7 +240,8 @@ def main() -> int:
 
     copy_sources(out)
     rewritten, rewrite_problems = rewrite_links(out, sha)
-    problems = check_no_local_links(out) + rewrite_problems
+    # 同一坏文件会被 check_no_local_links 和 rewrite_links 各报一次，去重保持输出干净
+    problems = list(dict.fromkeys(check_no_local_links(out) + rewrite_problems + check_anchors(out)))
     denied = deny_scan(out)
 
     print(f"artifact: {out}")

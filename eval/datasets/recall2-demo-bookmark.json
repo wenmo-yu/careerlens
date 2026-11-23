@@ -1,0 +1,26 @@
+{
+  "name": "recall2-demo",
+  "recall_k": 2,
+  "cases": [
+    {
+      "id": "c1",
+      "evidence": [
+        { "id": "ev-rel-a", "content": "LangGraph Agent 状态管理" },
+        { "id": "ev-rel-b", "content": "Qdrant RAG 证据检索" },
+        { "id": "ev-bookmark", "content": "收藏教程 LangGraph Agent 状态管理 Qdrant RAG 证据检索 补充说明" }
+      ],
+      "expected_profile": [
+        { "category": "skill", "name": "Agent" },
+        { "category": "skill", "name": "LangGraph" },
+        { "category": "skill", "name": "Qdrant" },
+        { "category": "skill", "name": "RAG" }
+      ],
+      "retrieval_queries": [
+        {
+          "query": "LangGraph Agent 状态管理 Qdrant RAG 证据检索",
+          "relevant_evidence_ids": ["ev-rel-a", "ev-rel-b"]
+        }
+      ]
+    }
+  ]
+}

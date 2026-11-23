@@ -50,12 +50,18 @@ flowchart TD
 | 打开工作台 | 前端从 API 读数据 | Web → FastAPI → PostgreSQL |
 | 导入自述 | 文本写成带 ID 的证据，入检索索引 | API → 证据服务 → PostgreSQL → outbox → Qdrant |
 | 构建画像 | 从证据抽条目，带 `evidence_ids` | Worker 或 API → 画像服务 |
-| 分析岗位 | **同步 API**，直接返回匹配分与排期 | `POST /api/v1/jobs/analyze` → 匹配服务 |
+| 分析岗位（工作台） | 提交为**后台任务**，等成功后点「打开结果」 | 工作台 → `POST /api/v1/runs` → Worker → 匹配服务 |
+| 分析岗位（Swagger） | **同步接口**，当场返回匹配分与排期 | `POST /api/v1/jobs/analyze` → 匹配服务 |
 | 生成报告 | 耗时操作走后台 | Run → Worker → 协调器 → 报告服务 |
-| 追问题 | 检索证据 + 生成回答 | Copilot → 检索 → LangGraph → SSE |
+| 追问题 | 检索证据 + 生成回答，返回 **JSON** | Copilot → 检索 → LangGraph → JSON |
 | 导出 / 删除 | 数据可收回 | API → 隐私服务 → 各表 + 向量 |
 
-注意「分析岗位」和「生成报告」是两条不同的路径：前者是同步接口，当场返回 `score` / `matches` / `gaps` / `learning_path`；只有后者才进 Run/Worker。别把岗位分析也当成后台任务。
+**同一个「分析岗位」，两个入口、两种提交方式，但产物是同一种快照**（都是 `job_analyses` 表里的一条记录，用同一套 `JobAnalysisRead` 读取、同一套失效规则）：
+
+- **工作台**点「分析匹配度」走后台：`POST /api/v1/runs` 提交 `operation: "job_analysis"`（`frontend/app/workspace/page.tsx:163-170`），任务中心显示进度，成功后点「打开结果」才把分析填入页面（`frontend/components/run-center.tsx:165-166`）。
+- **Swagger** 里调 `POST /api/v1/jobs/analyze` 是同步的：当场返回 `score / matches / gaps / learning_path`（`backend/app/api/routes/jobs.py:16-31`）。
+
+所以「岗位分析走不走 Worker」要看入口：工作台走，Swagger 不走。别只记住其中一句。另外，**SSE 进度流只属于后台 Run**（`GET /api/v1/runs/{id}/stream`），Copilot 对话返回的是 JSON，不是 SSE。
 
 ## 观察：分清三种状态
 
@@ -92,7 +98,28 @@ flowchart TD
 
 </details>
 
-**改变量再跑一次**：在 `POST /api/v1/jobs/analyze` 里把 `weekly_hours` 从 6 改成 9，重新分析同一份 JD，看学习路径的周数从 3 变 2。注意必须**重新调用分析接口**才会重算——已保存的岗位分析是历史快照（改了证据或画像后读取会被判过期，返回 409 让你重分析）。
+**用 API 核对你的手算**：手算完 76.5% 和 3/2 周后，到 `http://localhost:8000/docs` 展开 `POST /api/v1/jobs/analyze`，用同一个合成画像和 JD 提交两次（`weekly_hours` 分别为 6、9），对照返回字段：
+
+| 你要核对的 | 看返回的哪个字段 | 期望 |
+| --- | --- | --- |
+| 匹配分 | `score` | `76.5`（两次相同——分数与 `weekly_hours` 无关） |
+| 必需缺口 | `matches[]` 里 Docker 那项的 `status` | `gap`；同时 `gaps` 里有它 |
+| 排期周数 | `learning_path[]` 里 Docker 那一项的 `weeks`（同项还有 `estimated_hours`、`start_week`） | 6 小时 → `3`，9 小时 → `2` |
+
+先备好前置：画像里 Python/FastAPI/PostgreSQL/MCP 是 `level≥3` 且有证据（strong），RAG 是 `level=2`（partial），Docker 无有效证据（gap）；JD 写含这 6 项的要求。**若分数对不上**，多半是画像条目的 level 或证据没按上表备齐——`score` 由当前画像和有效证据实算，不是照抄算例。算分与排期都按 `services/jobs.py`、`services/learning_path.py` 的规则。
+
+**改变量再跑一次**：在 `POST /api/v1/jobs/analyze` 里把 `weekly_hours` 从 6 改成 9，重新分析同一份 JD，看学习路径的周数从 3 变 2。注意必须**重新调用分析接口**才会重算——已保存的岗位分析是历史快照，改 `weekly_hours` 不会让旧快照自动更新。
+
+**读取旧快照 ≠ 复用旧快照**，这两种情况要分清：
+
+| 你在做什么 | 看到什么 | 代码依据 |
+| --- | --- | --- |
+| `GET /api/v1/jobs/{id}` 读一份旧分析 | **200**（存在就返回原样），不存在才 404 | `backend/app/api/routes/jobs.py:34-49`，读接口没有失效判断 |
+| 用旧分析生成报告 | 快照失效时 **409**（`job_analysis_is_current` 为 false） | `backend/app/api/routes/reports.py:30-31` |
+| Copilot 对话**显式传**失效的 `job_analysis_id` | **409**，提示重新分析 | `backend/app/api/routes/chat.py:70-73` |
+| Copilot 对话**不传** `job_analysis_id` | 回退取该用户最新分析；若它也失效就静默忽略、继续对话，不报错 | `backend/app/api/routes/chat.py:60-74` |
+
+「快照失效」的精确定义：用当前画像和当前有效证据重算匹配分和逐项状态，结果和快照里存的不一致（或规则版本不符）——通常是**画像变了、或被引用的证据被删了**。只改 JD 文本或 `weekly_hours` 不算失效，但因为快照不重算，你也看不到新周数，所以仍要重新分析。
 
 > 上面 76.5% 和「6→9 小时」是**按源码公式构造的推算**，不是文档里的原例；文档原例是 `(1+0+0.5×0.65)/2.5×100 = 53.0%`。两者都只说明规则怎么算，不代表录用概率或就业承诺。完整规则见 [docs/job-matching-and-planning.md](../docs/job-matching-and-planning.md)。
 

@@ -1,8 +1,8 @@
 # 最小示例脚本
 
-五个用 **Python 标准库**写的脚本，各自只演示一个机制。其中四个调用本机运行中的 CareerLens Demo API，**不导入生产后端模块、不需要第三方依赖、不需要 API Key**；第五个（lesson-05）纯离线手算，连服务都不用开。
+五个用 **Python 标准库**写的脚本，各自只演示一个机制：**四个联网 + 一个离线**。四个联网例调用本机运行中的 CareerLens Demo API，不导入生产后端模块、不需要第三方依赖、不需要 API Key；第五个（lesson-05）纯离线手算，连服务都不用开。五个都需要一份可用的 Python（3.11+），联网例还需要服务。
 
-先按 [01 快速开始](../../tutorials/01-quickstart.md) 把服务跑起来（默认 Compose，`AUTH_MODE=disabled`），再回来跑脚本。
+跑联网例前，先按 [01 快速开始](../../tutorials/01-quickstart.md) 把服务跑起来（默认 Compose，`AUTH_MODE=disabled`）。lesson-05 随时可跑，不依赖服务。
 
 ## 运行方式
 
@@ -24,9 +24,9 @@ python3 examples/tutorials/lesson-01-evidence/main.py
 python3 examples/tutorials/lesson-01-evidence/main.py http://localhost:8000
 ```
 
-> 没装 Python？见 [Python 选做准备](../../tutorials/setup/python-basics.md)。
+> 没装 Python？见 [Python 选做准备](../../tutorials/setup/python-basics.md)。离线例 lesson-05 也需要 Python，只是不需要开服务。
 
-## 四个例子
+## 四个联网例子（要先开服务）
 
 | 例子 | 核对什么（不背固定输出） | 对应课程 |
 | --- | --- | --- |
@@ -34,7 +34,22 @@ python3 examples/tutorials/lesson-01-evidence/main.py http://localhost:8000
 | [lesson-02-dedup](lesson-02-dedup/) | 同用户导入两次比对 ID；不同用户不复用 | [03 解析层](../../tutorials/03-parsing.md) |
 | [lesson-03-chat-modes](lesson-03-chat-modes/) | 比较三种检索模式，核对实际命中和原始证据 | [04 检索 Agent](../../tutorials/04-retrieval-agent.md) |
 | [lesson-04-events](lesson-04-events/) | 同键返回同一任务；验证成功结果与事件；可跑缺画像负例 | [06 运行时](../../tutorials/06-runtime.md) |
-| [lesson-05-rrf](lesson-05-rrf/) | 离线手算排名融合；改变量、名次交错、榜首判错（不用开服务） | [04 样板课](../../tutorials/04-retrieval-agent.md) |
+
+## 一个离线例子（不用开服务）
+
+| 例子 | 核对什么 | 对应课程 |
+| --- | --- | --- |
+| [lesson-05-rrf](lesson-05-rrf/) | 手算排名融合；三个入口分别核对默认回归、改 k、移除 B 命中；名次交错与榜首判错 | [04 样板课](../../tutorials/04-retrieval-agent.md) |
+
+```bash
+python3 examples/tutorials/lesson-05-rrf/main.py            # 默认回归
+python3 examples/tutorials/lesson-05-rrf/main.py --k 10     # 只改 k
+python3 examples/tutorials/lesson-05-rrf/main.py --drop-b   # 只移除榜 A 的 B
+```
+
+## 合成夹具
+
+[fixtures/](fixtures/) 提供 03 篇两级去重实验用的两份合成 DOCX（字节不同、共享一段正文），以及只用标准库生成它们的脚本。先跑 `python3 examples/tutorials/fixtures/make_docx.py` 生成，再到 Swagger 上传。
 
 ## 约定
 

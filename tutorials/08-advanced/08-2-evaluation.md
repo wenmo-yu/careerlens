@@ -43,7 +43,7 @@ flowchart LR
 | 指标 | 精确算法 | 一个会让它下降的失败样例 |
 | --- | --- | --- |
 | `profile_extraction_f1` | 把所有 case 的 `(case_id, category, name)` 元组并成**一个全局集合**算 F1（微平均），不是逐 case F1 再平均；`F1 = 2PR/(P+R)`，`P=TP/预测数`、`R=TP/预期数` | 抽取器把「Python」误抽成「Python 3」（元组不匹配），TP 减少、FP 增加 |
-| `evidence_recall_at_k` | 每条查询 `Recall@K = \|检索∩相关\| / \|相关\|`，再对所有查询取**算术平均**（默认 K=5） | 相关证据排在第 6 位，Recall@5 里漏掉它 |
+| `evidence_recall_at_k` | 每条查询 `Recall@K = \|检索∩相关\| / \|相关\|`，再对所有查询取**算术平均**。K 取数据集的 `recall_k`（schema 默认 5，v3 冻结集为 5） | 相关证据排在第 6 位，Recall@5 里漏掉它 |
 | `supported_claim_rate` | `supported_claims / claim_count`。每条画像项 +1 claim；当名字在别名表、有 `evidence_ids`、且至少一条证据原文命中别名时才算 supported | 画像项无证据 ID，或证据原文对不上别名——代理校验失败 |
 | `requirement_matching_f1` | 与画像同理，`(case_id, requirement_name, status)` 元组全局集合的 F1 | 岗位要求本该 `gap` 却判成 `strong`，元组不匹配 |
 
@@ -62,6 +62,8 @@ flowchart LR
 在 `/docs` 里：
 
 - `POST /api/v1/evaluation/sample` —— 跑内置小样本，先看格式；
+- `POST /api/v1/evaluation/run` —— 提交**自定义数据集**（下面小练习用这个）；
+- `POST /api/v1/evaluation/regression` —— 自定义数据集 + 门槛跑门禁；
 - `POST /api/v1/evaluation/regression/benchmark` —— 用冻结的 v3 基准和阈值跑门禁；
 - `GET /api/v1/evaluation/runs?limit=20` —— 看历史结果。
 
@@ -99,7 +101,50 @@ python -m app.evaluation.cli \
 }
 ```
 
-基线：`{"dataset": "数据集名", "minimums": {四个指标各自的最低分}}`。基线里的 `dataset` 必须和数据集的 `name` 一致，否则报错。
+基线：`{"dataset": "数据集名", "minimums": {四个指标各自的最低分}}`。基线里的 `dataset` 必须和数据集的 `name` 一致，否则报错（这条同名校验在 CLI 和基线文件里成立；REST 的 `/regression` 不校验数据集名）。
+
+## 动手：让一个指标亲手下降（Recall@2：1 → 0.5）
+
+复跑冻结基线只能看到「全过」，看不出「哪个输入让分数变」。这个练习用一份**自建的最小数据集**，只加一条「收藏卡」，就能看着 `evidence_recall_at_k` 从 1.0 掉到 0.5。
+
+**为什么自建**：内置的 v2 是 K=2、v3 是 K=5，但每条查询都只标了 1 条相关证据——做不出「2 条相关 + K=2」的例子。仓库里备好了两份夹具（`eval/datasets/recall2-demo*.json`），只差一条收藏卡，其余完全相同。
+
+**先预测再跑**：给查询标了 2 条相关证据（`ev-rel-a`、`ev-rel-b`）。如果再塞进一条**没标为相关**的收藏卡，它的正文含查询全文——Recall@2 会怎么变？
+
+**跑**（需要项目的 Python 环境，`backend/.venv`）：
+
+```bash
+# 仓库根目录，一条命令同时看两份数据集的 Top-2 与四项指标
+backend/.venv/Scripts/python.exe examples/tutorials/lesson-06-eval/main.py
+# macOS/Linux 换成 backend/.venv/bin/python
+```
+
+**实测输出**：
+
+```text
+=== 无收藏卡 ===
+  检索 Top-2： ['ev-rel-a', 'ev-rel-b']
+  命中相关证据：['ev-rel-a', 'ev-rel-b']（2/2）
+  四项指标： {... 'evidence_recall_at_k': 1.0 ...}
+=== 有收藏卡 ===
+  检索 Top-2： ['ev-bookmark', 'ev-rel-a']
+  命中相关证据：['ev-rel-a']（1/2）
+  四项指标： {... 'evidence_recall_at_k': 0.5 ...}
+```
+
+**为什么掉**：`Recall@K = |Top-K ∩ 相关| / |相关|`（`runner.py:66-70`）。收藏卡的正文含查询全文，命中 `exact_bonus=0.25`（`hybrid.py:51`），被排到第一，挤掉一条相关证据：命中数 2→1，分母还是 2，所以 `2/2 → 1/2`。**注意**：评测数据里「收藏卡」没有专门字段（`EvalEvidence` 只有 id/content/source_type/source_name），这里靠的是**正文文本**触发加分，不是把 `source_name` 改成 `bookmark`——只改来源名、正文不变，排序和分数都不会动。这是最容易做错实验的地方。
+
+**再看门禁**：配一份门槛 `evidence_recall_at_k: 0.75` 的基线（`eval/baselines/recall2-demo.json`），跑 CLI：
+
+```bash
+cd backend
+.venv/Scripts/python.exe -m app.evaluation.cli --dataset ../eval/datasets/recall2-demo.json --baseline ../eval/baselines/recall2-demo.json      # 退出 0，passed
+.venv/Scripts/python.exe -m app.evaluation.cli --dataset ../eval/datasets/recall2-demo-bookmark.json --baseline ../eval/baselines/recall2-demo.json  # 退出 1，failed
+```
+
+失败时 `failures` 里有 `{"metric":"evidence_recall_at_k","actual":0.5,"minimum":0.75,"delta":-0.25}`——证明门禁真的在读指标。
+
+> 这份 K=2 的小例子**不复用**冻结的 v3 基线：v3 是 K=5、门槛全 1.0、数据集名 `careerlens-dev-benchmark-v3`，CLI 强制基线与数据集同名，所以小例子用自己的 baseline。冻结基线的复跑仍按上一节命令。
 
 ## 最重要的边界：别把开发集分数当真实准确率
 

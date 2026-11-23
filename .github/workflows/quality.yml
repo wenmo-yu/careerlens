@@ -27,6 +27,12 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check --config pyproject.toml . ../examples/tutorials
       - run: pytest
+      - name: Run offline RRF tutorial exercise (default and both variants)
+        working-directory: ..
+        run: |
+          python3 examples/tutorials/lesson-05-rrf/main.py
+          python3 examples/tutorials/lesson-05-rrf/main.py --k 10
+          python3 examples/tutorials/lesson-05-rrf/main.py --drop-b
       - name: Run frozen regression gate
         run: >-
           python -m app.evaluation.cli

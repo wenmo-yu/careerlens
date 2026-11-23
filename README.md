@@ -89,7 +89,7 @@ docker compose up -d --build
 - **运行时以数据库为队列**：不引入 Redis，用租约、fencing 代次与提交边界保证"提交即终态"，取消与过期都能恢复。
 - **隐私默认收敛**：审计不含原文，向量删除有补偿，账号删除返回匿名回执。
 
-这些取舍的策略来源与有意偏离，见[与 WeKnora / WorkBuddy 的实现对照](docs/agent-and-retrieval.md#与-weknora--workbuddy-的实现对照)。
+这些取舍的策略来源与有意偏离，见[与 WeKnora / WorkBuddy 的实现对照](docs/agent-and-retrieval.md#与-weknora-workbuddy-的实现对照)。
 
 ## 系统架构
 
