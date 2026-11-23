@@ -69,3 +69,51 @@
 评分看四件事：**实验能否复算、引用能否追溯、能否区分证据与推测、失败能否解释**。不按术语数量或报告长短给分。
 
 提交方式见 [08-3 贡献与结课](08-advanced/08-3-contribute.md)。
+
+---
+
+## 附：一份已填写的样例成品（照着填，不要照抄结论）
+
+下面是用评测机制做的小项目，**所有数字都在 2026-11-23 用仓库夹具实测过**。它示范"交什么算合格"，不是让你复制答案。
+
+**我的案例**：虚构学习者林澈；目标岗位是 AI Agent 开发（合成 JD）；复现版本 = `main` 当前提交、`recall_k=2` 自建数据集；环境 = 本地规则链路（`backend/.venv`，无 LLM、无 Qdrant）。
+
+**一、我做的实验**
+
+| 环节 | 内容 |
+| --- | --- |
+| 固定输入 | 最小数据集 `eval/datasets/recall2-demo.json`：一个查询固定为「LangGraph Agent 状态管理 Qdrant RAG 证据检索」，标 2 条相关证据 `ev-rel-a`/`ev-rel-b`，K=2 |
+| 我改的一个变量 | `evidence` 里是否追加 `ev-bookmark`（正文含查询全文，但**不**加进相关证据列表） |
+| 我的预测（改前写） | 收藏卡含查询全文会拿 exact_bonus 排第一，挤掉一条相关证据；Recall@2 从 2/2 降到 1/2 |
+| 实际结果 + 为什么 | 无卡 `1.0`、Top2=`[ev-rel-a, ev-rel-b]`；有卡 `0.5`、Top2=`[ev-bookmark, ev-rel-a]`。命中 2→1、分母仍 2（`runner.py:66-70`、`hybrid.py:51`） |
+
+- 命令：`backend/.venv/Scripts/python.exe examples/tutorials/lesson-06-eval/main.py`
+- 负例：有卡时把门槛设 `0.75` 跑 CLI，退出 1、`failures=[{"metric":"evidence_recall_at_k","actual":0.5,"minimum":0.75,"delta":-0.25}]`——证明门禁在读指标。
+
+**二、结论**：同一查询只因一条未标相关的收藏卡进入 Top-2，召回从满分掉到半分；收藏不是技能证据，**标注集合决定系统算不算命中**。
+
+**三、引用**
+
+| 结论 | 证据 | 原文出处 |
+| --- | --- | --- |
+| Recall@K 分母是相关数 | `backend/app/evaluation/runner.py:66-70` | `len(retrieved & relevant) / len(relevant)` |
+| 收藏卡靠正文加分挤进前二 | `backend/app/retrieval/hybrid.py:51-56` | `exact_bonus = 0.25 if query.lower() in content.lower()` |
+
+`ev-rel-a`→「LangGraph Agent 状态管理」；`ev-rel-b`→「Qdrant RAG 证据检索」；`ev-bookmark`→「收藏教程 LangGraph Agent 状态管理 Qdrant RAG 证据检索 补充说明」（均合成）。
+
+**四、缺口**：「收藏教程」是否说明林澈掌握 LangGraph/RAG——**证据不足**。本实验只证明排序受正文影响，`supported_claim_rate` 只是别名+ID 代理校验，不做语义事实核查。
+
+**五、下一步**：按 [08-1](08-advanced/08-1-real-models.md) 的对照实验，用浏览器采集给这条证据打 `preference_signal` 兴趣标记后重建画像，比较两种导入方式下画像里是否出现该技能。
+
+**六、验证**
+
+- 关键输出（原样贴）：
+
+```text
+无收藏卡  Recall@2=1.0  Top2=['ev-rel-a','ev-rel-b']
+有收藏卡  Recall@2=0.5  Top2=['ev-bookmark','ev-rel-a']
+```
+
+- 未验证项：真实模型（Qdrant + 真实 provider）的召回、真实用户数据的准确率、`AUTH_MODE=required` 下 REST 权限路径。冻结 v3 的四项 1.0 不是生产准确率。
+
+这份样例通过自查八条：实验可复算、负例证实规则、别人的版本+命令能重跑、结论追到源码行号、缺口写「证据不足」、未验证项如实列、无真实资料。

@@ -1,6 +1,6 @@
 # API 与配置参考
 
-> 本文收纳完整的接口清单与配置示例，README 保留精炼入口。日常使用优先看[交互工作台](../frontend/app/workspace/page.tsx)与[快速启动](../README.md#快速启动)。
+> 本文收纳完整的接口清单与配置示例，README 保留精炼入口。日常使用优先看[交互工作台](../frontend/app/workspace/page.tsx)与[快速开始](../README.md#快速开始)。
 
 ## 服务地址速查
 

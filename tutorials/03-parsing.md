@@ -17,17 +17,26 @@
 
 ```mermaid
 flowchart LR
-    F[上传文件 / 粘贴文本] --> P[解析成结构化块<br/>ParsedBlock]
-    P --> C[计算规范化文本的 hash]
-    C --> D{同一用户<br/>已有相同 hash?}
-    D -->|没有| N[新建 Evidence]
-    D -->|有| U[复用原 Evidence<br/>追加来源信息]
-    N --> OUT[Evidence 列表]
-    U --> OUT
-    P -.位置信息.-> M[页码/时间/表格位置<br/>写进 source_metadata]
+    F["文件 A / 文件 B"] --> P["解析出块、章节／页位置"]
+    P --> S{"同一用户 + 文件字节 hash<br/>已有 SourceDocument?"}
+    S -->|没有| NS["新建 SourceDocument"]
+    S -->|有| RE["复用原 SourceDocument"]
+    NS --> D{"当前块在同一用户下<br/>已有相同文本 hash?"}
+    RE --> D
+    D -->|没有| N["新建 Evidence"]
+    D -->|有| U["复用 Evidence<br/>登记该来源"]
+    N --> G["从引用找回文档和块"]
+    U --> G
 ```
 
-**文字版**：文件或文本先被解析成一块块结构化内容，每块算出规范化文本的 hash。若同一用户已有相同 hash，就复用原证据并追加一条来源信息；否则新建。同一段文字在两个文件各出现一次时，Evidence 仍是一条、`sources` 有两项，而两个 ParsedBlock 行（不同 `doc_id`/`block_index`）都指向同一个 `evidence_id`。解析得到的位置（页码、时间、表格位置等）写进证据的 `source_metadata`。
+**图前问题**：为什么能有**两个文档 ID、却只有一条证据 ID**？（先想，再往下看。）
+
+**文字版**：去重有两级，键不同——
+
+1. **文件级**：`SourceDocument` 按 `(user_id, source_hash)` 判重，`source_hash` 是**原始文件字节的 SHA-256**（`contract.py:29-31`）。原样重传同一文件 → 复用原文档；换一个文件（哪怕内容大部分相同）→ 新文档。
+2. **证据级**：块文本按 `(user_id, content_hash)` 判重。同一用户下两个不同文件含有逐字节相同的段落 → **共享一条 Evidence**，`sources[]` 有两项，两个 ParsedBlock（不同 `doc_id`/`block_index`）都指向同一个 `evidence_id`。
+
+**图后判断依据**：想确认"是不是同一份文件"看 `source_hash`（字节级）；想确认"是不是同一段内容"看 `content_hash`（文本级）。两者不能混用——改文件名不改字节，仍是同一文档；两份不同的 DOCX 也能共享一段证据。
 
 </details>
 
@@ -104,17 +113,47 @@ flowchart LR
 
 把 `source_name` 从 `goal` 改成 `notes`，内容完全不变，再提交一次：证据 ID 相同，`sources` 多一项。用 `GET /api/v1/evidence/{id}` 看返回里的 `source_metadata`：逐来源的条目在 `sources[]`，来源是几项看 `source_count`。去[术语表](GLOSSARY.md)查 `source_metadata`。
 
-### 观察 3：上传文件，看位置信息
+### 观察 3：用两份合成 DOCX，亲手验证两级去重
 
-`POST /api/v1/evidence/file` 是 **multipart/form-data**，不是 JSON。在 Swagger 里：
+这是本篇的主实验。准备两份**不同的** DOCX：标题分别是「演示 A」「演示 B」，正文含**逐字节相同**的一段话「我用 Python 做过一个课程项目，只在本机演示。」
+
+**拿样本**：仓库自带生成脚本，只用 Python 标准库，产出在 `examples/tutorials/fixtures/`：
+
+```bash
+python3 examples/tutorials/fixtures/make_docx.py
+# 产出 demo-a.docx、demo-b.docx（两份字节不同，共享同一段正文）
+```
+
+> 生成端用标准库手搓最小 DOCX；但**服务端解析 DOCX 依赖 python-docx**（`backend/pyproject.toml` 已含），所以脚本能生成不代表能脱离后端依赖解析。想换段落就改脚本里的 `SHARED_PARAGRAPH`，两份文档的正文必须逐字节一致（含 `Python` 前后空格）才会命中同一条证据。
+
+`POST /api/v1/evidence/file` 是 **multipart/form-data**，不是 JSON。在 `http://localhost:8000/docs` 里展开它：
 
 - `user_id` 填 `learner`；
-- `source_type` 默认 `resume`，可改；
-- `upload` 选一个本地 `.txt` 或 `.md` 文件。
+- `source_type` 可留默认 `resume`；
+- `upload` 选 `demo-a.docx`，`Execute`。
+- 再用**同一个** `user_id` 上传 `demo-b.docx`。
+- 最后把 `demo-a.docx` **原样再传一次**。
 
-返回同样是 `EvidenceBatchRead`。在返回的 `source_metadata` 里能看到来源条目数组 `sources[]`（每项含 `source_type`、`source_name` 及 `doc_id`、`block_index`、`page_no`、`bbox`、`time_start`、`time_end` 等定位字段）和 `source_count`；PDF 有 `page_no`/`bbox`，音视频有 `time_start`/`time_end`。顶层定位字段只代表第一次写入的来源，两个不同文件里的同一段文字要看 `sources[]` 里的多项。
+**先预测，再核对**（把答案写在纸上）：
 
-> 注意：`char_start` / `char_end` 这种字符级位置**不在**证据的 `source_metadata` 里，而是在结构化的 ParsedBlock 行上；要看到它们需要用数据导出接口（`GET /api/v1/privacy/{user_id}/export`）。
+| 操作（同一 `user_id=learner`） | 文档数怎么变 | 证据 ID 是否复用 | 依据 |
+| --- | --- | --- | --- |
+| 传 `demo-a.docx` | 新建 1 个 SourceDocument | 新建 Evidence | 首次导入 |
+| 再传 `demo-b.docx`（字节不同、正文相同） | **再建 1 个**文档 | **复用同一条** Evidence，`sources[]` 变两项 | 文件 hash 不同、正文文本 hash 相同 |
+| 原样重传 `demo-a.docx` | **复用**原文档，不新增 | 复用，`sources[]` 不追加 | 字节相同且来源字典完全相等就跳过（`evidence.py:18-26`） |
+
+**怎么核对**：返回是 `EvidenceBatchRead`。记下每次 `items[0].id`；用 `GET /api/v1/evidence/{id}` 看 `source_metadata.sources[]`（每项带 `source_name` 即文件名、`doc_id`、`block_index`、`section_path` 等）和 `source_count`。再用 `GET /api/v1/privacy/{user_id}/export` 看 `source_documents`（两条，各有 `source_hash`、`filename`）和 `parsed_blocks`（各块带 `doc_id`、`evidence_id`、`block_index`）如何关联——这是把引用追回原文的完整路径。
+
+<details>
+<summary>参考判断与易错点</summary>
+
+- "两个文档、一条证据"是对的：SourceDocument 按**文件字节**判重（`source_fingerprint` 用原始字节 SHA-256），Evidence 按**段落文本**判重（`content_fingerprint` 先换行归一 + strip 再 sha256）。两个不同的 DOCX 字节不同 → 两个文档；共享段落文本相同 → 一条证据。
+- 文件导入的证据哈希**只走 `content_fingerprint`**，不走 `normalize_text` 那层额外规范化（删 NUL、折叠空格/空行只发生在文本接口 `/evidence/text`）。所以两份 DOCX 正文的空格、换行要真正一致。
+- DOCX 没有页码/bbox：定位靠 `block_index` + `section_path`（标题用 Heading 样式才写 `section_path`）。PDF 才有 `page_no`/`bbox`，音视频有 `time_start`/`time_end`。
+- `char_start`/`char_end` 这种字符级位置不在证据的 `source_metadata` 里，只在 ParsedBlock 行上，要经 `GET /api/v1/privacy/{user_id}/export` 才看得到。
+- 换 `user_id` 再传同样的文件：两个去重键都含 `user_id`，会新建另一套文档和证据——这是用户隔离，不是 bug。
+
+</details>
 
 ### 观察 4：列出证据
 

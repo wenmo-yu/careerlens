@@ -102,7 +102,9 @@ GET /api/v1/wiki/{slug}/revisions?user_id=...  看历史版本
 
 这是从一次真实事故里学来的：模型重写整页时，把一张 100 行的表格悄悄压成 30 行，过程没有任何报错，而且因为「看起来没变化」不触发版本递增，调用方根本发现不了。
 
-守卫的做法：落库前比较原始表格和生成内容的**行身份**（取每行第一个非空单元格，做格式归一化——全角空格、大小写、强调符号都不算差异），丢失超过阈值就抛错（默认阈值 0，即一行都不能丢），转成 HTTP 422 拒绝写入。用的是多重集计数，所以「两行相同、丢了一行」也算丢失（`tables.py:70-84`、`test_wiki_compile.py:172-174`）。
+守卫的做法：落库前比较原始表格和生成内容的**行身份**（取每行第一个非空单元格，做格式归一化——全角空格、大小写、强调符号都不算差异），丢失超过阈值就抛错（默认阈值 0，即一行都不能丢）。用的是多重集计数，所以「两行相同、丢了一行」也算丢失（`tables.py:70-84`、`test_wiki_compile.py:172-174`）。
+
+**失败表现按入口分叉**：同步接口 `POST /api/v1/wiki/compile` 返回 **HTTP 422**，detail 形如 `rewrite dropped 33% of table rows (limit 0%)`（`wiki.py:77-78`）；后台 `wiki_compile` run 则不返回 HTTP 错误，而是任务失败、`error_code="invalid_input"`（`worker.py:132-133`）。写教程或调试时别把两者说成一种。
 
 **先预测，再看**（读 `backend/app/wiki/tables.py`）：
 
@@ -125,6 +127,37 @@ GET /api/v1/wiki/{slug}/revisions?user_id=...  看历史版本
 - 版本号只在可见字段或 `source_refs`/`chunk_refs` 变化时 `+1`（新建从 1 开始）；只刷 `updated_at` 不递增；
 - 回滚 = 拿旧版本内容做一次普通编辑（`edit_source="revert"`），**保留全部历史**，不删除未来版本。
 
+## 可复跑实验：丢行被拒与版本冲突
+
+上面两条守卫，用一份固定材料就能验证。**先能解释，再看怎么复跑。**
+
+**固定输入**（合成，虚构）：一张源表，表头 `能力 | 证据`，数据三行的首格依次是 `Docker`、`Docker`、`Python`。行身份列表是 `["docker","docker","python"]`，共 3 个行实例。
+
+**先预测这三种改动的行身份损失比例**（`row_identity_loss_ratio`，`tables.py:70-84`）：
+
+| 改动 | 行身份列表变成 | 损失比例 | 是否被拒 |
+| --- | --- | --- | --- |
+| 只把 `Docker` 改成 `**docker**`、大小写变化 | 不变（归一化消掉强调、casefold） | `0` | 否，正常写入 |
+| 删掉一行 `Docker` | `["docker","python"]` | `1/3 ≈ 33%` | **是**，默认阈值 0 |
+| 只改某行第二列文字 | 不变（身份只取首个非空单元格） | `0` | 否 |
+
+注意 `1/3` 是「丢了 1/3 的**行实例**」（多重集缺失 1÷3），不是「独特身份少了 1/3」——`{docker, python}` 这个集合没变。两行相同的场景（`A/A` 丢一行）才是 50%（`test_table_guard_counts_repeated_row_keys`）。
+
+**怎么用 API 观察**：Demo provider 会**原样拼接证据成页**（`compiler.py:83-84`），所以靠调 API 造不出「模型丢行」——这一步只能通过后端测试注入。可复跑命令：
+
+```bash
+# 在 backend/ 目录，跑守卫的四个测试（不含 Docker/Docker/Python，那个是下面的扩展）
+pytest tests/test_wiki_compile.py -k "table_guard or dropped_table_rows" -v
+```
+
+- `test_table_guard_ignores_formatting_and_case_changes`：强调/大小写/前导空列 → 损失 0，放行。
+- `test_compile_rejects_dropped_table_rows`：模拟丢行 → 抛 `WikiCompileError`，消息含 `table rows`。
+- `test_table_guard_counts_repeated_row_keys`：`A/A` 丢一行 → 0.5。
+
+**版本冲突**可以直接用 API 复现：先 `POST /api/v1/wiki/compile` 建页（记返回的 `version`，比如 1），再用 `base_version: 1` 编译一次让它变成 2，然后**仍用 `base_version: 1`** 提交——同步接口返回 **409**，detail 为 `page version changed: expected 1, found 2`（`wiki.py:75-76`、`test_wiki_compile.py:88-98`）。换成后台 `wiki_compile` run，同样的过期版本会得到 `status="failed"`、`error_code="stale_input"`，**不是** HTTP 409。
+
+**可核对的产物**：一张表，列「改动 / 损失比例 / 是否写入 / 写入后 version」，三行实验各填一行；再附一条 409 的 detail 原文。参考实现：`backend/app/wiki/tables.py:20-109`、`backend/tests/test_wiki_compile.py:50-58,88-98,128-174`。
+
 ## 自查清单
 
 - [ ] 编译一页 Wiki 并打开，能看到版本和来源证据
@@ -137,7 +170,7 @@ GET /api/v1/wiki/{slug}/revisions?user_id=...  看历史版本
 
 - **编译后引用对不上**：确认选的证据 ID 有效；句柄解析会把未知引用丢掉，诊断里能看到 `unknown_handles`。
 - **提交时报 409**：`base_version` 过期了，重新读当前版本再提交。
-- **编译报 422**：多半是表格行守卫拒绝了写入——检查生成内容有没有丢表格行。
+- **编译报 422**：表格行守卫是原因之一（检查有没有丢表格行），但也可能是证据 ID 不可用或请求体字段不合法——看 detail 原文再判断，别只猜守卫。
 - **切 `wiki` 检索模式没结果**：先编译出至少一页，见 [04](04-retrieval-agent.md) 开头。
 
 ## 下一步

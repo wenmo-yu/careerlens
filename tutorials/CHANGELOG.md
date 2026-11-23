@@ -6,6 +6,24 @@
 
 ## 打磨轮次（v1.0 之后）
 
+### 下一轮修订 · 第 2–6 次：入口、样章试学模拟与补厚（进行中）
+
+- **第 2 次 · 入口与 04 样章**：开始页 A/B 两轨各给明确默认下一步，阶段 0 四篇各配一张「过关产物」表；04 开头写清六环节、适合谁、分轨用时与跳过条件，新增「遇到异常怎么判断」排错表（422 / 空 Wiki / 非法引用三种）。
+- **第 3 次 · 试学模拟**：新增 `walkthrough-simulation.md`，按零安装/会 Python 两类画像做桌面推演，**明确标注非真人**，真实验收仍按 `walkthrough-guide.md` 找两位读者。模拟发现并已修：环节二跳过后的空白列、改变量撞断言、"优势变小"含混、缺排错环节。
+- **第 4 次 · 02/03 补厚**：03 的图解升级为两级去重（文件字节 hash → SourceDocument、文本 hash → Evidence），新增可下载合成 DOCX 实验（`examples/tutorials/fixtures/make_docx.py` 用标准库生成 demo-a/demo-b，两份字节不同、共享一段正文）。DOCX 生成与解析的依赖边界如实写明（生成端零依赖、服务端需 python-docx）。派子代理核对纠正草案数处错误：source_hash 是文件字节 hash、两份 DOCX 共享一条 Evidence、原样重传复用文档、content_hash 两层规范化只对文本接口、DOCX 无页码、char_start 只走隐私导出。
+- **第 5 次 · 05/06 补厚**：05 新增「可复跑实验：丢行被拒与版本冲突」——固定 Docker/Docker/Python 表，损失比例 0 / 1/3 / 0，422（同步）vs `invalid_input`（后台）分叉，版本冲突 409 detail 原文；06 新增「租约重领与旧 Worker 拒写」——`pytest …::test_expired_lease_restarts_with_new_fence`，冻结 `store.now_seconds`、旧 token 是内部 `LeaseLost` 无 HTTP 状态、最终 `attempts==2`；心跳公式一般化为 `min(2, 租约/3)`。
+- **第 6 次 · 07/08 补厚**：07 加「用 API 核对算例」（`score`=76.5、`learning_path[].weeks` 6h→3/9h→2）；08-2 加「让指标亲手下降」练习——自建 K=2 数据集 + 收藏卡让 Recall@2 从 1 变 0.5，夹具 `eval/datasets/recall2-demo*.json` 与 `lesson-06-eval` 脚本均本机实测（Top2、四项指标、CLI 退出 0/1 全对）；结课模板附一份全实测的已填写样例。修正 K 来源、补 `/run`、`/regression` 接口。
+- 全站相对链接与锚点 0 坏链；9 个脚本编译通过；build 打包通过。
+
+### 下一轮修订 · 第 1 次：修正跟做与教学错误（进行中）
+
+- **T-11 RRF 断点修复**：`lesson-05-rrf` 改为三个入口——默认跑四环节回归断言，`--k 10` 与 `--drop-b` 各只改一个变量、独立输出可复算分数，不再撞写死的初始断言。三个入口本机实跑均退出 0：默认 B=2/3、A=C=1/2；k=10 分差 0.082/倍率 1.82；移除 B 后 A/C 并列 1/2、B 掉到 1/3。已接入 `quality.yml` 的 backend-quality 步骤，CI 逐个检查。
+- **T-10 证据边界收窄**：开始页改为「现有材料无法证明林澈做过生产部署」，不再断言「一定没做过」；04 篇用一张收藏卡讲清三层判断并明确「系统校验引用 ID 合法性、不做语义事实核验」——未知 ID 被 `validated_citations` 拒绝（`services/citations.py:8-21`），合法 ID 指向的原文仍可能不支持断言，两种失败分开讲。
+- **T-12 任务与快照顺序**：01 篇补「等岗位分析 succeeded → 点『打开结果』→ 再看匹配分」；07 篇分写工作台后台 Run（`operation: job_analysis`）与 Swagger 同步 `POST /jobs/analyze`，产物是同一种快照；纠正「Copilot 走 SSE」为返回 JSON（SSE 只属 Run 进度流）；纠正「读旧快照 409」——GET 旧分析恒 200/404，409 只在用失效快照生成报告或对话显式引用失效 ID 时发生，不引用时静默降级。
+- **T-13 数量与前置统一**：示例索引统一为「四个联网 + 一个离线」并标 Python 前置；入口与总览的结课说明统一为「带证据的结论 + 可复跑实验」。
+- **T-05 标题锚点校验**：`docs-site/build.py` 新增 `slugify_heading`/`check_anchors`，按 Docsify 4.x 规则校验站内 md 链接的标题锚点；坏锚点、坏文件分别实测退出 1，正常打包通过。修掉两处真实坏链（api-and-configuration 的「快速启动」→「快速开始」、integrations-and-security 误指首页的锚点改为本页）。
+- 全站相对链接与锚点 0 坏链，`lesson-05-rrf` 编译通过，build 打包通过。
+
 ### 复查补强 · 配图与分层习题（已合并）
 
 - 对照参考开源教程（didilili/ai-agents-from-zero、microsoft/ai-agents-for-beginners、datawhalechina/hello-agents）复查：此前 23 篇教程 **0 张图片引用**，而参考项目每章 4–8 张图。本轮把仓库已有的 9 张 `docs/assets/` 截图接入 5 篇正文（开始页、01、02、04、07），均配描述性 alt；本地打包后 9 张图进站，无头 Chrome 实测图片以 `/careerlens/docs/assets/*.jpg` 渲染、HTTP 200，全站链接 0 坏链。
