@@ -1,6 +1,6 @@
 """练习 03：同一问题切换 rag / wiki / hybrid 三种检索模式。
 
-对应课程：tutorials/04-retrieval-agent.md
+对应课程：tutorials/04-检索Agent.md
 核对：诊断里的 mode / source_kind 随模式变化；不比对回答文本。
 运行：python3 examples/tutorials/lesson-03-chat-modes/main.py
 """

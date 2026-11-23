@@ -1,6 +1,6 @@
 """练习 01：写入一条合成自述，拿到非空 Evidence ID。
 
-对应课程：tutorials/03-parsing.md
+对应课程：tutorials/03-解析层.md
 运行：python3 examples/tutorials/lesson-01-evidence/main.py
 """
 import sys

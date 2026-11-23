@@ -4,7 +4,7 @@
 
 **把经历变成证据，再用证据回答"我适合什么岗位、还缺什么、下一步怎么做"。**
 
-[在线教程](https://wenmo-yu.github.io/careerlens/) · [文档](docs/README.md) · [5 分钟上手](#快速开始) · [架构](docs/architecture.md) · [教程](tutorials/README.md) · [API 与配置](docs/api-and-configuration.md) · [路线图](ROADMAP.md)
+**[零基础？从这里开始](tutorials/从这里开始.md)** · [在线教程站](https://wenmo-yu.github.io/careerlens/) · [5 分钟上手](#快速开始) · [教程目录](tutorials/README.md) · [文档](docs/README.md) · [架构](docs/architecture.md) · [API 与配置](docs/api-and-configuration.md) · [路线图](ROADMAP.md)
 
 [![Quality Gate](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml)
 [![Release](https://img.shields.io/github/v/release/wenmo-yu/careerlens)](https://github.com/wenmo-yu/careerlens/releases)
@@ -18,7 +18,7 @@ CareerLens 是一个**证据驱动的职业决策 Agent**。它把你授权的�
 
 绝大多数求职建议的问题不是"不够流畅"，而是**没有依据**。CareerLens 把"证据是否足以支持结论"写进了整条输出链路。
 
-> [!NOTE]
+> **说明**：
 > 开源版本可在本机跑通完整业务闭环，**无需任何 API Key**：默认使用确定性 Demo 模型与轻量检索 Provider。真实模型（DeepSeek / OpenAI-compatible / 本地 Qwen、OCR/ASR）提供可选接入，效果取决于所用模型与运行环境。
 
 ## 核心能力
@@ -134,13 +134,13 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 
 ## 零基础入门与教程
 
-**没写过代码也能开始**：[从这里开始](tutorials/START-HERE.md)——10 分钟、只用浏览器做完第一道证据判断题，再按你的基础选学习路线。只需理解原理的话，不必安装任何软件。也可在[在线教程站](https://wenmo-yu.github.io/careerlens/)阅读同样的内容（支持搜索与深链接）。
+**没写过代码也能开始**：[从这里开始](tutorials/从这里开始.md)——10 分钟、只用浏览器做完第一道证据判断题，再按你的基础选学习路线。只需理解原理的话，不必安装任何软件。也可在[在线教程站](https://wenmo-yu.github.io/careerlens/)阅读同样的内容（支持搜索与深链接）。
 
 想亲手跑或复刻？教程按依赖顺序编排，每篇都有目标、前置、步骤与验收：
 
-- [教程总览与学习路径](tutorials/README.md) · [术语表](tutorials/GLOSSARY.md) · [常见问题](tutorials/FAQ.md)
+- [教程总览与学习路径](tutorials/README.md) · [术语表](tutorials/术语表.md) · [常见问题](tutorials/常见问题.md)
 - 从零跑通 → 数据模型 → 解析层 → 检索 Agent → Wiki 知识组织 → 后台运行时 → 组装与进阶
-- 装不了软件？走[静态观察路线](tutorials/observe-only.md)学同样的原理（不计为「本机跑通」）。
+- 装不了软件？走[静态观察路线](tutorials/静态观察路线.md)学同样的原理（不计为「本机跑通」）。
 
 ## 验证
 

@@ -1,6 +1,6 @@
 """练习 02：验证证据去重。
 
-对应课程：tutorials/03-parsing.md
+对应课程：tutorials/03-解析层.md
 核对：同一用户导入两次 → ID 复用；不同用户 → 不复用。
 运行：python3 examples/tutorials/lesson-02-dedup/main.py
 """

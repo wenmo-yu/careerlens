@@ -1,6 +1,6 @@
 # 练习 03 · 三种检索模式
 
-**对应课程**：[04 检索 Agent](../../../tutorials/04-retrieval-agent.md)
+**对应课程**：[04 检索 Agent](../../../tutorials/04-检索Agent.md)
 **核对什么**：同一问题切 rag / wiki / hybrid，看诊断与引用来源。
 
 ## 运行
@@ -31,4 +31,4 @@ OK：三种模式都命中预期来源，并能追溯到同一条原始证据。
 
 ## 一个诚实的细节
 
-`wiki` 模式的 `retrieval` 里**没有** `backend` / `fusion` / `reranker` 这些键——因为它根本没走证据检索器。这不是 bug，见 [04 教程](../../../tutorials/04-retrieval-agent.md)的说明。
+`wiki` 模式的 `retrieval` 里**没有** `backend` / `fusion` / `reranker` 这些键——因为它根本没走证据检索器。这不是 bug，见 [04 教程](../../../tutorials/04-检索Agent.md)的说明。

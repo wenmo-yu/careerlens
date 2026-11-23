@@ -44,7 +44,7 @@ jobs:
         run: |
           test -f _site/index.html
           test -f _site/_sidebar.md
-          test -f _site/tutorials/START-HERE.md
+          test -f _site/tutorials/从这里开始.md
           test -f _site/vendor/docsify.min.js
           test -f _site/.nojekyll
           echo "artifact files: $(find _site -type f | wc -l)"
