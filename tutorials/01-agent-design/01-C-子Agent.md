@@ -1,66 +1,102 @@
-# 01-C · 子 Agent：谁读岗位，谁核对引用
+# 01-C · Coordinator 与子 Agent：一次岗位分析怎么分工
 
-**阅读约 9–12 分钟，练习约 10 分钟。** 先读过[工作流](01-A-Agent工作流.md)和[工具调用](01-B-工具调用.md)。会看 Python 函数即可开始。可以用测试或本地工作台验证下面的分工。
+前面读的是一次对话。现在让林澈点「分析匹配度」，观察另一条调用链。这个动作适合拆成两份工作。先从招聘方的岗位描述（JD）提取要求，再核对匹配结果引用了哪些原文。
 
-林澈点击「分析匹配度」。这件事至少分两步：从岗位描述里提取要求，再检查匹配结果提到的引用能否在本次资料里找到。它们需要的输入完全不同，把两份输入分别列出来，代码就清楚了。
+## 先分清任务编号和岗位分析编号
 
-## 先从调用方往下读
+工作台把后台分析交给 `POST /api/v1/runs`。提交成功时，接口可以先返回一个 Run ID。它用于查询这次工作的状态。Worker 是从队列领取任务并执行的进程。任务成功后，Run 的 `result` 才给出岗位分析编号。工作台可以用那个编号打开分析结果。
 
-从 `runtime/operations.py` 找 `operation == "job_analysis"` 分支。它由后台 Worker 调用，顺序如下。
+跟上游读时，可以从「后台任务」打开一条岗位分析，找下面三个名字。综合课提供完整的请求和预期。 [运行接口](../../backend/app/api/routes/runs.py) · [综合跟做](01-D-综合跟做.md)
 
-1. 读到本次用户的画像和可用证据 ID。
-2. 让 `requirement_analyst` 处理岗位描述。这个角色收到的输入只有 `jd_text`。
-3. 由 `prepare_analysis()` 比较要求和画像，计算匹配和缺口。
-4. 把候选引用和获准的 ID 交给 `evidence_verifier`。
-5. Worker 提交时调用准备好的写入操作，保存岗位分析，Run 结果记录 `job_analysis_id`。
+| 步骤名 | 谁负责 |
+| --- | --- |
+| `requirement_analyst` | 从 JD 找出岗位要求 |
+| `evidence_verifier` | 检查候选引用有没有超出允许范围 |
+| `persist` | Worker 在确认提交条件后，把结果写入数据库 |
 
-```mermaid
-sequenceDiagram
-    accTitle: 岗位分析运行时如何分派子 Agent
-    participant Worker as Worker
-    participant Op as 岗位分析任务
-    participant Coord as Coordinator
-    participant Analyst as 岗位要求分析
-    participant Check as 引用核验
-    Worker->>Op: 准备任务
-    Op->>Coord: delegate，传入 JD
-    Coord->>Analyst: 运行角色子图
-    Analyst-->>Op: 岗位要求和诊断
-    Op->>Op: 比较画像并计算匹配
-    Op->>Coord: verify，传入两份 ID
-    Coord->>Check: 检查候选是否都在允许集合中
-    Check-->>Op: 引用数或校验错误
-    Op-->>Worker: 返回准备好的写入操作
-    Worker->>Worker: 确认提交条件并写事务
+## 代码怎样决定派给谁
+
+看 `prepare_operation()` 的 `job_analysis` 分支。运行时已经知道提交的是哪类任务，因此直接指定角色。下面摘录了取资料、分派、计算与核验的顺序。
+
+```python
+async with factory() as session:
+    profile, valid_ids = await job_inputs(session, user_id)
+task = await coordinator.delegate("requirement_analyst", {"jd_text": data["jd_text"]})
+values = prepare_analysis(
+    profile, valid_ids, **data, requirements=task["requirements"],
+    extraction=task["diagnostics"],
+)
+await coordinator.verify(
+    valid_ids, [item_id for row in values["matches"] for item_id in row["evidence_ids"]]
+)
 ```
 
-报告和 Wiki 也沿用这种交接。后台报告只把整理后的报告上下文交给 `report_writer`，后台 Wiki 把标题和选中的证据摘录交给 `wiki_curator`。两种任务都会核对输出的引用。 [任务分支](../../backend/app/runtime/operations.py) · [Worker 提交](../../backend/app/runtime/worker.py)
+`async with` 在这里打开一个有明确生命周期的数据库会话。先读画像和可以引用的编号。把 JD 交给第一个角色，收回要求。普通业务函数 `prepare_analysis` 用要求和画像计算匹配。第二个角色收到的是两个列表。一个装匹配用到的 ID，另一个装允许的 ID。
 
-## Coordinator 怎么调用一个角色
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"system-ui, sans-serif","actorBkg":"#eaf6f1","actorBorder":"#60a28d","actorTextColor":"#143f36","actorLineColor":"#a7c2b9","signalColor":"#355c51","signalTextColor":"#203d34","noteBkgColor":"#fff4d9","noteBorderColor":"#ba893b","noteTextColor":"#644117"},"sequence":{"width":112,"height":44,"actorMargin":34,"messageMargin":23,"mirrorActors":false}}}%%
+sequenceDiagram
+    accTitle: 一次后台岗位分析的计算与提交
+    participant W as Worker
+    participant C as Coordinator
+    participant S as 角色子图
+    W->>C: 分派岗位要求分析
+    C->>S: 只给 JD
+    S-->>C: 岗位要求与诊断
+    C-->>W: 返回岗位要求
+    W->>W: 用画像和要求计算匹配
+    W->>C: 请求核验引用
+    C->>S: 允许的 ID、拟用的 ID
+    S-->>C: 核验结果
+    C-->>W: 返回核验结果
+    Note over W,C: Worker 重查条件后提交
+```
 
-`SPECIALISTS` 为每个角色登记一个输入筛选函数和一个 LangGraph 小图。`Coordinator.delegate()` 用角色名查这张表，先筛出本次需要的字段，再用 `graph.ainvoke({"inputs": scoped})` 启动角色的图。角色图有一个执行对应函数的节点，跑完就结束。调用完成后会记步骤状态和简短诊断，给任务中心显示进度。
+真实源码里的 `prepare_operation` 在 Worker 内执行。它返回一个准备好的保存函数。最后由 Worker 再检查任务仍能提交，调用保存函数，并记录 `persist` 步骤与成功状态。这样角色生成的候选和业务落库之间有一道明确的边界。 [后台操作分支](../../backend/app/runtime/operations.py#L94) · [Worker 提交](../../backend/app/runtime/worker.py#L54)
 
-| 角色图 | 收到什么 | 交回什么 |
+## 一个子 Agent 在代码里长什么样
+
+`SPECIALISTS` 是角色登记表。为每个角色登记两项，一项挑选并检查输入，一项存放编译好的角色图。读下面这段 `delegate`，先找到角色名在哪里查表，实际执行从哪一行开始。
+
+```python
+if self._remaining <= 0:
+    raise ValueError("Specialist budget exhausted")
+self._remaining -= 1
+await self._progress(role, "running")
+project, graph = SPECIALISTS[role]
+scoped = project(inputs)
+state = await graph.ainvoke({"inputs": scoped})
+result = state["result"]
+```
+
+`self._remaining` 是这个 Coordinator 本次剩下的调用次数，创建时为 2。先检查预算，再按角色筛输入，最后执行小图。每份小图只有 `START → perform → END`，`perform` 负责执行登记的角色函数。完成后，协调器把角色的步骤状态和诊断摘要交给进度记录。
+
+| 角色名 | 适用任务 | 拿到的资料 |
 | --- | --- | --- |
-| `requirement_analyst` | 岗位描述 | 提取后的要求和诊断 |
-| `wiki_curator` | 标题、选中的证据 ID 和正文 | Wiki 草稿、引用和诊断 |
-| `report_writer` | 岗位分析派生的报告上下文，含可用证据 ID | 报告叙述、引用和诊断 |
-| `evidence_verifier` | 候选 ID 与允许的 ID | 核验后的引用数，或范围错误 |
+| `requirement_analyst` | 后台岗位分析 | 只读 `jd_text`，输出要求 |
+| `wiki_curator` | 后台编译 Wiki | 标题和选中的证据摘录，输出草稿、引用及诊断 |
+| `report_writer` | 后台报告 | 从分析准备出的报告上下文和可用引用范围 |
+| `evidence_verifier` | 上面三类任务的核验步骤 | 接收允许的 ID 和候选引用，输出数量或范围错误 |
 
-每次创建 Coordinator 时有两次角色调用预算，核验也算一次。看 `delegate()` 中的 `self._remaining`，就知道第三次会在取角色之前报错。角色不会收到用户令牌或整段聊天历史。各任务的提交函数仍由 Worker 所在的运行时调用。 [角色定义与 Coordinator](../../backend/app/runtime/agents.py)
+把岗位要求分析交给一个角色，并不需要把林澈的聊天给它。它要分析的是招聘方写的要求。核验也只需这次允许范围和实际引用的编号。程序按任务类型固定调用次序，两个角色都完成后才进入后续提交。 [角色小图](../../backend/app/runtime/agents.py#L42) · [Coordinator](../../backend/app/runtime/agents.py#L87) · [角色登记表](../../backend/app/runtime/agents.py#L123)
 
-### 练习：追一次跨界的引用
+## 跟做：把一条引用改坏
 
-假设本次只允许 `E-A`。在纸上把 `verify()` 的输入写成 `allowed={"E-A"}`、`refs=["E-A", "E-Z"]`。你预期任务继续提交，还是在计算阶段出错？接着把 `E-Z` 改成 `E-A`，再问一个问题：即使检查通过，能否确认正文支持「有生产上线经验」？
+设本次只允许 `E1`。给核验角色传 `allowed={"E1"}` 和 `refs=["E1", "E2"]`。先在纸上写下两个判断。
+
+1. 候选中的每个 ID 都在允许集合里吗？Worker 会收到一份核验通过的候选吗？
+2. 如果把 E2 删除，留下 E1。假设原文只是「本机跑过 Python 课程接口」，能不能直接写「维护过生产 Kubernetes 集群」？
 
 <details>
-<summary>对照代码给出的结论</summary>
+<summary>按源码核对两处边界</summary>
 
-`verification_task()` 会将候选 ID 做成集合。因为 `E-Z` 不在允许集合里，核验报错，当前分支拿不到通过核验后的候选结果。改成允许的 ID 后，这一步能通过。要判断原文是否支持生产上线，仍要打开 `E-A` 并阅读原文。
+第一问会在 `verification_task` 抛错，因为 E2 不在允许集合里。岗位分析分支不会走到返回 `save_job` 那一行。第二问只能通过 ID 范围检查。要确认「维护过生产集群」，仍需要能支持这个动作和环境的原文。
+
+一次 Coordinator 的预算为 2，核验算一次。把一次岗位分析里的两位角色按顺序写出来，再加第三次调用，会碰到 `Specialist budget exhausted`。这个检查位于派发之前。
 
 </details>
 
-用本地工作台时，提交一次后台岗位分析。打开任务详情，观察岗位要求分析和引用核验的步骤。已有[后端开发环境](../../CONTRIBUTING.md)时，也可以直接运行回归测试。第一条检查额外字段没有传给角色、超出范围的引用被拒、第三次调用被拦；第二条检查报告任务的结果与业务写入只提交一次。
+仓库有一个用例会额外向岗位要求角色传入不相干字段，检查投影后只留下 JD，再检查外部引用和调用预算。另一个用例确认报告结果和业务写入一起提交。已有开发环境的人可以运行下面两条。其余读者在测试文件内找 `assert`，也能从预期结果核对。 [调用预算和投影测试](../../backend/tests/test_run_runtime.py#L426)
 
 ```bash
 cd backend
@@ -68,8 +104,6 @@ python -m pytest -q tests/test_run_runtime.py::test_coordinator_projects_context
 python -m pytest -q tests/test_run_runtime.py::test_report_result_and_business_write_commit_once
 ```
 
-平时加角色前，写下它要返回的结果和允许读的数据。如果只执行一次简单计算，一个函数就够了。需要单独测输入、替换模型或在进度里观察这步时，上述角色接口会更容易解释。
-
 ## 下一步
 
-多个角色都在用「证据 ID」说话。到 [02 数据模型](../02-数据模型.md)找出这类 ID 保存在哪，读完再用两份 DOCX 看它怎么生成。
+在 [01-D 综合跟做](01-D-综合跟做.md) 中，用同一份资料跑接口、打开证据、继续会话，再读一回后台 Run。试着从一次可观察的结果开始，反向找出它经过的代码。

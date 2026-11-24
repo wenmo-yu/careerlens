@@ -14,7 +14,7 @@
     .mermaid-diagram svg { display: block; }
     .mermaid-diagram:focus-visible { outline: 2px solid var(--theme-color); }
     .mermaid-staging { position: fixed; left: -10000px; top: 0; visibility: hidden; }
-    body[data-page*="tutorials/00-foundations/"] .mermaid-diagram {
+    body:is([data-page*="tutorials/00-foundations/"], [data-page*="tutorials/01-agent-design/"]) .mermaid-diagram {
       width: fit-content;
       max-width: 100%;
       margin: 1.5rem auto;
@@ -23,20 +23,20 @@
       border-radius: 14px;
       background: #f4f8f6;
     }
-    body[data-page*="tutorials/00-foundations/"] .mermaid-diagram svg { margin-inline: auto; }
-    body[data-page*="tutorials/00-foundations/"] .markdown-section details {
+    body:is([data-page*="tutorials/00-foundations/"], [data-page*="tutorials/01-agent-design/"]) .mermaid-diagram svg { margin-inline: auto; }
+    body:is([data-page*="tutorials/00-foundations/"], [data-page*="tutorials/01-agent-design/"]) .markdown-section details {
       margin: 1.1rem 0;
       padding: .7rem 1rem;
       border: 1px solid #dce9e3;
       border-radius: 9px;
     }
-    body[data-page*="tutorials/00-foundations/"] .markdown-section summary {
+    body:is([data-page*="tutorials/00-foundations/"], [data-page*="tutorials/01-agent-design/"]) .markdown-section summary {
       cursor: pointer;
       color: #245948;
       font-weight: 600;
     }
     @media (max-width: 768px) {
-      body[data-page*="tutorials/00-foundations/"] .markdown-section {
+      body:is([data-page*="tutorials/00-foundations/"], [data-page*="tutorials/01-agent-design/"]) .markdown-section {
         max-width: 100%;
         padding-inline: 18px;
       }
