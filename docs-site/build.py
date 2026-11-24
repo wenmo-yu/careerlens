@@ -32,7 +32,7 @@ INCLUDE_FILES = ["README.md"]
 ASSET_SUFFIXES = {".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp"}
 
 # 站点壳里本来就有的文件，直接复制
-SHELL_FILES = ["index.html", "_sidebar.md", "_coverpage.md", ".nojekyll"]
+SHELL_FILES = ["index.html", "mermaid-docsify.js", "_sidebar.md", "_coverpage.md", ".nojekyll"]
 SHELL_DIRS = ["vendor"]
 SITE_NAVIGATION = {"tutorials/从这里开始.md", "_sidebar.md", "_coverpage.md"}
 MARKDOWN_LINK = re.compile(r"(!?)\[([^\]]*)\]\(([^)]+)\)")

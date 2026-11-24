@@ -45,6 +45,7 @@ jobs:
       - name: Verify artifact essentials
         run: |
           test -f _site/index.html
+          test -f _site/mermaid-docsify.js
           test -f _site/_sidebar.md
           test -f _site/tutorials/从这里开始.md
           test -f _site/vendor/docsify.min.js
