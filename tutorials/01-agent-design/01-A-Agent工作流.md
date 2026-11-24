@@ -1,114 +1,93 @@
-# 01-A · Agent 工作流：从问答界面找到第一行代码
+# 01-A · 从真实项目开始，搭一份可以敲的练习副本
 
-先记住一个问题 **「为什么认为我会 Python？」**。接下来的八节课会跟着这句话走，直到你能解释一份回答到底读了什么、为什么走这条分支、哪一部分能查回原文。
+这段课程做的是 CareerLens 的 Agent 核心。从工作台的「为什么认为我会 Python？」出发，依次写出状态和路由、检索工具、MCP 工具、带引用的答复、会话保存和后台子 Agent。每完成一关，就运行仓库里负责查验那段代码的测试。各关沿用同一份练习副本，已完成的代码会带到下一关。 [课程目录](./README.md)
 
-在浏览器里打开仓库源码就可以做本课。第 01 篇跑通工作台的读者可以同时提问，尚未启动工作台时可以读下文从 Demo 摘出的响应。 [先跑一次工作台](../01-第一次跑起来.md) · [八节课的顺序](./README.md)
+练习副本保留项目的依赖、数据库模型、测试夹具和周边业务函数。每一关只把你要实现的函数暂时变成待补状态。你会在项目模块里写回实际实现；数据解析、前端和部署等周边内容可以接着其他章节做。
 
-## 从界面上一条回答开始
+## 找到你平时用的那条请求
 
-林澈上传了一句合成自述。
+1. 打开工作台，找到 Career Copilot。准备好的 Demo 里可以输入「为什么认为我会 Python？」。
+2. 在源码里找 `sendChat`。网页把输入和当前用户编号发到 `POST /api/v1/chat`。
+3. 后端 `chat()` 从对应用户准备资料，调用 `run_career_graph()`，把答案、证据和会话返回给网页。
 
-> 我用 Python 和 FastAPI 做过课程接口，用 Docker 在本机运行。
-
-连上工作台的 Career Copilot，建好画像后问那句 Python 问题。先找出这三样东西。
-
-| 你手上的东西 | 先看哪里 |
-| --- | --- |
-| 一句答复 | 打开 Copilot 的文字回答 |
-| 原文依据 | 展开证据，确认原文提到了 Python 课程接口 |
-| 这次走的路 | 稍后用接口返回的 `intent`、`retrieval`、`model` 判断 |
-
-不用操作工作台时，下面是同一类请求在隔离 Demo 里的输出节选。练习里把证据的长编号写成 `E`。
-
-```json
-{
-  "intent": "evidence_explanation",
-  "answer": "本次回答检索到的主要证据为：E。你可以按 Evidence ID 回看原文。",
-  "evidence": [{"evidence_id": "E", "source_kind": "rag"}],
-  "retrieval": {"mode": "rag", "rag_count": 1},
-  "model": {"provider": "demo"}
-}
-```
-
-可以从回答里的「查到了 E」问出第二个问题。**是谁决定要先查材料，E 又是从哪里来的？** 这就是读源码的起点。
+想试读源码，先用页面搜索找到这两处。每次只追一个变量，例如 `message`，看它在哪交给下一个函数。 [网页请求](../../frontend/lib/api.ts#L475) · [后端入口](../../backend/app/api/routes/chat.py#L38)
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontFamily":"system-ui, sans-serif","actorBkg":"#eaf6f1","actorBorder":"#60a28d","actorTextColor":"#143f36","actorLineColor":"#a7c2b9","signalColor":"#355c51","signalTextColor":"#203d34","noteBkgColor":"#fff4d9","noteBorderColor":"#ba893b","noteTextColor":"#644117"},"sequence":{"width":112,"height":44,"actorMargin":34,"messageMargin":23,"mirrorActors":false}}}%%
 sequenceDiagram
-    accTitle: 从工作台问题找到后端入口
+    accTitle: 从工作台问句进入 CareerLens 对话图
     participant UI as 工作台
-    participant API as Chat 接口
-    participant G as 对话图
-    UI->>API: 发送问题和用户编号
-    API->>API: 校验并读取资料
-    API->>G: 交给 run_career_graph
-    G-->>API: 答案、证据和诊断
-    API-->>UI: 返回 ChatResponse
+    participant HTTP as Chat 接口
+    participant G as Agent 图
+    UI->>HTTP: 提问、用户和会话编号
+    HTTP->>HTTP: 校验并准备当前用户资料
+    HTTP->>G: run_career_graph
+    G-->>HTTP: 答复与证据
+    HTTP-->>UI: 会话消息与本轮诊断
 ```
 
-## 学会读这六个 Python 符号
-
-把下面这段看成一个带名字的步骤。这里用简短的课堂示例练习读法。真实项目还会细分好几种意图。
+## 看懂练习里最常用的四种写法
 
 ```python
-def choose_route(state):
-    if state["intent"] == "memory_update":
-        return "memory_guidance"
-    return "retrieve_evidence"
+state = {"message": "为什么认为我会 Python？", "intent": "evidence_explanation"}
 
-
-state = {"message": "记住我更希望做后端", "intent": "memory_update"}
-print(choose_route(state))
+def read_intent(state):
+    if state["intent"] == "evidence_explanation":
+        return "retrieve_evidence"
+    return "memory_guidance"
 ```
 
-| 看到的写法 | 可以念成什么 |
-| --- | --- |
-| `def choose_route(state)` | 定义一个叫 `choose_route` 的函数，调用时带一份 `state` |
-| `{"intent": "memory_update"}` | 一份字段表。左边是字段名，右边是值。Python 里叫字典 |
-| `state["intent"]` | 从这份状态里取出 `intent` 字段 |
-| `if ... == ...` | 比较两个值，相同才执行缩进在下面的语句 |
-| `return` | 把值交回调用者，这次函数到此结束 |
-| `await` | 等一个异步操作的结果，例如等数据库查询返回 |
+- `state` 是一份字段和值组成的字典。 `state["intent"]` 取其中的意图。
+- `def` 把几行程序变成一个有名字的函数。括号内是调用时要传来的东西。
+- `if` 成立才执行缩进的一组语句。上面这份状态会返回 `retrieve_evidence`。
+- `await` 在后面的项目代码里出现。读成「等被调用的异步操作把结果交回来」，例如等数据库读完。
 
-先用手指走一次。初始的 `intent` 是 `memory_update`，所以第一条 `return` 会交回 `memory_guidance`。若只改成 `evidence_explanation`，就会沿最后一行返回 `retrieve_evidence`。装过 Python 的读者可以把它存成 `first_route.py`，运行 `python first_route.py` 检查。两次各只改一个值。
+上面这一小段用于练习读法。下面开始打开项目实际用到的文件。
 
-## 用名字找源码
+## 准备 Python 和练习副本
 
-打开后端的对话入口，搜 `run_career_graph(`。遇到参数多时，先圈出「这句话从哪里传进去」和「这个函数把什么送回来」。下面摘出源码里调用图的整段。
+想从网页读源码时，现在就可以进入下一课。要亲手敲，在电脑上准备 **Python 3.11 或更新版本**，并下载或克隆仓库。把终端切到含有 `backend`、`frontend`、`tutorials` 的项目根。 [Python 安装步骤](../setup/Python准备.md)
 
-```python
-result = await run_career_graph(
-    user_id=payload.user_id,
-    message=payload.message,
-    profile=profile,
-    evidence=evidence,
-    job_analysis=analysis,
-    thread_id=payload.thread_id,
-    history=history,
-    session=session,
-    mode=payload.mode,
-)
+有可用的后端开发虚拟环境时，使用其中的 Python。第一次准备可以按系统在项目根运行下面的命令。
+
+**Windows PowerShell**
+
+```powershell
+python -m venv .cache/agent-venv
+.\.cache\agent-venv\Scripts\Activate.ps1
+python -m pip install -e "./backend[dev]"
 ```
 
-按名字读，`payload.message` 是当前的问题，`profile` 和 `evidence` 是接口先读出的资料，`result` 是这个调用的结果。冒号后面的类型提示会告诉你大致数据形状，先沿两个变量往下找足够完成本课。下一节再看这些数据为什么能进入状态。 [Chat 入口与调用](../../backend/app/api/routes/chat.py#L38) · [图执行入口](../../backend/app/graph/career.py#L239)
+如果 PowerShell 无法执行激活脚本，使用 `.\.cache\agent-venv\Scripts\python.exe` 代替后续命令开头的 `python` 即可。
 
-最后在同一个接口文件里搜 `return ChatResponse`，会发现对外返回的 `evidence` 对应内部的 `retrieved_evidence`。同一个值换了名字很常见。给自己留一行记录 **「返回字段 evidence ← 图里的 retrieved_evidence」**，读后面的检索节点时会用到它。 [ChatResponse 返回处](../../backend/app/api/routes/chat.py#L119)
+**macOS 或 Linux**
 
-### 用两分钟检查自己能不能找入口
+```bash
+python3 -m venv .cache/agent-venv
+source .cache/agent-venv/bin/activate
+python -m pip install -e "./backend[dev]"
+```
 
-如果你只是想找「问句从哪里进入后端」，在下列三个名字里先点哪一个？然后给另外两个各写一句用途。
+在同一终端检查 `python -m pytest --version`。能看到 pytest 版本后，创建练习副本并验证初始环境。
 
-- `POST /api/v1/chat`
-- `ChatResponse`
-- `retrieve_evidence`
+```bash
+python tutorials/01-agent-design/lab/practice.py new
+```
 
-<details>
-<summary>核对你选的入口</summary>
+```bash
+python tutorials/01-agent-design/lab/practice.py check state
+```
 
-`POST /api/v1/chat` 是应用接收这次问答的位置。 `ChatResponse` 描述服务发回什么字段。 `retrieve_evidence` 是图里的检索步骤，打开它能看到查询怎么跑，却跳过了接口前面的校验和上下文准备。
+`new` 回显练习的绝对地址。默认是项目下的 `.cache/agent-practice/backend`。在编辑器打开这个目录，从这里找 `app/graph/career.py`。后面的命令仍从原项目根运行。初始的 `check state` 应出现 `1 passed`，说明当前 Python、项目依赖和测试都能工作。测试用 SQLite 内存库、合成资料和 Demo，就能测完整对话，无需启动 Docker 或填写模型密钥。 [练习启动器](lab/practice.py)
 
-</details>
+## 每一关都按这个顺序做
+
+1. 本节给定一个关卡名。用 `open` 找到要补的函数，练习副本里会出现 `TODO`。
+2. 先跑一次 `check`，找到失败处带出的函数名。接着按正文的步骤把实现一段段写回编辑器。
+3. 同一个 `check` 跑绿之后继续下一课。完整实现折叠在正文里，供你对照输入、分支与返回值。
+
+同一关第二次 `open` 会显示当前文件位置，保留已经写好的内容。要另外开始一套副本，可以在命令里把 `--workspace .cache/agent-practice-2` 放在 `new`、`open` 或 `check` 前。这个路径在三种命令里保持一致。
 
 ## 下一步
 
-在 [01-A1 请求与状态](01-A1-请求与状态.md) 中，拆开一份真的请求，弄清同一句话是怎么带上用户、画像和岗位资料进入图的。
+在 [01-A1 请求与状态](01-A1-请求与状态.md) 打开第一个关卡。先敲出 `run_career_graph()`，让真实 Chat 测试从问句走到可查看的证据。
