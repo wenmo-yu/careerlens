@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>学概念 · CareerLens 练习</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #152e25;
+      --muted: #486358;
+      --leaf: #175e4a;
+      --line: #ccded5;
+      --paper: #fff;
+      background: #f1f6f3;
+      color: var(--ink);
+      font: 16px/1.65 system-ui, "Microsoft YaHei", "PingFang SC", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 64rem; margin: 0 auto; padding: clamp(16px, 4vw, 48px); }
+    a { color: var(--leaf); text-underline-offset: .2em; }
+    a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible {
+      outline: 2px solid var(--leaf);
+      outline-offset: 3px;
+    }
+    nav { display: flex; flex-wrap: wrap; gap: .4rem 1.05rem; margin: 1.25rem 0 1.8rem; }
+    nav a { padding: .25rem 0; }
+    nav a[aria-current="page"] { font-weight: 700; text-decoration-thickness: 2px; }
+    header { margin: 0 0 1.5rem; max-width: 44rem; }
+    h1 { font-size: clamp(1.7rem, 4vw, 2.55rem); line-height: 1.25; margin: 0 0 .55rem; }
+    h2 { font-size: 1.05rem; margin: 0 0 .65rem; }
+    header p, .pattern { color: var(--muted); }
+    p { margin: 0 0 .75rem; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 14px; }
+    .panel { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: clamp(14px, 3vw, 22px); }
+    form label { display: block; font-weight: 600; margin: .35rem 0 .15rem; }
+    select, button { font: inherit; }
+    select { width: 100%; padding: .55rem .65rem; background: var(--paper); border: 1px solid #779489; color: var(--ink); border-radius: 8px; margin-bottom: .75rem; }
+    input[type="checkbox"] { accent-color: var(--leaf); margin: 0 .32rem 0 0; }
+    button { display: block; margin-top: .9rem; padding: .44rem 1.05rem; border: 1px solid var(--leaf); border-radius: 8px; background: var(--leaf); color: var(--paper); font-weight: 700; cursor: pointer; }
+    button:hover { background: #104c3c; }
+    pre { padding: .8rem; border-radius: 8px; background: #eff5f1; white-space: pre-wrap; overflow-wrap: anywhere; }
+    ol { padding-left: 1.4rem; }
+    li + li { margin-top: .45rem; }
+    .result { margin: 0; color: #174e3f; font-weight: 650; }
+    .panel > :last-child { margin-bottom: 0; }
+    @media (max-width: 680px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  </style>
+</head>
+<body>
+  <main>
+    <a id="lesson-link" href="./#/tutorials/00-foundations/00-1-Agent是什么">← 返回正文</a>
+    <nav aria-label="学概念练习">
+      <a href="?lesson=agent" data-lesson="agent">00-1 Agent</a>
+      <a href="?lesson=evidence" data-lesson="evidence">00-2 引用</a>
+      <a href="?lesson=retrieval" data-lesson="retrieval">00-3 检索</a>
+      <a href="?lesson=data" data-lesson="data">00-4 来源</a>
+    </nav>
+
+    <section id="agent" aria-labelledby="agent-title" hidden>
+      <header>
+        <h1 id="agent-title">还要再查一次吗？</h1>
+        <p>核对林澈有没有生产 Kubernetes 上线记录。第一轮只看关键词榜首，第二轮再查发布记录。先猜改一次查询预算会多看到什么。</p>
+      </header>
+      <div class="layout">
+        <form id="agent-form" class="panel">
+          <h2>给助手的条件</h2>
+          <label for="budget">最多查询几次</label>
+          <select id="budget">
+            <option value="1">1 次</option>
+            <option value="2">2 次</option>
+          </select>
+          <label for="with-log"><input type="checkbox" id="with-log">附上上线变更单 E</label>
+          <p class="pattern">练习按固定规则运行，在本页可以核对每一步。</p>
+          <button type="submit">运行一次</button>
+        </form>
+        <div class="panel" aria-live="polite">
+          <h2>运行记录</h2>
+          <ol id="agent-steps" hidden></ol>
+          <p id="agent-result" class="result">等你选好条件，再开始查。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="evidence" aria-labelledby="evidence-title" hidden>
+      <header>
+        <h1 id="evidence-title">这句话能签字吗？</h1>
+        <p>选好草稿，先猜它最早会在哪一步卡住。程序检查格式和引用范围，原文支持给出预设的参考判读。</p>
+      </header>
+      <div class="layout">
+        <form id="evidence-form" class="panel">
+          <h2>挑一份草稿</h2>
+          <label for="draft">要核对的版本</label>
+          <select id="draft">
+            <option value="shape">甲 · 引用字段写成字符串</option>
+            <option value="scope">乙 · 引用 Z</option>
+            <option value="claim" selected>丙 · 用收藏支持上线</option>
+            <option value="grounded">丁 · 保留练习集群范围</option>
+          </select>
+          <pre id="draft-preview"></pre>
+          <button type="submit">检查这份草稿</button>
+        </form>
+        <div class="panel" aria-live="polite">
+          <h2>核对记录</h2>
+          <ol id="evidence-steps" hidden></ol>
+          <p id="evidence-result" class="result">先看看草稿，再检查结论。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="retrieval" aria-labelledby="retrieval-title" hidden>
+      <header>
+        <h1 id="retrieval-title">前两条够不够？</h1>
+        <p>找出能说明接口在哪运行过的材料。输入榜单固定，关键词榜为 B、C、A，语义榜为 D、C、B。练习将 C 和 D 作为需要找齐的两条答案材料。</p>
+      </header>
+      <div class="layout">
+        <form id="retrieval-form" class="panel">
+          <h2>怎么选候选</h2>
+          <label for="ranking">用哪张榜</label>
+          <select id="ranking">
+            <option value="words">关键词榜</option>
+            <option value="meaning">语义榜</option>
+            <option value="fused" selected>融合榜（RRF）</option>
+          </select>
+          <label for="top-k">交给答复几条</label>
+          <select id="top-k">
+            <option value="2">前 2 条</option>
+            <option value="3">前 3 条</option>
+          </select>
+          <button type="submit">取出候选</button>
+        </form>
+        <div class="panel" aria-live="polite">
+          <h2>答复能读到的原文</h2>
+          <ol id="retrieval-steps" hidden></ol>
+          <p id="retrieval-result" class="result">先想想 D 会在第几位。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="data" aria-labelledby="data-title" hidden>
+      <header>
+        <h1 id="data-title">从一句报告找到两处原文</h1>
+        <p>报告 R-03 说，林澈在练习集群发布过接口。试着沿报告引用打开来源，再比较上传结果的第一项。</p>
+      </header>
+      <div class="layout">
+        <form id="data-form" class="panel">
+          <h2>从哪儿查</h2>
+          <label for="lookup">查询方法</label>
+          <select id="lookup">
+            <option value="citation">打开报告的证据引用</option>
+            <option value="first">比较两次上传的第一项</option>
+          </select>
+          <button type="submit">打开记录</button>
+        </form>
+        <div class="panel" aria-live="polite">
+          <h2>编号与位置</h2>
+          <ol id="data-steps" hidden></ol>
+          <p id="data-result" class="result">先写下你准备找的编号。</p>
+        </div>
+      </div>
+    </section>
+
+    <noscript><p>练习页需要 JavaScript。正文提供了可以自己复算的题目和参考答案。</p></noscript>
+  </main>
+
+  <script>
+    const byId = (id) => document.getElementById(id);
+    const lessons = {
+      agent: '00-1-Agent是什么',
+      evidence: '00-2-提示词与证据',
+      retrieval: '00-3-RAG与检索',
+      data: '00-4-数据模型大白话',
+    };
+    const requested = new URLSearchParams(location.search).get('lesson');
+    const active = Object.hasOwn(lessons, requested) ? requested : 'agent';
+    byId(active).hidden = false;
+    byId('lesson-link').href = './#/tutorials/00-foundations/' + lessons[active];
+    document.querySelector('[data-lesson="' + active + '"]').setAttribute('aria-current', 'page');
+    document.title = byId(active + '-title').textContent + ' · CareerLens 练习';
+
+    const cards = {
+      A: '用 Python 做过课程项目。',
+      B: '收藏了 Kubernetes 教程。',
+      C: '课程项目只在本机演示。',
+      D: '在练习集群把课程接口发布成功，保留了回滚截图。',
+    };
+    const changeLog = '林澈在生产 Kubernetes 集群发布课程接口，附变更单 CL-017。';
+
+    function showResult(panel, steps, result) {
+      const list = byId(panel + '-steps');
+      const rows = steps.map((text) => {
+        const item = document.createElement('li');
+        item.textContent = text;
+        return item;
+      });
+      list.replaceChildren(...rows);
+      list.hidden = false;
+      byId(panel + '-result').textContent = result;
+    }
+
+    byId('agent-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const budget = Number(byId('budget').value);
+      const steps = ['查「Kubernetes」→ B。' + cards.B];
+      let result = '预算已用完。只有收藏记录，缺生产上线依据。';
+      if (budget === 2) {
+        steps.push('查发布记录 → D。' + cards.D);
+        result = '预算已用完。可确认练习集群发布，仍缺生产上线依据。';
+        if (byId('with-log').checked) {
+          steps[1] += ' 同一查询查到 E。' + changeLog;
+          result = '找到生产上线记录。可以按变更单 E 写一次发布经历。';
+        }
+      }
+      showResult('agent', steps, result);
+    });
+
+    const drafts = {
+      shape: { claim: '林澈用 Python 做过课程项目', citation_ids: 'A' },
+      scope: { claim: '林澈用 Python 做过课程项目', citation_ids: ['Z'] },
+      claim: { claim: '林澈有生产 Kubernetes 上线经历', citation_ids: ['B'] },
+      grounded: { claim: '林澈在练习集群发布过课程接口', citation_ids: ['D'] },
+    };
+    function updateDraft() {
+      byId('draft-preview').textContent = JSON.stringify(drafts[byId('draft').value], null, 2);
+      byId('evidence-steps').hidden = true;
+      byId('evidence-result').textContent = '先看看草稿，再检查结论。';
+    }
+    updateDraft();
+    byId('draft').addEventListener('change', updateDraft);
+    byId('evidence-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const selection = byId('draft').value;
+      const { citation_ids: ids } = drafts[selection];
+      if (!Array.isArray(ids)) {
+        showResult('evidence', ['格式失败。引用字段应是一个列表。'], '把 "A" 放进列表，再检查下一关。');
+        return;
+      }
+      const steps = ['格式通过。引用字段是一个列表。'];
+      if (!ids.every((id) => Object.hasOwn(cards, id))) {
+        steps.push('引用失败。Z 不在这次提供的 A～D 中。');
+        showResult('evidence', steps, '先换成能打开的来源。');
+        return;
+      }
+      steps.push('引用通过。原文 ' + ids[0] + ' 写着「' + cards[ids[0]] + '」');
+      const evaluation = selection === 'grounded'
+        ? '原文支持这句话。它保留了「练习集群」的范围。'
+        : '原文只支持收藏教程。现有材料无法确认生产上线。';
+      showResult('evidence', steps, evaluation);
+    });
+
+    const words = ['B', 'C', 'A'];
+    const meaning = ['D', 'C', 'B'];
+    const knownEnvironments = ['C', 'D'];
+    const rrf = (id) => [words, meaning].reduce((total, ranking) => {
+      const index = ranking.indexOf(id);
+      return index === -1 ? total : total + 1 / (2 + index);
+    }, 0);
+    const fused = [...new Set([...words, ...meaning])].sort((left, right) => rrf(right) - rrf(left));
+    byId('retrieval-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const method = byId('ranking').value;
+      const count = Number(byId('top-k').value);
+      const selected = { words, meaning, fused }[method].slice(0, count);
+      const steps = selected.map((id) => {
+        const score = method === 'fused' ? '（融合分 ' + rrf(id).toFixed(3) + '）' : '';
+        return id + score + ' · ' + cards[id];
+      });
+      const found = knownEnvironments.filter((id) => selected.includes(id));
+      showResult('retrieval', steps, '前 ' + count + ' 条找到 ' + found.join('、') + '，运行环境资料覆盖 ' + found.length + '/2。');
+    });
+
+    byId('data-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (byId('lookup').value === 'first') {
+        showResult('data', [
+          '作品说明的第一项是它的标题，证据 ID 为 E-T1。',
+          '课程总结的第一项是它的标题，证据 ID 为 E-T2。',
+        ], '两个标题确实是两条证据。请按共同正文查 E-17。');
+      } else {
+        showResult('data', [
+          '报告 R-03 引用 E-17。正文写着「' + cards.D + '」',
+          '来源块 B-01 → 作品说明 D-01 第 2 段。',
+          '来源块 B-02 → 课程总结 D-02 第 5 段。',
+        ], '同一个证据 ID 有两处来源。');
+      }
+    });
+  </script>
+</body>
+</html>
