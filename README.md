@@ -134,7 +134,7 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 
 ## 零基础入门与教程
 
-先打开[课程路线](tutorials/README.md#学习路径)。只用浏览器可以做完第一道证据题和四篇入门课。想动手时从第 01 篇跑出一次结果，按篇末「下一步」走到第 07 篇的排期练习。习惯用站点阅读的话，可以在[在线教程站](https://wenmo-yu.github.io/careerlens/)跟同一条路线。
+从四篇浏览器入门课开始，跟着林澈的资料学会找证据，再按第 01 篇把工作台跑起来。之后按章读 Agent 工作流、工具调用、子 Agent，再走到检索、Wiki、后台运行时和 MCP。每篇末尾都有下一课。 [GitHub 学习路径](tutorials/README.md#学习路径) · [在线教程站](https://wenmo-yu.github.io/careerlens/)
 
 ## 验证
 

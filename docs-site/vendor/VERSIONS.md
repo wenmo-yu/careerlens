@@ -9,9 +9,7 @@
 | `docsify-theme.css` | `docsify@4.13.1/lib/themes/vue.css` | 4.13.1（已去掉 Google Fonts `@import`，改用系统字体，完全本地化） |
 | `vue.min.js` | `vue@2.7.16/dist/vue.min.js` | 2.7.16（Docsify 4 依赖） |
 | `docsify-copy-code.min.js` | `docsify-copy-code@2.1.1/dist/docsify-copy-code.min.js` | 2.1.1 |
-| `docsify-pagination.min.js` | `docsify-pagination@2.10.1/dist/docsify-pagination.min.js` | 2.10.1 |
 | `docsify-tabs.min.js` | `docsify-tabs@1.6.0/dist/docsify-tabs.min.js` | 1.6.0 |
-| `docsify-mermaid.min.js` | `docsify-mermaid@2.0.0/dist/docsify-mermaid.min.js` | 2.0.0 |
 | `mermaid.min.js` | `mermaid@10.9.1/dist/mermaid.min.js` | 10.9.1 |
 | `prism-core.min.js` | `prismjs@1.29.0/components/prism-core.min.js` | 1.29.0 |
 | `prism-clike.min.js` | `prismjs@1.29.0/components/prism-clike.min.js` | 1.29.0 |

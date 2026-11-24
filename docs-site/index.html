@@ -10,8 +10,10 @@
   <style>
     :root { --theme-color: #2f6f4f; }
     body { margin: 0; font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif; }
-    /* Mermaid 容器可横向滚动，避免窄屏溢出 */
-    .mermaid { overflow-x: auto; }
+    .mermaid-diagram { margin: 1rem 0; overflow-x: auto; }
+    .mermaid-diagram svg { display: block; }
+    .mermaid-diagram:focus-visible { outline: 2px solid var(--theme-color); }
+    .mermaid-staging { position: fixed; left: -10000px; top: 0; visibility: hidden; }
     /* 让代码块复制按钮在浅色主题下可见 */
     .docsify-copy-code-button { background: var(--theme-color); }
     /* 「说明」引用块：Docsify 不支持 GitHub 的 [!NOTE] alert，统一用带底色的引用块 */
@@ -54,7 +56,7 @@
       repo: 'wenmo-yu/careerlens',
       loadSidebar: true,
       homepage: 'tutorials/从这里开始.md',
-      subMaxLevel: 3,
+      subMaxLevel: 2,
       maxLevel: 4,
       auto2top: true,
       basePath: '/careerlens/',
@@ -70,15 +72,6 @@
       },
       // 代码复制
       copyCode: { buttonText: '复制', errorText: '失败', successText: '已复制' },
-      // 分页：正文链接作为上一课/下一课
-      pagination: {
-        previousText: '上一课',
-        nextText: '下一课',
-        crossChapter: true,
-        crossChapterText: true
-      },
-      // Mermaid 由 docsify-mermaid 插件渲染；文字版在图下方 details 中，不依赖图
-      mermaid: true,
       // 每页底部的 GitHub 原文入口
       formatUpdated: '{YYYY}/{MM}/{DD}',
       plugins: [
@@ -104,6 +97,8 @@
     };
   </script>
 
+  <script src="vendor/mermaid.min.js"></script>
+  <script src="mermaid-docsify.js"></script>
   <script src="vendor/vue.min.js"></script>
   <script src="vendor/docsify.min.js"></script>
   <script src="vendor/docsify-search.min.js"></script>
@@ -114,9 +109,6 @@
   <script src="vendor/prism-json.min.js"></script>
   <script src="vendor/prism-js.min.js"></script>
   <script src="vendor/docsify-copy-code.min.js"></script>
-  <script src="vendor/docsify-pagination.min.js"></script>
   <script src="vendor/docsify-tabs.min.js"></script>
-  <script src="vendor/mermaid.min.js"></script>
-  <script src="vendor/docsify-mermaid.min.js"></script>
 </body>
 </html>
