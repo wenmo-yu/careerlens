@@ -1,20 +1,18 @@
 # 04 · 为什么这条证据排第一，却不能支持这句结论？
 
-**副标题**：排名融合（RRF）、检索后端回退与引用校验的边界
+林澈想问「我做过哪些 Python 项目？」刚上传的证据能提供一段原文，检索还需要从库里挑出最值得读的几条。本课先手算两张榜怎样融合，再用原句里的「只在本机演示」判断一句结论是否有出处。
 
-**这一课你要交出什么**：一条你亲手算过、改过、能解释的融合排名；一张分清「检索候选 / 引用合法 / 事实支持」的对照表；以及一句「证据不足」的判断。做完你能回答：排第一的材料，凭什么不能拿来下结论。
+环节一和四可以只用浏览器。环节二的排名脚本只用 Python 标准库。想看真实候选时沿用 03-A 的合成材料和练习 API，先查 RAG。编完 Wiki 后再比较三种模式。 [第四章目录](./04-knowledge-base/README.md) · [合成材料](./04-knowledge-base/03-A-去重与来源.md)
 
-**适合谁 / 怎么走**：零安装读者只做浏览器版（环节一、四 + 迁移题），能交一张证据判断表就算过关；会 Python 的读者加做环节二、三，能跑三组入口并解释差别。**六环节**：先猜（一）→ 跟做并核对（二）→ 只改一个变量（二）→ 排一次错（「遇到异常怎么判断」）→ 接回真实实现（三）→ 换案例迁移（四、课后习题 C）。每节的必做项、预期产物、跳过条件都在该节写明。
-
-**前置与用时**：环节一、四只需浏览器，约 10 分钟；环节二要一份 Python（3.11+），约 10 分钟，不装 Qdrant、不连服务；环节三可选本机观察，需按 [01](01-第一次跑起来.md) 跑起服务、备好证据和 Wiki（见 [05](05-Wiki知识组织.md)），约 15 分钟，首次构建时间另算。概念前置是 [00-2](00-foundations/00-2-提示词与证据.md)（说得顺 ≠ 说得对）、[00-3](00-foundations/00-3-RAG与检索.md)（检索大白话）。术语第一次出现处有解释，随时查[术语表](术语表.md)。
-
-**对应版本**：接口与源码按 `main` 当前提交核对，课内涉及的检索实现以 Qdrant `v1.15.4`（`docker-compose.yml` 锁定）为准。
-
----
-
-这一课讨论的「排第一却不能支持结论」，在成品里就是 Copilot 的回答区：它先给出说法，再附上可展开的证据引用。你要学会的，正是判断这些引用到底能不能撑住那句话。
+工作台的 Copilot 会在答复下方展示候选。打开一条引用后，可以把模型写出的结论与原句对照。
 
 ![Career Copilot 回答及其展开的 Evidence 引用：每个说法都试图落回一条具体证据](../docs/assets/copilot.jpg)
+
+## 先认识召回、名次和重排
+
+把问句「林澈用过 Python 吗？」交给证据库，系统可以先找一小批候选。这一步叫**召回**。一条路线可按向量相似度找正文，另一条可以偏重共享的术语。两套方法有各自的分数。**排名融合**可以只取它们各自的名次，先做一份合并榜。**重排**再用同一套规则细排候选，查回事实仍需要打开对应原文。
+
+在 `backend/app/retrieval/qdrant_store.py` 打开 `QdrantEvidenceStore.search`。这里有两个 `models.Prefetch`，各通过 `using` 选择 `dense` 和 `sparse`，再在 `query` 里选择 `models.Fusion.RRF`。返回的候选被交给 `reranker.score` 重排。接下来的手算先把自己放在两路榜单刚返回的那一步。 [候选融合与重排源码](../backend/app/retrieval/qdrant_store.py#L90-L140)
 
 ## 环节一 · 先猜：两张榜融合，谁第一？（浏览器即可）
 
@@ -45,7 +43,7 @@
 
 用 Python 标准库实现刚才的手算，然后**改一个变量**：把 B 从榜单 A 移除，重新算，看谁第一。再看一种完全不同的合并方式——按名次交错。
 
-本篇使用[练习 05](../examples/tutorials/lesson-05-rrf/)的脚本。从仓库根目录运行，Python 标准库就够。先跑原始榜单，再各改一个参数。每条成功的命令会打印 `OK`。
+本篇使用[练习 05](../examples/tutorials/lesson-05-rrf/README.md) 的脚本。从仓库根目录运行，Python 标准库就够。先跑原始榜单，再各改一个参数。每条成功的命令会打印 `OK`。
 
 Windows PowerShell 先运行 `python --version` 确认命令可用，再复制下面几行。习惯用 `py` 的读者可以先用 `py --version` 确认版本。
 
@@ -116,17 +114,17 @@ python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
 
 沿 [Qdrant 检索](../backend/app/retrieval/qdrant_store.py) 的 `ensure_collection` 和 `search` 看这四步。配置允许回退时， [本地检索](../backend/app/retrieval/hybrid.py) 直接计算 `0.45 × 词频余弦 + 0.55 × 稀有词得分 + 短语加分`。问句完整出现在正文时，加分为 `0.25`。[第 08-2 篇](08-advanced/08-2-评测.md) 会让你观察这项加分怎样改变一个实际指标。
 
-先用 [01](01-第一次跑起来.md) 已建好画像的用户跑一次 `rag`。工作台默认是 `demo-user`，如果你用的是另一个教学 ID，就替换下面的值。在 `http://localhost:8000/docs` 展开 `POST /api/v1/chat` 并填入这份请求。
+在 [8030 端口的练习 Swagger](http://127.0.0.1:8030/docs)，给 03-A 的 `kb-study` 执行一次 `POST /api/v1/profiles/{user_id}/rebuild`。再展开 `POST /api/v1/chat`，发送下面的请求。若前一课换过账号，继续使用你选的值。
 
 ```json
 {
-  "user_id": "demo-user",
+  "user_id": "kb-study",
   "message": "我做过哪些 Python 项目？",
   "mode": "rag"
 }
 ```
 
-如果暂时没编译 Wiki，完成 `rag` 这一组就可以继续读。想比较 Wiki 时，先按[第 05 篇](05-Wiki知识组织.md)为同一个用户编译一页相关材料，再把 `mode` 分别改为 `wiki` 和 `hybrid`，问句保持不变。也可以用 [lesson-03-chat-modes](../examples/tutorials/lesson-03-chat-modes/) 自动核对。三次响应重点看这些字段。
+用共同正文的 E 在响应的 `evidence` 查原文。记录 `retrieval.backend`、`fusion`、`reason`。启动器固定用本地检索，所以此处可以看到 `backend=local`、`fusion=weighted_score`、`reason=configured_local`。现在完成 `rag` 这一组就可以继续读。待 Wiki 编好后，综合课会用同一句问题对比三组响应。
 
 - `retrieval.backend` / `retrieval.fusion`：Qdrant 成功时是 `qdrant` / `rrf`；本地回退时是 `local` / `weighted_score`，且 `fallback: true`、`reason` 说明原因。**本机回退不走 RRF**——这正是环节一公式和真实链路要分开看的地方。
 - `evidence[*].source_kind`：`rag` 或 `wiki`。`wiki` 模式不查证据检索器，所以它的诊断里**没有** `backend`/`fusion`/`reranker` 键——不是 bug，是它根本没走那条链。
@@ -153,7 +151,7 @@ python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
 
 排序分高 ≠ 引用合法；引用合法 ≠ 事实支持。要把系统的检查和人的判断分开：**系统目前校验的是引用 ID 的合法性**（回答里的行内引用必须落在返回证据的 ID 范围内，未知 ID 会被拒绝），**它不做语义层面的事实核验**——一条合法 ID、能追到原文的「收藏教程」，照样能出现在回答里。所以「这条引用内容到底支不支持结论」这一步得由你来做，判不准就写「证据不足」。
 
-课堂里两种失败要分清：一种是**引用 ID 不合法**（系统直接拒绝，你能看到错误）；另一种是**引用合法但原文不支持**（系统不会拦，只有你核对原文才发现）。这正是 [00-2](00-foundations/00-2-提示词与证据.md) 的规矩，也是这一课最该带走的一句话。
+引用校验失败时，聊天生成节点会改用备用答复，响应仍可为 200，诊断中会有 `fallback=true` 和 `reason=ValueError`。编号合法的回答还要逐句看原文。这条兴趣记录可以支持「收藏过教程」，上线经历需要别的材料。 [聊天答复节点](../backend/app/graph/career.py#L158-L216) · [引用回归](../backend/tests/test_job_intelligence.py#L249)
 
 </details>
 
@@ -167,9 +165,7 @@ python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
 | --- | --- | --- | --- |
 | 没建画像直接 `POST /api/v1/chat` | HTTP **422** | 响应体提示缺画像；对照 `backend/app/api/routes/chat.py:50-52` 的前置检查 | 先按 [01](01-第一次跑起来.md) 导入合成资料并 `POST /api/v1/profiles/{user_id}/rebuild` |
 | 还没编译 Wiki | `wiki` 可能没有候选。 `hybrid` 仍可返回 RAG 候选 | 看 `retrieval.wiki_count` 是否为 0，以及 `evidence[].source_kind` | 按 [05](05-Wiki知识组织.md) 编译一页相关 Wiki，再用原问句重跑 |
-| 回答里出现未知的行内引用 ID | 请求失败，`validated_citations` 抛「unknown Evidence citation」 | 源码 `backend/app/services/citations.py:15-16`：ID 不在允许范围就拒绝 | 这是**引用合法性**被系统挡住（见环节四）；重新提问或核对证据 ID |
-
-前两种是「前置没备好」，补上就能继续；第三种是系统**故意**拒绝非法引用，别把它当 bug。**注意系统不会拦「合法 ID 但原文不支持结论」**——那一步只能你自己核对（环节四）。
+| 第三章替身测试返回未知的行内引用 ID | 响应仍为 200，返回备用答复 | 查 `model.fallback` 与 `model.reason`，定位 `backend/app/services/citations.py` 的 `validated_citations` | 核对实际候选 ID，再按答复课预设有效引用重跑测试 |
 
 ## 课后习题
 
@@ -190,7 +186,7 @@ python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
 
 ### B · 改代码 / 改变量（可验证）
 
-打开 [`lesson-05-rrf`](../examples/tutorials/lesson-05-rrf/)（离线、只用标准库、要有一份 Python），用两个变体入口各跑一遍：
+打开 [`lesson-05-rrf`](../examples/tutorials/lesson-05-rrf/README.md)（离线、只用标准库、要有一份 Python），用两个变体入口各跑一遍：
 
 1. `python3 examples/tutorials/lesson-05-rrf/main.py --k 10`：观察「两榜都中」相对「一榜榜首」的**分差**和**倍率**分别怎么变。
 2. `python3 examples/tutorials/lesson-05-rrf/main.py --drop-b`：B 只剩一榜命中后，谁排第一。
@@ -234,4 +230,4 @@ python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
 
 ## 下一步
 
-证据能检索、能判断支持与否了，但散落的材料还要整理成可引用的主题页。[05 · Wiki 知识组织](05-Wiki知识组织.md)讲这件事。术语见[术语表](术语表.md)。
+到 [04-A 写本地检索与索引回查](./04-knowledge-base/04-A-检索源码与诊断.md)。把这次响应里的 `weighted_score` 拆成三项，亲手写出它怎样挑候选。

@@ -28,10 +28,17 @@
   - [01-D 启动并验收](tutorials/01-agent-design/01-D-综合跟做.md)
 
 - **4. 读数据与知识库**
+  - [第四章目录与练习准备](tutorials/04-knowledge-base/README.md)
   - [02 数据模型](tutorials/02-数据模型.md)
-  - [03 解析与去重](tutorials/03-解析层.md)
+  - [03 文件解析与定位](tutorials/03-解析层.md)
+  - [03-A 证据去重与来源](tutorials/04-knowledge-base/03-A-去重与来源.md)
   - [04 检索与引用](tutorials/04-检索Agent.md)
-  - [05 Wiki 知识库](tutorials/05-Wiki知识组织.md)
+  - [04-A 检索源码与诊断](tutorials/04-knowledge-base/04-A-检索源码与诊断.md)
+  - [05 编译第一张 Wiki](tutorials/05-Wiki知识组织.md)
+  - [05-A Wiki 编译与引用](tutorials/04-knowledge-base/05-A-Wiki编译与引用.md)
+  - [05-B 表格行保护](tutorials/04-knowledge-base/05-B-表格行保护.md)
+  - [05-C Wiki 版本与回滚](tutorials/04-knowledge-base/05-C-Wiki版本与回滚.md)
+  - [05-D Wiki 查询与综合验收](tutorials/04-knowledge-base/05-D-Wiki查询与综合验收.md)
 
 - **5. 跟一次任务和接入**
   - [06 后台运行时](tutorials/06-后台运行时.md)

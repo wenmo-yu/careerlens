@@ -193,7 +193,7 @@ def write_text(path: Path, value: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def new_workspace(workspace: Path) -> None:
+def new_workspace(workspace: Path, *, with_tool_test: bool = True) -> None:
     if workspace.is_relative_to(BACKEND):
         raise ValueError("Choose a workspace outside the original backend.")
     if workspace.exists():
@@ -204,7 +204,8 @@ def new_workspace(workspace: Path) -> None:
     for folder in ("app", "tests"):
         shutil.copytree(BACKEND / folder, copied / folder, ignore=ignore)
     shutil.copy2(BACKEND / "pyproject.toml", copied / "pyproject.toml")
-    shutil.copy2(LAB / "mcp_tool_check.py", copied / TOOL_TEST)
+    if with_tool_test:
+        shutil.copy2(LAB / "mcp_tool_check.py", copied / TOOL_TEST)
     write_text(workspace / MANIFEST, json.dumps({"source": str(BACKEND), "opened": []}))
     print(f"Created {copied}")
 
@@ -232,10 +233,12 @@ def function_body(text: str, qualified_name: str) -> tuple[int, int]:
     return start - 1, function.end_lineno
 
 
-def open_exercise(workspace: Path, lesson: str, manifest: dict) -> None:
+def open_exercise(
+    workspace: Path, lesson: str, manifest: dict, *, lessons=LESSONS, hints=FUNCTION_HINTS
+) -> None:
     copied = (workspace / "backend").resolve()
     updates: dict[Path, str] = {}
-    for filename, symbols in LESSONS[lesson]["files"].items():
+    for filename, symbols in lessons[lesson]["files"].items():
         path = (copied / filename).resolve()
         if not path.is_relative_to(copied):
             raise ValueError(f"Exercise file is outside the workspace: {path}")
@@ -254,11 +257,11 @@ def open_exercise(workspace: Path, lesson: str, manifest: dict) -> None:
                 continue
             if lines[start:end] != source.splitlines(keepends=True)[source_start:source_end]:
                 raise ValueError(f"{symbol} has local edits. Its body was kept.")
-            hints = [
+            comments = [
                 f"{indent}# {step}. {hint}\n"
-                for step, hint in enumerate(FUNCTION_HINTS[symbol], start=1)
+                for step, hint in enumerate(hints[symbol], start=1)
             ]
-            lines[start:end] = [*hints, stub]
+            lines[start:end] = [*comments, stub]
         contents = "".join(lines)
         ast.parse(contents, filename=str(path))
         updates[path] = contents
@@ -272,8 +275,8 @@ def open_exercise(workspace: Path, lesson: str, manifest: dict) -> None:
     print(f"Ready: {lesson}")
 
 
-def check_exercise(workspace: Path, lesson: str) -> int:
-    selected = LESSONS.values() if lesson == "all" else (LESSONS[lesson],)
+def check_exercise(workspace: Path, lesson: str, *, lessons=LESSONS) -> int:
+    selected = lessons.values() if lesson == "all" else (lessons[lesson],)
     targets = dict.fromkeys(test for group in selected for test in group["tests"])
     tests = [test for test in targets if "::" not in test or test.split("::")[0] not in targets]
     return subprocess.run(
@@ -340,16 +343,22 @@ def run_demo(
     ).returncode
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--workspace", type=Path, default=DEFAULT_WORKSPACE)
+def main(
+    *,
+    description: str = __doc__,
+    default_workspace: Path = DEFAULT_WORKSPACE,
+    lessons=LESSONS,
+    hints=FUNCTION_HINTS,
+) -> int:
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("--workspace", type=Path, default=default_workspace)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("new", help="Create a fresh practice copy.")
     commands.add_parser("open", help="Prepare the selected functions for editing.").add_argument(
-        "lesson", choices=LESSONS,
+        "lesson", choices=lessons,
     )
     commands.add_parser("check", help="Run the relevant real tests on your copy.").add_argument(
-        "lesson", choices=(*LESSONS, "all"),
+        "lesson", choices=(*lessons, "all"),
     )
     serve = commands.add_parser("serve", help="Run the practice API on the loopback address.")
     serve.add_argument(
@@ -368,7 +377,10 @@ def main() -> int:
     workspace = args.workspace.resolve()
     try:
         if args.command == "new":
-            new_workspace(workspace)
+            new_workspace(
+                workspace,
+                with_tool_test=any(TOOL_TEST in group["files"] for group in lessons.values()),
+            )
             return 0
         manifest = json.loads((workspace / MANIFEST).read_text(encoding="utf-8"))
         copied = (workspace / "backend").resolve()
@@ -377,10 +389,10 @@ def main() -> int:
         if copied == BACKEND:
             raise ValueError("The original backend cannot be used as a practice workspace.")
         if args.command == "open":
-            open_exercise(workspace, args.lesson, manifest)
+            open_exercise(workspace, args.lesson, manifest, lessons=lessons, hints=hints)
             return 0
         if args.command == "check":
-            return check_exercise(workspace, args.lesson)
+            return check_exercise(workspace, args.lesson, lessons=lessons)
         return run_demo(
             workspace,
             args.command,
