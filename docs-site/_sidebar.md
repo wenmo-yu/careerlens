@@ -11,14 +11,16 @@
   - [01 第一次跑起来](tutorials/01-第一次跑起来.md)
 
 - **3. 读 Agent 源码**
-  - [01-A 从界面找到源码入口](tutorials/01-agent-design/01-A-Agent工作流.md)
+  - [01-A 建立练习副本](tutorials/01-agent-design/01-A-Agent工作流.md)
   - [01-A1 请求与状态](tutorials/01-agent-design/01-A1-请求与状态.md)
   - [01-A2 路由与结束条件](tutorials/01-agent-design/01-A2-路由与结束条件.md)
-  - [01-B 工具调用](tutorials/01-agent-design/01-B-工具调用.md)
+  - [01-B 聊天图的检索工具](tutorials/01-agent-design/01-B-工具调用.md)
+  - [01-B0 注册与调用 MCP 工具](tutorials/01-agent-design/01-B0-注册与调用MCP工具.md)
   - [01-B1 模型答复与引用](tutorials/01-agent-design/01-B1-模型答复与引用.md)
-  - [01-B2 会话与画像确认](tutorials/01-agent-design/01-B2-会话与画像确认.md)
+  - [01-B2 两轮会话的读写](tutorials/01-agent-design/01-B2-会话与画像确认.md)
+  - [01-B3 长期画像与确认](tutorials/01-agent-design/01-B3-长期画像与确认.md)
   - [01-C Coordinator 与子 Agent](tutorials/01-agent-design/01-C-子Agent.md)
-  - [01-D 综合跟做](tutorials/01-agent-design/01-D-综合跟做.md)
+  - [01-D 启动并验收](tutorials/01-agent-design/01-D-综合跟做.md)
 
 - **4. 读数据与知识库**
   - [02 数据模型](tutorials/02-数据模型.md)
