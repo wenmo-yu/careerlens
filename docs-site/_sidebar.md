@@ -6,6 +6,10 @@
   - [00-2 提示词与证据](tutorials/00-foundations/00-2-提示词与证据.md)
   - [00-3 RAG 与检索](tutorials/00-foundations/00-3-RAG与检索.md)
   - [00-4 数据模型](tutorials/00-foundations/00-4-数据模型大白话.md)
+  - [00-5 LangGraph 与工作流](tutorials/00-foundations/00-5-LangGraph与工作流.md)
+  - [00-6 LangChain 入门](tutorials/00-foundations/00-6-LangChain与模型工具.md)
+  - [00-7 混合 RAG 与排名融合](tutorials/00-foundations/00-7-混合RAG与排名融合.md)
+  - [00-8 Wiki 知识组织](tutorials/00-foundations/00-8-Wiki知识组织.md)
 
 - **2. 跑一遍产品**
   - [01 第一次跑起来](tutorials/01-第一次跑起来.md)

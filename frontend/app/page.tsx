@@ -25,15 +25,9 @@ export default function Home() {
           </div>
           <div className="landing-hero-foot"><span>01 / PERSONAL DATA</span><span>02 / EVIDENCE</span><span>03 / DECISION</span></div>
         </div>
-        <div className="landing-visual" aria-label="虚构案例界面预览">
-          <div className="visual-top"><span><b /> CAREERLENS / DECISION DESK</span><span>DEMO VIEW</span></div>
-          <div className="visual-profile"><div className="visual-avatar">CL</div><div><small>CAREER PROFILE</small><strong>{demoStory.person}的职业画像</strong><span>AI 应用开发方向 · 虚构案例</span></div><span className="visual-arrow">↗</span></div>
-          <div className="visual-main">
-            <div className="visual-score"><small>VERIFIABLE MATCH</small><strong>{demoStory.score}</strong><span>对目标岗位的规则匹配结果</span></div>
-            <div className="visual-requirements"><small>REQUIREMENT STATUS</small><div><span>Python / FastAPI</span><b className="visual-partial">PARTIAL</b></div><div><span>LangGraph / RAG</span><b className="visual-partial">PARTIAL</b></div><div><span>MCP / Kubernetes</span><b className="visual-gap">GAP</b></div></div>
-          </div>
-          <div className="visual-footer"><span>↳ 每个能力结论都有 Evidence ID</span><span>DEMO 01 / 2026</span></div>
-          <div className="landing-sticker">证据先于结论 <span>✳</span></div>
+        <div className="landing-shot" aria-label="CareerLens 工作台界面预览">
+          <div className="landing-shot-image" role="img" aria-label="工作台中的职业画像与证据引用面板" />
+          <div className="landing-shot-caption"><span>虚构示例 · 真实工作台界面</span><span>01 / EVIDENCE → DECISION</span></div>
         </div>
       </section>
 

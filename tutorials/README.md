@@ -4,11 +4,11 @@
 
 ## 学习路径
 
-从上到下学，每篇末尾都有下一课。前四篇用浏览器即可。已经跑通工作台的读者可以从 Agent 源码开始。
+从上到下学，每篇末尾都有下一课。阶段 0 的八篇概念课用浏览器即可，先建立证据判断，再补上项目实际用到的 LangGraph、混合 RAG 与 Wiki。已经跑通工作台的读者可以从 Agent 源码开始。
 
 | 顺序 | 依次阅读 | 做完能检查什么 |
 | --- | --- | --- |
-| 1. 学概念 | [00-1 Agent 是什么](00-foundations/00-1-Agent是什么.md) → [00-2 提示词与证据](00-foundations/00-2-提示词与证据.md) → [00-3 RAG 与检索](00-foundations/00-3-RAG与检索.md) → [00-4 数据模型](00-foundations/00-4-数据模型大白话.md) | 给两条结论找依据，再从报告的编号追回原文 |
+| 1. 学概念 | [00-1 Agent](00-foundations/00-1-Agent是什么.md) → [00-2 提示词与证据](00-foundations/00-2-提示词与证据.md) → [00-3 RAG 与检索](00-foundations/00-3-RAG与检索.md) → [00-4 数据模型](00-foundations/00-4-数据模型大白话.md) → [00-5 LangGraph](00-foundations/00-5-LangGraph与工作流.md) → [00-6 LangChain 入门](00-foundations/00-6-LangChain与模型工具.md) → [00-7 混合 RAG](00-foundations/00-7-混合RAG与排名融合.md) → [00-8 Wiki 知识组织](00-foundations/00-8-Wiki知识组织.md) | 给结论找依据、追回原文，并说清项目里谁负责编排、检索与知识整理 |
 | 2. 跑一遍产品 | [01 第一次跑起来](01-第一次跑起来.md) | 从工作台打开一次岗位分析，找到一条依据和一个缺口 |
 | 3. 读 Agent 源码 | [从 01-A 准备练习副本](01-agent-design/01-A-Agent工作流.md) · [十节课目录](01-agent-design/README.md) | 在同一份副本中补写状态、检索、MCP 工具、模型答复、会话与子 Agent，最后启动 API 和 Worker |
 | 4. 读数据与知识库 | [02 数据模型](02-数据模型.md) → [03 解析与去重](03-解析层.md) → [04 检索与引用](04-检索Agent.md) → [05 Wiki 知识库](05-Wiki知识组织.md) | 比较两份文件的来源，手算一次检索排名，从 Wiki 页找到原始证据 |
