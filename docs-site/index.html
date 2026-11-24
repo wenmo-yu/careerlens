@@ -36,6 +36,19 @@
   </noscript>
 
   <script>
+    function normalizeTutorialRoute() {
+      const hash = window.location.hash;
+      // 旧侧栏在子页面把 tutorials/ 接到了当前目录后面。
+      const legacyPrefix = /^#\/(?:tutorials|docs)\/(?:(?:00-foundations|08-advanced|setup)\/)?(?:tutorials\/)+/;
+      const canonical = hash.replace(legacyPrefix, '#/tutorials/');
+      if (canonical !== hash) {
+        window.history.replaceState(window.history.state, '', canonical);
+      }
+    }
+
+    normalizeTutorialRoute();
+    window.addEventListener('hashchange', normalizeTutorialRoute);
+
     window.$docsify = {
       name: 'CareerLens 教程',
       repo: 'wenmo-yu/careerlens',
@@ -46,7 +59,7 @@
       auto2top: true,
       basePath: '/careerlens/',
       // 篇章页正文相对链接按 md 所在目录解析（否则 [术语表](术语表.md) 会被当成站点根路径而 404）。
-      // 首页 homepage 渲染在 #/ 路由、基准是站点根，其链接由 build.py 统一补 tutorials/ 前缀。
+      // 首页和侧栏的站内导航由 build.py 写成站点根路径。
       relativePath: true,
       // 搜索：索引本页标题与正文，深度 6
       search: {
@@ -76,6 +89,8 @@
             var path = (location.hash || '').replace(/^#\/?/, '').split('?')[0];
             if (!path) path = 'tutorials/从这里开始.md';
             if (path.indexOf('..') !== -1) return;
+            if (path.endsWith('/')) path += 'README.md';
+            else if (!path.endsWith('.md')) path += '.md';
             var link = document.createElement('div');
             link.id = 'github-source-link';
             link.style.cssText = 'margin-top:48px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:13px;';

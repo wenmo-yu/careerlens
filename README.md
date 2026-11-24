@@ -4,7 +4,7 @@
 
 **把经历变成证据，再用证据回答"我适合什么岗位、还缺什么、下一步怎么做"。**
 
-**[零基础？从这里开始](tutorials/从这里开始.md)** · [在线教程站](https://wenmo-yu.github.io/careerlens/) · [5 分钟上手](#快速开始) · [教程目录](tutorials/README.md) · [文档](docs/README.md) · [架构](docs/architecture.md) · [API 与配置](docs/api-and-configuration.md) · [路线图](ROADMAP.md)
+**[在 GitHub 上开始学习](tutorials/README.md#学习路径)** · [在线教程站](https://wenmo-yu.github.io/careerlens/) · [本机启动（需 Docker）](#快速开始) · [文档](docs/README.md) · [架构](docs/architecture.md) · [API 与配置](docs/api-and-configuration.md) · [路线图](ROADMAP.md)
 
 [![Quality Gate](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml)
 [![Release](https://img.shields.io/github/v/release/wenmo-yu/careerlens)](https://github.com/wenmo-yu/careerlens/releases)
@@ -89,7 +89,7 @@ docker compose up -d --build
 - **运行时以数据库为队列**：不引入 Redis，用租约、fencing 代次与提交边界保证"提交即终态"，取消与过期都能恢复。
 - **隐私默认收敛**：审计不含原文，向量删除有补偿，账号删除返回匿名回执。
 
-这些取舍的策略来源与有意偏离，见[与 WeKnora / WorkBuddy 的实现对照](docs/agent-and-retrieval.md#与-weknora-workbuddy-的实现对照)。
+这些取舍的背景见[与 WeKnora 和 WorkBuddy 的实现对照](docs/agent-and-retrieval.md#与-weknora-和-workbuddy-的实现对照)。
 
 ## 系统架构
 
@@ -134,19 +134,13 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 
 ## 零基础入门与教程
 
-**没写过代码也能开始**：[从这里开始](tutorials/从这里开始.md)——10 分钟、只用浏览器做完第一道证据判断题，再按你的基础选学习路线。只需理解原理的话，不必安装任何软件。也可在[在线教程站](https://wenmo-yu.github.io/careerlens/)阅读同样的内容（支持搜索与深链接）。
-
-想亲手跑或复刻？教程按依赖顺序编排，每篇都有目标、前置、步骤与验收：
-
-- [教程总览与学习路径](tutorials/README.md) · [术语表](tutorials/术语表.md) · [常见问题](tutorials/常见问题.md)
-- 从零跑通 → 数据模型 → 解析层 → 检索 Agent → Wiki 知识组织 → 后台运行时 → 组装与进阶
-- 装不了软件？走[静态观察路线](tutorials/静态观察路线.md)学同样的原理（不计为「本机跑通」）。
+先打开[课程路线](tutorials/README.md#学习路径)。只用浏览器可以做完第一道证据题和四篇入门课。想动手时从第 01 篇跑出一次结果，按篇末「下一步」走到第 07 篇的排期练习。习惯用站点阅读的话，可以在[在线教程站](https://wenmo-yu.github.io/careerlens/)跟同一条路线。
 
 ## 验证
 
 | 项目 | 结果 |
 | --- | --- |
-| 后端 | Ruff 干净；**158 项测试全绿** |
+| 后端 | Ruff 与 pytest，含教程 DOCX 双来源回归 |
 | 前端 | ESLint、TypeScript 类型检查、production build 通过 |
 | CI | backend / frontend / docker-smoke 三项全绿 |
 | 全栈冒烟 | 双 Worker + 真实 PostgreSQL 跑通导入→画像→岗位→报告→对话、后台 run 与 SSE |

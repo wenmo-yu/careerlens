@@ -1,8 +1,8 @@
 # 最小示例脚本
 
-五个用 **Python 标准库**写的脚本，各自只演示一个机制：**四个联网 + 一个离线**。四个联网例调用本机运行中的 CareerLens Demo API，不导入生产后端模块、不需要第三方依赖、不需要 API Key；第五个（lesson-05）纯离线手算，连服务都不用开。五个都需要一份可用的 Python（3.11+），联网例还需要服务。
+这里有六个练习。01–04 用 Python 标准库调用本机 Demo API。05 用标准库离线算排名。06 离线调用项目的评测代码，需要安装后端 Python 依赖。
 
-跑联网例前，先按 [01 快速开始](../../tutorials/01-第一次跑起来.md) 把服务跑起来（默认 Compose，`AUTH_MODE=disabled`）。lesson-05 随时可跑，不依赖服务。
+跑 01–04 前，先按 [01 第一次跑起来](../../tutorials/01-第一次跑起来.md) 启动默认 Compose（`AUTH_MODE=disabled`）。
 
 ## 运行方式
 
@@ -18,13 +18,13 @@ py examples/tutorials/lesson-01-evidence/main.py
 python3 examples/tutorials/lesson-01-evidence/main.py
 ```
 
-每个脚本都可以带一个可选参数指定服务地址，默认是 `http://localhost:8000`：
+01–04 可选填服务地址，默认是 `http://localhost:8000`：
 
 ```bash
 python3 examples/tutorials/lesson-01-evidence/main.py http://localhost:8000
 ```
 
-> 没装 Python？见 [Python 选做准备](../../tutorials/setup/Python准备.md)。离线例 lesson-05 也需要 Python，只是不需要开服务。
+没装 Python？先按[准备 Python](../../tutorials/setup/Python准备.md)确认命令能运行。06 用的是已安装项目依赖的解释器，命令见下方。
 
 ## 四个联网例子（要先开服务）
 
@@ -35,21 +35,25 @@ python3 examples/tutorials/lesson-01-evidence/main.py http://localhost:8000
 | [lesson-03-chat-modes](lesson-03-chat-modes/) | 比较三种检索模式，核对实际命中和原始证据 | [04 检索 Agent](../../tutorials/04-检索Agent.md) |
 | [lesson-04-events](lesson-04-events/) | 同键返回同一任务；验证成功结果与事件；可跑缺画像负例 | [06 运行时](../../tutorials/06-后台运行时.md) |
 
-## 一个离线例子（不用开服务）
+## 两个离线例子
 
 | 例子 | 核对什么 | 对应课程 |
 | --- | --- | --- |
-| [lesson-05-rrf](lesson-05-rrf/) | 手算排名融合；三个入口分别核对默认回归、改 k、移除 B 命中；名次交错与榜首判错 | [04 样板课](../../tutorials/04-检索Agent.md) |
+| [lesson-05-rrf](lesson-05-rrf/) | 用标准库算排名融合，比对默认、改 k、少一次命中和自定义榜单 | [04 检索](../../tutorials/04-检索Agent.md) |
+| [lesson-06-eval](lesson-06-eval/main.py) | 用后端依赖跑两份数据，对照 Top-2 与 Recall@2 | [08-2 评测](../../tutorials/08-advanced/08-2-评测.md) |
 
 ```bash
 python3 examples/tutorials/lesson-05-rrf/main.py            # 默认回归
 python3 examples/tutorials/lesson-05-rrf/main.py --k 10     # 只改 k
 python3 examples/tutorials/lesson-05-rrf/main.py --drop-b   # 只移除榜 A 的 B
+python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
 ```
+
+06 先按[准备 Python](../../tutorials/setup/Python准备.md)建立 `backend/.venv`，在其中安装后端项目（`python -m pip install -e .` 在 `backend` 目录执行）。回到仓库根目录，在 Windows 用 `backend/.venv/Scripts/python.exe examples/tutorials/lesson-06-eval/main.py`，在 macOS/Linux 用 `backend/.venv/bin/python examples/tutorials/lesson-06-eval/main.py`。预期打印两组召回率 `1.0` 和 `0.5`。
 
 ## 合成夹具
 
-[fixtures/](fixtures/) 提供 03 篇两级去重实验用的两份合成 DOCX（字节不同、共享一段正文），以及只用标准库生成它们的脚本。先跑 `python3 examples/tutorials/fixtures/make_docx.py` 生成，再到 Swagger 上传。
+[fixtures/](fixtures/) 提供 03 篇使用的两份合成 DOCX。下载现成文件后即可在 Swagger 上传，也可以自行运行 `python3 examples/tutorials/fixtures/make_docx.py` 生成。
 
 ## 约定
 
