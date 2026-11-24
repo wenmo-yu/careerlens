@@ -4,13 +4,28 @@
 
 练习副本保留项目的依赖、数据库模型、测试夹具和周边业务函数。每一关只把你要实现的函数暂时变成待补状态。你会在项目模块里写回实际实现；数据解析、前端和部署等周边内容可以接着其他章节做。
 
-## 找到你平时用的那条请求
+## 先认识 HTTP、API 和 JSON
 
-1. 打开工作台，找到 Career Copilot。准备好的 Demo 里可以输入「为什么认为我会 Python？」。
-2. 在源码里找 `sendChat`。网页把输入和当前用户编号发到 `POST /api/v1/chat`。
-3. 后端 `chat()` 从对应用户准备资料，调用 `run_career_graph()`，把答案、证据和会话返回给网页。
+在工作台输入「为什么认为我会 Python？」并发送，网页要把这句话交给运行在另一处的 Python 程序。**HTTP** 规定了这条请求怎样发、响应怎样回。**API** 是后端开放出来的调用约定，例如 `POST /api/v1/chat` 表示向这条路径提交一轮对话。**JSON** 是请求体采用的文本格式。`{"message":"为什么认为我会 Python？"}` 里，左边是字段名，右边是这次输入的值。实际请求还带用户编号等字段。
 
-想试读源码，先用页面搜索找到这两处。每次只追一个变量，例如 `message`，看它在哪交给下一个函数。 [网页请求](../../frontend/lib/api.ts#L475) · [后端入口](../../backend/app/api/routes/chat.py#L38)
+## 从发送按钮追到 Python
+
+表里的路径都从 **CareerLens 仓库根目录**算起。按顺序打开文件，每次在当前文件里搜索右边那个名字。用 GitHub 或教程站阅读时，可以点对应的源码链接。
+
+| 打开哪个文件 | 在文件里找什么 |
+| --- | --- |
+| `frontend/app/workspace/page.tsx` | `handleChat`。表单提交后，将输入框的 `chatInput` 传给 `sendChat`。[工作台提交代码](../../frontend/app/workspace/page.tsx#L172-L179) |
+| `frontend/lib/api.ts` | `sendChat`。将参数 `message` 装进 JSON，请求 `/chat`，公共请求函数会带上 API 基础地址。[网页请求代码](../../frontend/lib/api.ts#L475-L489) |
+| `backend/app/api/routes/chat.py` | `chat`。FastAPI 将请求体转换成 `ChatRequest`，函数通过 `payload.message` 取回问题，再交给 `run_career_graph`。[接口接收与调用](../../backend/app/api/routes/chat.py#L38-L91) |
+| `backend/app/graph/career.py` | `run_career_graph`。将同一个 `message` 放入图的初始状态，开始执行第一个节点。[图的执行入口](../../backend/app/graph/career.py#L239-L254) |
+
+下面一行摘自第一处。`await` 表示等调用结束才取得 `result`，随后页上的 `setChat(result)` 用这个响应更新显示。
+
+```typescript
+const result = await sendChat(userId, chatInput, chat?.thread_id, analysis?.id, knowledgeMode);
+```
+
+`chatInput` 在调用中是第二个参数，对应 `sendChat` 的 `message`。把这三个名字按出现顺序连起来，`chatInput → message → payload.message`，你就追完了同一句话从网页到后端的交接。路径里的 `/api/v1` 来自后端配置，`/chat` 由路由登记加上。 [路由登记](../../backend/app/api/router.py#L18-L23) · [应用加载路由](../../backend/app/main.py#L53-L65)
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontFamily":"system-ui, sans-serif","actorBkg":"#eaf6f1","actorBorder":"#60a28d","actorTextColor":"#143f36","actorLineColor":"#a7c2b9","signalColor":"#355c51","signalTextColor":"#203d34","noteBkgColor":"#fff4d9","noteBorderColor":"#ba893b","noteTextColor":"#644117"},"sequence":{"width":112,"height":44,"actorMargin":34,"messageMargin":23,"mirrorActors":false}}}%%
@@ -46,9 +61,9 @@ def read_intent(state):
 
 ## 准备 Python 和练习副本
 
-想从网页读源码时，现在就可以进入下一课。要亲手敲，在电脑上准备 **Python 3.11 或更新版本**，并下载或克隆仓库。把终端切到含有 `backend`、`frontend`、`tutorials` 的项目根。 [Python 安装步骤](../setup/Python准备.md)
+想从网页读源码时，现在就可以进入下一课。要亲手敲，在电脑上准备 **Python 3.11 或更新版本**。已经下载仓库的读者沿用原目录。第一次下载时，可以在 GitHub 仓库首页点 **Code → Download ZIP**，解压后打开含有 `backend`、`frontend`、`tutorials` 的目录，这就是项目根。在这个目录打开终端。 [Python 安装步骤](../setup/Python准备.md) · [CareerLens 仓库](https://github.com/wenmo-yu/careerlens)
 
-有可用的后端开发虚拟环境时，使用其中的 Python。第一次准备可以按系统在项目根运行下面的命令。
+有可用的后端开发虚拟环境时，使用其中的 Python。虚拟环境是这个练习独用的一套 Python 包，`pip install -e "./backend[dev]"` 会安装后端和包含 pytest 在内的开发依赖。第一次准备可以按系统在项目根运行下面的命令。
 
 **Windows PowerShell**
 
@@ -58,7 +73,7 @@ python -m venv .cache/agent-venv
 python -m pip install -e "./backend[dev]"
 ```
 
-如果 PowerShell 无法执行激活脚本，使用 `.\.cache\agent-venv\Scripts\python.exe` 代替后续命令开头的 `python` 即可。
+如果 Windows 上只有 `py` 命令可用，将创建虚拟环境的第一行改为 `py -3 -m venv .cache/agent-venv`。激活后继续使用 `python`。如果 PowerShell 无法执行激活脚本，使用 `.\.cache\agent-venv\Scripts\python.exe` 代替安装依赖和后续命令开头的 `python`。
 
 **macOS 或 Linux**
 
@@ -78,15 +93,17 @@ python tutorials/01-agent-design/lab/practice.py new
 python tutorials/01-agent-design/lab/practice.py check state
 ```
 
-`new` 回显练习的绝对地址。默认是项目下的 `.cache/agent-practice/backend`。在编辑器打开这个目录，从这里找 `app/graph/career.py`。后面的命令仍从原项目根运行。初始的 `check state` 应出现 `1 passed`，说明当前 Python、项目依赖和测试都能工作。测试用 SQLite 内存库、合成资料和 Demo，就能测完整对话，无需启动 Docker 或填写模型密钥。 [练习启动器](lab/practice.py)
+`new` 回显练习的绝对地址。教程之后会同时提到两个位置。读原始实现，打开仓库中的 `backend/app/graph/career.py`。编辑练习，打开同一仓库下的 `.cache/agent-practice/backend/app/graph/career.py`。终端里的 `python tutorials/...` 命令从原项目根运行。编辑器可以另开一个窗口专门放练习文件。 [练习启动器](lab/practice.py)
+
+初始的 `check state` 应出现 `1 passed`。`new` 先带来能运行的代码，所以这里检查的是环境。到下一课执行 `open state` 后，指定的函数体才变成待完成状态。测试用 SQLite 内存库、合成资料和 Demo，做关卡无需启动 Docker 或填写模型密钥。想接入自己的模型时，课程会在写答复节点前带你[配置模型](模型配置.md)。
 
 ## 每一关都按这个顺序做
 
-1. 本节给定一个关卡名。用 `open` 找到要补的函数，练习副本里会出现 `TODO`。
-2. 先跑一次 `check`，找到失败处带出的函数名。接着按正文的步骤把实现一段段写回编辑器。
-3. 同一个 `check` 跑绿之后继续下一课。完整实现折叠在正文里，供你对照输入、分支与返回值。
+1. 运行本课的 `open`，按终端打印的路径在编辑器打开文件。函数签名和已有的装饰器都已准备好。函数里按顺序有几条 `#` 注释，以及一行故意抛错的 `raise NotImplementedError("TODO ...")`。
+2. 先跑一次本课的 `check`。测试执行到待补函数时会显示 `TODO` 和函数名。读本课的小例子，按注释逐段补写，最后用真实的返回值或分支替换占位的 `raise`。改完保存文件，再跑一次。
+3. 遇到新报错，先看 traceback，也就是终端里从调用到报错的路径。回到第一处指向自己练习文件的位置，核对传入的值、条件顺序或返回字段。需要对照时再展开完整源码。测试通过后进入下一关。
 
-同一关第二次 `open` 会显示当前文件位置，保留已经写好的内容。要另外开始一套副本，可以在命令里把 `--workspace .cache/agent-practice-2` 放在 `new`、`open` 或 `check` 前。这个路径在三种命令里保持一致。
+同一关第二次 `open` 会显示当前文件位置，保留已经写好的内容。要另外开始一套副本，在启动器文件名后、子命令前加 `--workspace .cache/agent-practice-2`。后续的 `open`、`check`、`serve` 和 `worker` 都沿用这个写法。
 
 ## 下一步
 
