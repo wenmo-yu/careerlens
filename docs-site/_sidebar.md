@@ -20,6 +20,7 @@
   - [01-A2 路由与结束条件](tutorials/01-agent-design/01-A2-路由与结束条件.md)
   - [01-B 聊天图的检索工具](tutorials/01-agent-design/01-B-工具调用.md)
   - [01-B0 注册与调用 MCP 工具](tutorials/01-agent-design/01-B0-注册与调用MCP工具.md)
+  - [模型配置 · Demo、兼容 API 与 Ollama](tutorials/01-agent-design/模型配置.md)
   - [01-B1 模型答复与引用](tutorials/01-agent-design/01-B1-模型答复与引用.md)
   - [01-B2 两轮会话的读写](tutorials/01-agent-design/01-B2-会话与画像确认.md)
   - [01-B3 长期画像与确认](tutorials/01-agent-design/01-B3-长期画像与确认.md)

@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 1. 学概念 | [00-1 Agent](00-foundations/00-1-Agent是什么.md) → [00-2 提示词与证据](00-foundations/00-2-提示词与证据.md) → [00-3 RAG 与检索](00-foundations/00-3-RAG与检索.md) → [00-4 数据模型](00-foundations/00-4-数据模型大白话.md) → [00-5 LangGraph](00-foundations/00-5-LangGraph与工作流.md) → [00-6 LangChain 入门](00-foundations/00-6-LangChain与模型工具.md) → [00-7 混合 RAG](00-foundations/00-7-混合RAG与排名融合.md) → [00-8 Wiki 知识组织](00-foundations/00-8-Wiki知识组织.md) | 给结论找依据、追回原文，并说清项目里谁负责编排、检索与知识整理 |
 | 2. 跑一遍产品 | [01 第一次跑起来](01-第一次跑起来.md) | 从工作台打开一次岗位分析，找到一条依据和一个缺口 |
-| 3. 读 Agent 源码 | [从 01-A 准备练习副本](01-agent-design/01-A-Agent工作流.md) · [十节课目录](01-agent-design/README.md) | 在同一份副本中补写状态、检索、MCP 工具、模型答复、会话与子 Agent，最后启动 API 和 Worker |
+| 3. 读 Agent 源码 | [从 01-A 准备练习副本](01-agent-design/01-A-Agent工作流.md) · [十一节课目录](01-agent-design/README.md) | 先读技术与真实路径，再按代码提示补写。包含 MCP、模型配置、引用校验、会话和子 Agent |
 | 4. 读数据与知识库 | [02 数据模型](02-数据模型.md) → [03 解析与去重](03-解析层.md) → [04 检索与引用](04-检索Agent.md) → [05 Wiki 知识库](05-Wiki知识组织.md) | 比较两份文件的来源，手算一次检索排名，从 Wiki 页找到原始证据 |
 | 5. 跟一次任务和接入 | [06 后台运行时](06-后台运行时.md) → [07 匹配、排期与验证](07-接入与验证.md) → [07-A MCP 服务与 ACP 对照](07-A-MCP服务与ACP对照.md) | 续看一个 Run，复算一次排期，说明如何在 MCP 客户端读取报告 |
 

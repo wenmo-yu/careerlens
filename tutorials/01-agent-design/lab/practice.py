@@ -18,6 +18,17 @@ BACKEND = ROOT / "backend"
 DEFAULT_WORKSPACE = ROOT / ".cache" / "agent-practice"
 MANIFEST = ".careerlens-agent-practice.json"
 TOOL_TEST = "tests/test_tutorial_mcp_tool.py"
+MODEL_FILE = ".env.model"
+MODEL_SETTINGS = {
+    "AI_PROVIDER",
+    "AI_BASE_URL",
+    "AI_API_KEY",
+    "AI_MODEL",
+    "AI_TIMEOUT_SECONDS",
+    "AI_INPUT_PRICE_PER_MILLION",
+    "AI_OUTPUT_PRICE_PER_MILLION",
+    "MODEL_ROLE_BINDINGS",
+}
 
 CHAT_TEST = "tests/test_profile_jobs_chat.py::test_career_chat_returns_traceable_evidence"
 JOB_CHAT_TEST = (
@@ -89,6 +100,86 @@ LESSONS = {
             "tests/test_run_runtime.py::test_report_result_and_business_write_commit_once",
         ),
     },
+}
+
+FUNCTION_HINTS = {
+    "run_career_graph": (
+        "先确定 selected_thread；没有 thread_id 就给这次会话生成编号。",
+        "组装业务状态和 configurable 执行配置，分别作为 ainvoke 的两个参数。",
+        "等待图返回后，把选中的 thread_id 和最终状态交回接口。",
+    ),
+    "understand_intent": (
+        "从 state 取 message，再按修改画像、依据、缺口、方向的顺序检查。",
+        "返回 intent，并把本轮的候选列表和检索诊断初始化为空。",
+    ),
+    "route_intent": (
+        "读取 intent，只对 memory_update 返回 memory_guidance。",
+        "其他意图都返回图里的 retrieve_evidence 节点名。",
+    ),
+    "route_answer": (
+        "同时满足 skill_gap 和存在 job_analysis，才走 compose_gap_answer。",
+        "其余情况返回 compose_answer。返回的是节点名字。",
+    ),
+    "retrieve_evidence": (
+        "先从 configurable 取数据库会话，再从状态和配置选 mode。",
+        "有会话就查 knowledge；单独运行节点时只查 state 里的原始证据。",
+        "把候选和诊断分别写进 retrieved_evidence 和 retrieval_diagnostics。",
+    ),
+    "search_knowledge": (
+        "先检查 mode，按模式决定要调用哪一路检索。",
+        "hybrid 用 zip_longest 交错两组候选，去掉空位并限制条数。",
+        "结果以列表返回，另带模式、两路计数和来源类型。",
+    ),
+    "get_evidence": (
+        "先检查 read 授权，再按 evidence_id 从数据库读取。",
+        "同时检查记录存在和归属，失败时抛 ToolError。",
+        "写入读审计后，用 _evidence_payload 把 ORM 记录整理成字典。",
+    ),
+    "build_evidence_tool": (
+        "定义只接收 evidence_id 的内部函数，用 @tool 装饰。",
+        "内部函数使用现成客户端和外层的 user_id 调 get_evidence。",
+        "返回原文 content；外层函数返回已经登记好的工具。",
+    ),
+    "compose_answer": (
+        "先准备本地备用答复；Demo 提供器直接返回这个结果。",
+        "把本轮问题、证据和最近历史打包，再调用 generate_json。",
+        "检查正文与引用，生成失败时返回备用答复并说明异常类型。",
+    ),
+    "validated_citations": (
+        "先从正文提取内联 ID；正文含未知 ID 时直接抛错。",
+        "过滤另外提供的 ID，只保留允许值并按第一次出现的顺序去重。",
+    ),
+    "_load_history": (
+        "没有 thread_id 就返回空列表。",
+        "按 user_id 和 thread_id 一起查消息，并按时间与 ID 排序。",
+    ),
+    "chat": (
+        "检查访问权限，再读当前用户画像、证据和可用的岗位分析。",
+        "核对会话归属，加载旧消息，把本轮数据交给 run_career_graph。",
+        "保存一问一答，提交后读回会话并组装 ChatResponse。",
+    ),
+    "create_proposal": (
+        "先生成候选变更；非 Demo 提供器可提供验证过的结构化候选。",
+        "保存待确认的草案，再把草案交给调用方核对。",
+    ),
+    "decide_proposal": (
+        "锁定用户范围和草案，确认它存在且状态还在 pending。",
+        "批准时创建有出处的纠正证据，并按草案更新画像与抑制记录。",
+        "提交草案结果；批准时再尝试更新证据索引。",
+    ),
+    "verification_task": (
+        "把两组 ID 变成集合，检查候选集合是否为允许集合的子集。",
+        "通过时返回不重复的引用数量和诊断。",
+    ),
+    "Coordinator.delegate": (
+        "先检查并扣减本次角色预算，然后记录 running。",
+        "从 SPECIALISTS 取投影函数和子图。先缩小输入，再执行小图。",
+        "把诊断摘要交给进度，最后把角色结果交还任务。",
+    ),
+    "Coordinator.verify": (
+        "把允许的 ID 和候选 ID 交给 evidence_verifier。",
+        "从角色结果取数量，用 TaskSummary 交回核验摘要。",
+    ),
 }
 
 
@@ -163,7 +254,11 @@ def open_exercise(workspace: Path, lesson: str, manifest: dict) -> None:
                 continue
             if lines[start:end] != source.splitlines(keepends=True)[source_start:source_end]:
                 raise ValueError(f"{symbol} has local edits. Its body was kept.")
-            lines[start:end] = [stub]
+            hints = [
+                f"{indent}# {step}. {hint}\n"
+                for step, hint in enumerate(FUNCTION_HINTS[symbol], start=1)
+            ]
+            lines[start:end] = [*hints, stub]
         contents = "".join(lines)
         ast.parse(contents, filename=str(path))
         updates[path] = contents
@@ -184,29 +279,51 @@ def check_exercise(workspace: Path, lesson: str) -> int:
     return subprocess.run(
         [sys.executable, "-m", "pytest", "-q", *tests],
         cwd=workspace / "backend",
-        env=demo_environment("sqlite+aiosqlite:///:memory:"),
+        env=practice_environment("sqlite+aiosqlite:///:memory:"),
         check=False,
     ).returncode
 
 
-def demo_environment(database_url: str) -> dict[str, str]:
-    return {
-        **os.environ,
+def practice_environment(
+    database_url: str, *, model_file: Path | None = None
+) -> dict[str, str]:
+    inherited = {
+        key: value for key, value in os.environ.items() if key.upper() not in MODEL_SETTINGS
+    }
+    settings = {
+        **inherited,
+        "AI_PROVIDER": "demo",
         "DATABASE_URL": database_url,
         "AUTH_MODE": "disabled",
         "MCP_AUTH_MODE": "disabled",
         "API_PREFIX": "/api/v1",
         "AUTO_CREATE_SCHEMA": "true",
-        "AI_PROVIDER": "demo",
         "RETRIEVAL_BACKEND": "local",
+        "RETRIEVAL_PROVIDER": "hash",
         "CHECKPOINT_BACKEND": "memory",
         "OTEL_ENABLED": "false",
     }
+    if model_file is not None:
+        from dotenv import dotenv_values
+
+        settings.update(
+            {
+                key.upper(): value
+                for key, value in dotenv_values(model_file, interpolate=False).items()
+                if key.upper() in MODEL_SETTINGS and value is not None
+            }
+        )
+    return settings
 
 
-def run_demo(workspace: Path, command: str, port: int = 8030) -> int:
+def run_demo(
+    workspace: Path, command: str, port: int = 8030, *, use_model_config: bool = False
+) -> int:
     backend = workspace / "backend"
     database = "agent-practice.sqlite3"
+    model_file = backend / MODEL_FILE if use_model_config else None
+    if model_file is not None and not model_file.is_file():
+        raise ValueError(f"Create the practice model configuration first: {model_file}")
     if command == "serve":
         call = ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(port)]
     else:
@@ -216,7 +333,9 @@ def run_demo(workspace: Path, command: str, port: int = 8030) -> int:
     return subprocess.run(
         [sys.executable, "-m", *call],
         cwd=backend,
-        env=demo_environment(f"sqlite+aiosqlite:///./{database}"),
+        env=practice_environment(
+            f"sqlite+aiosqlite:///./{database}", model_file=model_file
+        ),
         check=False,
     ).returncode
 
@@ -232,10 +351,19 @@ def main() -> int:
     commands.add_parser("check", help="Run the relevant real tests on your copy.").add_argument(
         "lesson", choices=(*LESSONS, "all"),
     )
-    commands.add_parser("serve", help="Run the practice API on the loopback address.").add_argument(
+    serve = commands.add_parser("serve", help="Run the practice API on the loopback address.")
+    serve.add_argument(
         "--port", type=int, default=8030,
     )
-    commands.add_parser("worker", help="Run a Worker against the same practice SQLite database.")
+    worker = commands.add_parser(
+        "worker", help="Run a Worker against the same practice SQLite database."
+    )
+    for process in (serve, worker):
+        process.add_argument(
+            "--use-model-config",
+            action="store_true",
+            help=f"Read model settings from the practice backend's {MODEL_FILE} file.",
+        )
     args = parser.parse_args()
     workspace = args.workspace.resolve()
     try:
@@ -253,7 +381,12 @@ def main() -> int:
             return 0
         if args.command == "check":
             return check_exercise(workspace, args.lesson)
-        return run_demo(workspace, args.command, getattr(args, "port", 8030))
+        return run_demo(
+            workspace,
+            args.command,
+            getattr(args, "port", 8030),
+            use_model_config=args.use_model_config,
+        )
     except KeyboardInterrupt:
         return 130
     except (OSError, SyntaxError, ValueError) as exc:
