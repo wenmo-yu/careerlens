@@ -1,22 +1,51 @@
 # 00-5 · LangGraph 与工作流：把「下一步」画成一张图
 
-**只用浏览器。** 阅读约 14–16 分钟，跟做约 10 分钟。学完你能从一次提问里指出状态、节点、条件边、停止点，并说清 checkpointer 和消息历史不是同一回事。
+**只用浏览器。** 阅读约 24–28 分钟，跟做约 12 分钟。学完你能从一次提问里指出状态、节点、条件边、停止点和续跑机制，说清 checkpointer 和消息历史不是同一回事，并判断什么时候值得用图、什么时候一个函数就够。
 
-## 同一句话，为什么会走两条完全不同的路
+## 先把学习的理由摆正
 
-对 CareerLens 说「为什么认为我会 Python？」，系统会检索证据再组织回答。说「记住我更希望做后端」，它不会偷偷改长期画像，而是提示你去专门的草案确认界面。两句话都进了同一个聊天框，处理路径却不同。
+00-1 给了你「谁决定下一步」的框架，00-2 到 00-4 讲了材料、提示词和数据结构。这一章回答一个具体问题：**这些步骤在代码里怎么组织，才能既按规则走、又能在需要时停下来、还能断线续跑？**
 
-差别不是模型突然更懂事，而是应用在运行前就写好了一个判断：**先看问题意图，再决定去哪儿。** 这类「共享状态 + 节点 + 边」的编排，就是 LangGraph 解决的事。官方文档称它是「用于长时间运行、有状态 Agent 的低层编排框架与运行时」，强调可在同一张图里混用确定性步骤和模型驱动步骤。 [LangGraph 概览](https://docs.langchain.com/oss/python/langgraph/overview)
+函数里写一堆 `if` 当然也能分支，但当流程变长、要暂停等人确认、要失败重来、要跨请求续接时，`if` 会迅速变成一团理不清的面条。LangGraph 把这类「有状态、多步骤、可暂停」的工作抽象成一张图——你画节点和边，它负责执行、保存、恢复。
 
-## 一张图只有三个基本零件
+CareerLens 的对话图是绝佳标本：它不大（五个节点），却把「按意图分支」「检索后按结果再分支」「不偷偷写库」都放进图里。学完这章，你能读懂这张图，也能自己画一张。
+
+## 一张地图：一张图由什么组成
 
 | 零件 | 官方定义 | 课堂里的说法 | CareerLens 里去看什么 |
 | --- | --- | --- | --- |
 | State（状态） | 应用状态的共享快照，通常是带类型的 schema | 当前任务带着走的记事本 | `CareerState`，见 `backend/app/graph/career.py` |
 | Node（节点） | 读取状态、做工作、返回更新的函数 | 一个明确的工作步骤 | `understand_intent`、`retrieve_evidence` 等五个节点 |
 | Edge（边） | 固定或条件的转移，决定下一个节点 | 下一步走哪条路 | `START` 入口、`route_intent`、`route_answer`、`END` |
+| Checkpointer | 保存 thread 状态快照的组件 | 存档点 | `InMemorySaver` / `AsyncPostgresSaver` |
+| Thread | 一段执行的编号 | 存档的钥匙 | `thread_id` |
 
-图要先**编译**再运行；编译时可以挂上 checkpointer 等运行选项。节点可以是普通 Python 函数，也可以调用模型。文档特别指出，节点是检查点和重试边界——这解释了为什么「要不要单独做一个节点」要看它是否会改变后续路径，而不是看它代码长不长。 [Graph API 说明](https://docs.langchain.com/oss/python/langgraph/graph-api)
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"system-ui, sans-serif","fontSize":"14px","lineColor":"#55746c","edgeLabelBackground":"#f4f8f6"},"flowchart":{"nodeSpacing":22,"rankSpacing":26,"curve":"basis"}}}%%
+flowchart TB
+    accTitle: 图的核心零件如何协作
+    accDescr: 状态在节点之间流动；节点返回部分更新；固定边和条件边决定下一步；checkpointer 按 thread_id 保存快照以支持续跑。
+    S(["START · 一次调用"]) --> N1["节点：读状态、做工作"]
+    N1 --> SE{"下一条边"}
+    SE -->|固定| N2["下一个节点"]
+    SE -->|条件| N3["按状态选分支"]
+    N2 --> CP[("checkpointer · thread 快照")]
+    N3 --> CP
+    CP --> E(["END · 输出"])
+    style N1 fill:#eaf6f1,stroke:#60a28d,color:#143f36
+    style SE fill:#fff4d9,stroke:#ba893b,color:#644117
+    style CP fill:#edf3fc,stroke:#7188a8,color:#1c3858
+```
+
+读图记住：**节点是工作，边是路由，状态是记事本，checkpointer 是存档。** 图要先**编译**再运行；编译时可以挂上 checkpointer 等运行选项。文档特别指出，节点是检查点和重试边界——这解释了为什么「要不要单独做一个节点」要看它是否会改变后续路径，而不是看它代码长不长。 [Graph API 说明](https://docs.langchain.com/oss/python/langgraph/graph-api)
+
+## 第 1 块：同一句话，为什么会走两条完全不同的路
+
+对 CareerLens 说「为什么认为我会 Python？」，系统会检索证据再组织回答。说「记住我更希望做后端」，它不会偷偷改长期画像，而是提示你去专门的草案确认界面。两句话都进了同一个聊天框，处理路径却不同。
+
+差别不是模型突然更懂事，而是应用在运行前就写好了一个判断：**先看问题意图，再决定去哪儿。** 这类「共享状态 + 节点 + 边」的编排，就是 LangGraph 解决的事。官方文档称它是「用于长时间运行、有状态 Agent 的低层编排框架与运行时」，强调可在同一张图里混用确定性步骤和模型驱动步骤。 [LangGraph 概览](https://docs.langchain.com/oss/python/langgraph/overview)
+
+CareerLens 的对话图长这样：
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontFamily":"system-ui, sans-serif","fontSize":"14px","lineColor":"#55746c","edgeLabelBackground":"#f4f8f6"},"flowchart":{"nodeSpacing":22,"rankSpacing":26,"curve":"basis"}}}%%
@@ -38,7 +67,7 @@ flowchart TB
 
 图里的每个箭头都有触发条件。`route_intent` 只看意图是不是 `memory_update`；`route_answer` 只在「技能缺口问题 + 已有岗位分析」同时成立时走缺口答复。其余都走普通答复。**有限分支**让路径可以在浏览器练习里被一条条点出来，也是它和「模型自己决定调哪个工具」的循环最大的区别。
 
-## 状态怎么被改写
+## 第 2 块：状态怎么被改写
 
 CareerLens 的 `CareerState` 声明了问题、用户、历史、意图、画像、证据、检索诊断、答复、模型诊断、岗位分析、模式等字段。节点只返回自己改的部分：
 
@@ -48,19 +77,25 @@ CareerLens 的 `CareerState` 声明了问题、用户、历史、意图、画像
 
 LangGraph 默认用「后写覆盖」合并同一字段；需要累积的字段可以定义 reducer，例如把多次工具结果追加成列表。多数时候不必自己写 reducer：一个节点返回部分更新，比把整个状态复制一遍更不容易出错。 [状态与 reducer 官方说明](https://docs.langchain.com/oss/python/langgraph/graph-api)
 
+### 为什么「节点只返回部分更新」是个好设计
+
+把状态想成一张共享表格。如果每个节点都返回整张表，两个节点之间的改动很容易互相覆盖——A 节点刚写入的证据，被 B 节点用旧版本的表盖掉。只返回自己改的字段，等于说「我只动这几格」，LangGraph 负责把改动合并进去。
+
+这对调试也友好：看一个节点的返回，就知道它负责哪几格，不用读完整个状态对象。 CareerLens 的 `retrieve_evidence` 只返回候选与诊断两个字段，就是这个文件级别的清晰边界。
+
 ### 节点里的模型步骤也有护栏
 
 `compose_answer` 先准备一份确定性回答。只有配置了真实模型，才把问题、意图、画像、检索证据和最近 12 条历史打包成结构化输入。输出必须是 JSON，且只能引用本次检索返回的 ID；超时、非法 JSON 或未知引用都会回退。 [回复节点源码](../../backend/app/graph/career.py) · [00-2 的三关检查](00-2-提示词与证据.md)
 
 这说明 LangGraph 不负责「让模型变诚实」。它负责让步骤可执行、可观察、可停止；证据边界仍由应用自己的提示词、校验和回退规则实现。
 
-## 续跑靠什么：checkpointer 与 thread
+## 第 3 块：续跑靠什么——checkpointer 与 thread
 
 官方文档把持久化分两类：**checkpointer** 保存某个 thread 的图状态快照，用于对话连续、人工介入、时间旅行和故障恢复；**store** 保存跨 thread 的应用数据，例如长期偏好。调用图时传 `thread_id`，就知道恢复到哪份状态。 [持久化官方说明](https://docs.langchain.com/oss/python/langgraph/persistence)
 
 CareerLens 默认用 `InMemorySaver` 编译图；配置持久化后端时，启动阶段会换成 `AsyncPostgresSaver`。进程重启后，内存版本不保留 checkpoint，数据库版本保留。 [checkpoint 配置源码](../../backend/app/graph/checkpoint.py)
 
-容易混淆的三样东西：
+### 容易混淆的三样东西
 
 | 名字 | 保存什么 | 作用域 |
 | --- | --- | --- |
@@ -75,6 +110,26 @@ CareerLens 默认用 `InMemorySaver` 编译图；配置持久化后端时，启�
 LangGraph 官方的人类介入机制是在节点里调用 `interrupt()` 暂停，由 checkpointer 保存状态，调用方用同一个 `thread_id` 和 `Command(resume=...)` 恢复；可用于审批、审阅编辑和工具调用确认。 [人类介入官方说明](https://docs.langchain.com/oss/python/langgraph/interrupts)
 
 CareerLens 当前**没有在对话图里用 `interrupt()` 暂停**。它用的是独立 API：先生成画像变更草案，用户在界面上确认或拒绝。效果同样是「机器不替人写入」，但实现在不同层。不要看到「确认」就以为图里一定有 interrupt。
+
+## 第 4 块：节点到底该切多细
+
+这是画图时最实用的判断。文档说节点是检查点和重试边界，把它翻译成可操作的规则：
+
+| 该单独做节点的情况 | 不该单独做的情况 |
+| --- | --- |
+| 会改变后续走哪条边 | 只是一行格式化 |
+| 需要失败后单独重试 | 和上一个节点永远一起成功或失败 |
+| 需要在这里暂停等人 | 纯计算、无副作用 |
+| 需要独立观察耗时/结果 | 只是把字段改个名字 |
+
+CareerLens 把「理解意图」单独做节点，因为它决定走哪条边；把「检索」单独做节点，因为它有诊断、可能失败、结果决定答复路径。而「拼接 JSON 输入」这类动作留在 `compose_answer` 内部，不单独建节点。
+
+### 条件边 vs 固定边
+
+- **固定边**：`retrieve_evidence` 之后一定进入某个答复节点（具体哪个由条件决定）。
+- **条件边**：`route_intent` 根据 `intent` 值选 `memory_guidance` 或其他；`route_answer` 根据「是否缺口问题 + 是否已有分析」选缺口答复或普通答复。
+
+条件边是「图」区别于「流水线」的关键：同一张图能处理不同类型的输入，而每条输入只走其中一条路径。写条件边时，把判断逻辑写成**纯函数**（只看状态、返回分支名），最容易测试和复用。
 
 ## 跟做：在纸上追三条路径
 
@@ -103,8 +158,29 @@ CareerLens 当前**没有在对话图里用 `interrupt()` 暂停**。它用的�
 - 下一步依赖上一步状态，需要分支、循环或等待人工确认。
 - 运行可能跨请求、需要续接或失败恢复。
 
-如果只做一次「把自述改专业」的调用，一个函数就够。LangGraph 也不会自动带来证据校验、权限隔离或正确的提示词——那些仍是应用代码的责任。 [LangChain 产品分层说明](https://docs.langchain.com/oss/python/concepts/products)
+如果只做一次「把自述改专业」的调用，一个函数就够。LangGraph 也不会自动带来证据校验、权限隔离或正确的提示词——那些仍是应用代码的责任。 [LangChain 产品分层说明](https://docs.langchain.com/oss/python/concepts/products) · [00-6 的 LCEL 对照](00-6-LangChain与模型工具.md)
+
+## 常见坑，提前绕开
+
+- **把节点切得太碎。** 一行格式化也建节点，只会增加检查点和调试负担。
+- **节点返回整个状态。** 容易互相覆盖；只返回改动的字段。
+- **把 checkpoint 当消息历史。** 前者是执行快照，后者是可见对话。
+- **看到「确认」就以为用了 interrupt。** 也可能是独立 API 的草案确认。
+- **以为用了图就自动可核对。** 证据校验、权限隔离仍要自己写。
+- **忽略 `thread_id`。** 传错或漏传，续接和隔离都会出问题。
+
+## 这些概念在 CareerLens 里落在哪
+
+| 这节课的词 | 项目里的对应 | 为什么这样选 |
+| --- | --- | --- |
+| State | `CareerState`（`TypedDict`） | 字段有类型，节点返回值可检查 |
+| Node | 五个函数节点 | 按「是否改变路径 / 是否需重试」切分 |
+| 条件边 | `route_intent`、`route_answer` | 纯函数判断，路径可复现 |
+| 停止 | 每个答复分支连到 `END` | 无无限循环，成本可控 |
+| Checkpointer | `InMemorySaver` → `AsyncPostgresSaver` | 演示零配置，生产持久化 |
+| 人工确认 | 独立草案 API，不用 `interrupt()` | 用户在专门界面可见、可拒绝 |
+| 护栏 | 模型输出校验 + 回退 | 图管流程，校验管诚实 |
 
 ## 下一步
 
-你已经能用「状态 / 节点 / 边 / 续跑」描述一张图。接下来补一块基础知识：去 [00-6 LangChain 入门](00-6-LangChain与模型工具.md)系统认识模型、消息、提示词模板、结构化输出、链、工具、Agent、记忆与检索组件，并看清它们和 LangGraph、和本项目的关系。
+你已经能用「状态 / 节点 / 边 / 续跑」描述一张图。接下来补一块基础知识：去 [00-6 LangChain 入门](00-6-LangChain与模型工具.md)系统认识模型、消息、提示词模板、结构化输出、链、工具、Agent、记忆与检索组件，并看清它们和 LangGraph、和本项目的关系。想继续深入检索，读 [00-7 混合 RAG 与排名融合](00-7-混合RAG与排名融合.md)。
