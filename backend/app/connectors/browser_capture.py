@@ -9,13 +9,20 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app.connectors.base import ConnectorItem
 
-Platform = Literal["bilibili", "weibo", "douyin"]
-Kind = Literal["published", "liked", "favorite", "following"]
+Platform = Literal[
+    "bilibili", "weibo", "douyin", "juejin", "csdn", "zhihu", "xiaohongshu", "github"
+]
+Kind = Literal["published", "liked", "favorite", "following", "authored", "merged"]
 
 _HOSTS = {
     "bilibili": ("bilibili.com",),
     "weibo": ("weibo.com", "weibo.cn"),
     "douyin": ("douyin.com",),
+    "juejin": ("juejin.cn",),
+    "csdn": ("csdn.net",),
+    "zhihu": ("zhihu.com",),
+    "xiaohongshu": ("xiaohongshu.com",),
+    "github": ("github.com",),
 }
 
 
@@ -78,7 +85,11 @@ def parse_browser_capture(content: bytes) -> tuple[list[ConnectorItem], int, Pla
             skipped += 1
             continue
         seen.add(external_id)
-        label = "页面发布记录（用户自报）" if capture.kind == "published" else "浏览互动线索"
+        is_fact = capture.kind in {"published", "authored", "merged"}
+        label = (
+            "页面发布/贡献记录（用户自报，未证明账号归属）"
+            if is_fact else "浏览互动线索"
+        )
         text = f"{label}：{title or excerpt}"
         if excerpt and excerpt != title:
             text += f"\n页面摘要：{excerpt}"
@@ -93,9 +104,7 @@ def parse_browser_capture(content: bytes) -> tuple[list[ConnectorItem], int, Pla
                     "platform": capture.platform,
                     "interaction_kind": capture.kind,
                     "claim_strength": (
-                        "self_reported_published"
-                        if capture.kind == "published"
-                        else "preference_signal"
+                        "self_reported_published" if is_fact else "preference_signal"
                     ),
                     "url": item_url,
                     "source_url": source_url,

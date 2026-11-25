@@ -1,7 +1,7 @@
 export type BrowserCaptureDraft = {
   format: "careerlens-browser-capture-v1";
-  platform: "bilibili" | "weibo" | "douyin";
-  kind: "published" | "liked" | "favorite" | "following";
+  platform: "bilibili" | "weibo" | "douyin" | "juejin" | "csdn" | "zhihu" | "xiaohongshu" | "github";
+  kind: "published" | "liked" | "favorite" | "following" | "authored" | "merged";
   source_url: string;
   captured_at: string;
   items: { url: string; title: string; text: string }[];
@@ -16,8 +16,8 @@ export function parseBrowserCaptureDraft(raw: string): BrowserCaptureDraft {
   }
   if (!value || typeof value !== "object") throw new Error("采集文件结构不正确。");
   const capture = value as Record<string, unknown>;
-  const platforms = ["bilibili", "weibo", "douyin"];
-  const kinds = ["published", "liked", "favorite", "following"];
+  const platforms = ["bilibili", "weibo", "douyin", "juejin", "csdn", "zhihu", "xiaohongshu", "github"];
+  const kinds = ["published", "liked", "favorite", "following", "authored", "merged"];
   if (
     capture.format !== "careerlens-browser-capture-v1" ||
     !platforms.includes(String(capture.platform)) ||

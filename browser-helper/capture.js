@@ -6,9 +6,22 @@ export function capturePage(kind) {
       ? "weibo"
       : host === "douyin.com" || host.endsWith(".douyin.com")
         ? "douyin"
-        : null;
-  if (!platform) throw new Error("请打开 Bilibili、微博或抖音的个人页面。");
+        : host === "juejin.cn" || host.endsWith(".juejin.cn")
+          ? "juejin"
+          : host === "csdn.net" || host.endsWith(".csdn.net")
+            ? "csdn"
+            : host === "zhihu.com" || host.endsWith(".zhihu.com")
+              ? "zhihu"
+              : host === "xiaohongshu.com" || host.endsWith(".xiaohongshu.com")
+                ? "xiaohongshu"
+                : host === "github.com" || host.endsWith(".github.com")
+                  ? "github"
+                  : null;
+  if (!platform) {
+    throw new Error("请打开 Bilibili、微博、抖音、掘金、CSDN、知乎、小红书或 GitHub 的个人页面。");
+  }
 
+  // Patterns match the current page's visible cards only. No navigation, no polling.
   const patterns = {
     bilibili: kind === "following" ? [/^space\.bilibili\.com\/\d+/] : [/bilibili\.com\/video\/BV[\w]+/i],
     weibo: kind === "following" ? [/weibo\.(?:com|cn)\/(?:u\/)?\d+/] : [
@@ -16,6 +29,11 @@ export function capturePage(kind) {
       /weibo\.(?:com|cn)\/\d{5,}\/[A-Za-z0-9]{5,}/,
     ],
     douyin: kind === "following" ? [/douyin\.com\/user\//] : [/douyin\.com\/video\//],
+    juejin: [/juejin\.cn\/post\/\d+/],
+    csdn: [/blog\.csdn\.net\/[^/]+\/article\/details\/\d+/],
+    zhihu: [/zhihu\.com\/(?:question\/\d+\/answer\/\d+|p\/\d+)/],
+    xiaohongshu: [/xiaohongshu\.com\/explore\/[\w]+/],
+    github: [/github\.com\/[^/]+\/[^/]+\/(?:pull\/\d+|issues\/\d+)/],
   };
   const cardSelector = [
     "article", "[data-testid*='post']", "[class*='video-card']", "[class*='VideoCard']",
