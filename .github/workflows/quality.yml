@@ -26,7 +26,8 @@ jobs:
           cache: pip
       - run: pip install -e ".[dev]"
       - run: ruff check --config pyproject.toml . ../examples/tutorials
-      - run: pytest
+      - name: Run the test suite with a coverage floor
+        run: pytest --cov --cov-report=term-missing --cov-fail-under=78
       - name: Run offline RRF tutorial exercise with default and custom rankings
         working-directory: .
         run: |
@@ -68,6 +69,67 @@ jobs:
           node ../browser-helper/test-collection.mjs
           node --check ../browser-helper/popup.js
       - run: pnpm build
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Same stack the Docker smoke test uses, but without containers: the goal
+      # here is to drive the browser, not to prove the image builds.
+      DATABASE_URL: sqlite+aiosqlite:///./e2e.db
+      RETRIEVAL_BACKEND: local
+      CHECKPOINT_BACKEND: memory
+      AI_PROVIDER: demo
+      AUTO_CREATE_SCHEMA: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pip install -e "./backend[dev]"
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      - run: pnpm build
+        working-directory: frontend
+      - name: Start API, worker and web, then run the browser suite
+        run: |
+          set -euo pipefail
+          (cd backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/api.log 2>&1 &)
+          (cd backend && python -m app.runtime.worker > /tmp/worker.log 2>&1 &)
+          (cd frontend && pnpm start > /tmp/web.log 2>&1 &)
+          for _ in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:8000/health/live > /dev/null \
+              && curl -sf http://127.0.0.1:3000/ > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8000/health/live > /dev/null
+          curl -sf http://127.0.0.1:3000/ > /dev/null
+          (cd frontend && pnpm exec playwright test)
+      - name: Show service logs on failure
+        if: failure()
+        run: |
+          echo "=== api ===" && tail -200 /tmp/api.log || true
+          echo "=== worker ===" && tail -200 /tmp/worker.log || true
+          echo "=== web ===" && tail -200 /tmp/web.log || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7
 
   docker-smoke:
     runs-on: ubuntu-latest

@@ -3,15 +3,38 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 2
-  - package-ecosystem: uv
+      interval: monthly
+    open-pull-requests-limit: 3
+
+  # pip rather than uv: the project installs with `pip install -e .` and has no
+  # uv.lock, so the uv ecosystem would have nothing to resolve against.
+  - package-ecosystem: pip
     directory: /backend
     schedule:
       interval: weekly
-    open-pull-requests-limit: 2
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      python-patch:
+        applies-to: version-updates
+        update-types: [patch]
+    ignore:
+      # These are pinned to a major on purpose; a jump needs a migration, not an
+      # automatic PR that turns the quality gate red overnight.
+      - dependency-name: langgraph
+        update-types: [version-update:semver-major]
+      - dependency-name: mcp
+        update-types: [version-update:semver-major]
+
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
-    open-pull-requests-limit: 2
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      next:
+        patterns: ["next", "eslint-config-next"]
+      frontend-patch:
+        applies-to: version-updates
+        update-types: [patch]

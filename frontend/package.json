@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint app lib components",
-    "test": "node --experimental-strip-types --test lib/assessment-format.test.mjs lib/browser-capture.test.mjs lib/profile-views.test.mjs lib/run-events.test.mjs"
+    "test": "node --experimental-strip-types --test lib/assessment-format.test.mjs lib/browser-capture.test.mjs lib/profile-views.test.mjs lib/run-events.test.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "next": "^16.4.6",
@@ -15,6 +16,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
