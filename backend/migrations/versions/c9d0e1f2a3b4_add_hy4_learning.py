@@ -69,9 +69,16 @@ def upgrade() -> None:
             "user_id", "plan_id", "skill", "stage", name="uq_learning_progress_key"
         ),
     )
-    op.create_index(op.f("ix_learning_progress_user_id"), "learning_progress", ["user_id"], unique=False)
-    op.create_index(op.f("ix_learning_progress_plan_id"), "learning_progress", ["plan_id"], unique=False)
-    op.create_index(op.f("ix_learning_progress_created_at"), "learning_progress", ["created_at"], unique=False)
+    op.create_index(
+        op.f("ix_learning_progress_user_id"), "learning_progress", ["user_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_learning_progress_plan_id"), "learning_progress", ["plan_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_learning_progress_created_at"),
+        "learning_progress", ["created_at"], unique=False,
+    )
 
 
 def downgrade() -> None:

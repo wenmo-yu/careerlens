@@ -45,8 +45,14 @@ def upgrade() -> None:
             name="uq_assessment_result_user_instrument_version_time",
         ),
     )
-    op.create_index(op.f("ix_assessment_results_user_id"), "assessment_results", ["user_id"], unique=False)
-    op.create_index(op.f("ix_assessment_results_created_at"), "assessment_results", ["created_at"], unique=False)
+    op.create_index(
+        op.f("ix_assessment_results_user_id"),
+        "assessment_results", ["user_id"], unique=False,
+    )
+    op.create_index(
+        op.f("ix_assessment_results_created_at"),
+        "assessment_results", ["created_at"], unique=False,
+    )
     op.create_index(
         op.f("ix_assessment_result_user_instrument"),
         "assessment_results", ["user_id", "instrument"], unique=False,
@@ -71,8 +77,14 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id", "kind", name="uq_user_constraint_user_kind"),
     )
-    op.create_index(op.f("ix_user_constraints_user_id"), "user_constraints", ["user_id"], unique=False)
-    op.create_index(op.f("ix_user_constraints_created_at"), "user_constraints", ["created_at"], unique=False)
+    op.create_index(
+        op.f("ix_user_constraints_user_id"),
+        "user_constraints", ["user_id"], unique=False,
+    )
+    op.create_index(
+        op.f("ix_user_constraints_created_at"),
+        "user_constraints", ["created_at"], unique=False,
+    )
 
     op.create_table(
         "dimension_definitions",
@@ -94,7 +106,10 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id", "key", name="uq_dimension_user_key"),
     )
-    op.create_index(op.f("ix_dimension_definitions_user_id"), "dimension_definitions", ["user_id"], unique=False)
+    op.create_index(
+        op.f("ix_dimension_definitions_user_id"),
+        "dimension_definitions", ["user_id"], unique=False,
+    )
     op.create_index(
         op.f("ix_dimension_user_enabled"),
         "dimension_definitions", ["user_id", "enabled"], unique=False,
@@ -117,7 +132,10 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id", "dimension_key", name="uq_profile_extension_user_dimension"),
     )
-    op.create_index(op.f("ix_profile_extensions_user_id"), "profile_extensions", ["user_id"], unique=False)
+    op.create_index(
+        op.f("ix_profile_extensions_user_id"),
+        "profile_extensions", ["user_id"], unique=False,
+    )
     op.create_index(
         op.f("ix_profile_extension_user_dimension"),
         "profile_extensions", ["user_id", "dimension_key"], unique=False,
