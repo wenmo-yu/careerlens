@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -99,12 +99,17 @@ async def chat(
     )
     thread_id = result["thread_id"]
 
+    # Explicit, ordered timestamps: both messages can be flushed in one batch,
+    # where a column default may resolve to the same microsecond and leave the
+    # turn ordered by random UUID.
+    turn_started_at = datetime.now(UTC)
     session.add(
         ConversationMessage(
             user_id=payload.user_id,
             thread_id=thread_id,
             role="user",
             content=payload.message,
+            created_at=turn_started_at,
         )
     )
     session.add(
@@ -114,6 +119,7 @@ async def chat(
             role="assistant",
             content=result["answer"],
             intent=result.get("intent"),
+            created_at=turn_started_at + timedelta(microseconds=1),
         )
     )
     if thread is None:
