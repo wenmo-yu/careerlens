@@ -139,7 +139,7 @@ flowchart LR
 
 ## 工作台做的也是这件事
 
-完整产品工作台有「编译 Wiki」。打开 `frontend/app/workspace/page.tsx` 的 `handleWikiCompile`，它收集选中的证据，调用 `createRun` 提交 `wiki_compile`。Worker 调用 `wiki_curator` 生成候选，再核验引用和保存，当前版本写入时的作者标记为 `agent`。这条路线可以看到任务 Run 与步骤。刚才的同步路线可以直接观察 201 响应和页面字段。 [工作台编译入口](../frontend/app/workspace/page.tsx#L189-L207) · [后台 Wiki 操作](../backend/app/runtime/operations.py#L132-L165)
+在工作台展开「从证据编译 Wiki 专题」。打开 `frontend/lib/use-workspace.ts` 的 `handleWikiCompile`，它读取选中的证据编号，调用 `createRun` 提交 `wiki_compile`。Worker 调用 `wiki_curator` 生成候选，再核验引用和保存，当前版本写入时的作者标记为 `agent`。这条路线可以看到任务 Run 与步骤。刚才的同步路线可以直接观察 201 响应和页面字段。 [工作台编译入口](../frontend/lib/use-workspace.ts#L279-L291) · [后台 Wiki 操作](../backend/app/runtime/operations.py#L132-L165)
 
 **两个入口，一套产物。** 同步 `POST /api/v1/wiki/compile` 当场返回 201 和页面；工作台走 `POST /api/v1/runs` 提交后台任务，等 Run 成功后在任务中心点「打开结果」。两者最终创建的都是 `wiki_pages` 表里的同一类页面，共用 `prepare_page` → `persist_page` 的校验和写入逻辑。后台还会记录子 Agent 的步骤、重新核验所选材料、检查提交资格。两种入口复用同一套候选编译与页面写入代码。这条原则在第 07 课还会再遇到（岗位分析也是同步/后台两个入口、同一种产物）。
 
@@ -152,7 +152,7 @@ flowchart LR
 | `compile_page` | `backend/app/wiki/compiler.py` | 编译总流程，两次版本检查 |
 | `prepare_page` / `persist_page` | `backend/app/wiki/compiler.py` | 生成校验与写入分离 |
 | `WikiPage` / `WikiRevision` | `backend/app/models/wiki.py` | 当前页与历史快照两张表 |
-| `handleWikiCompile` | `frontend/app/workspace/page.tsx` | 工作台的后台编译入口 |
+| `handleWikiCompile` | `frontend/lib/use-workspace.ts` | 工作台的后台编译入口 |
 
 ## 下一步
 

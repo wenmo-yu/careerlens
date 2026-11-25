@@ -35,7 +35,7 @@ flowchart TD
 
 ## 第 1 块：构建时定型，查询时切换
 
-**导入**形成可以查询的 Evidence；**编译**形成 WikiPage。两者都在构建时完成，但调用者可以在每次对话请求里改变 `mode`。工作台切换知识模式后会把值交给第三章见过的 `sendChat`。后端 `backend/app/services/knowledge.py` 的 `search_knowledge` 据此选择用哪个入口查资料。 [工作台的请求](../../frontend/lib/api.ts#L475-L489) · [模式分支](../../backend/app/services/knowledge.py#L35-L83)
+**导入**形成可以查询的 Evidence；**编译**形成 WikiPage。两者都在构建时完成，但调用者可以在每次对话请求里改变 `mode`。工作台切换知识模式后会把值交给第三章见过的 `sendChat`。后端 `backend/app/services/knowledge.py` 的 `search_knowledge` 据此选择用哪个入口查资料。 [工作台的请求](../../frontend/lib/api.ts#L921-L935) · [模式分支](../../backend/app/services/knowledge.py#L35-L83)
 
 ```python
 VALID_MODES = ("rag", "wiki", "hybrid")
