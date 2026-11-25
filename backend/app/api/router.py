@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    assessment,
     auth,
     catalog,
     chat,
@@ -37,5 +38,6 @@ router.include_router(wiki.router, prefix="/wiki", tags=["wiki"])
 router.include_router(catalog.router, prefix="/catalog", tags=["catalog"])
 router.include_router(recommendations.router, prefix="/recommendations", tags=["recommendations"])
 router.include_router(learning.router, tags=["learning"])
+router.include_router(assessment.router, tags=["assessments"])
 router.include_router(profile_extensions.router, tags=["profile-extensions"])
 
