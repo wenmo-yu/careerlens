@@ -6,10 +6,10 @@
 
 直接把长 UUID 证据 ID 交给模型会有两个麻烦：
 
-1. **费 token。** 一个 UUID 36 个字符，一页里引用十几次，光编号就吞掉几百 token。
+1. **编号会占用上下文。** UUID 有 36 个字符。提示和答复里反复出现时，短编号通常能减少 token，用量随分词器而异。
 2. **模型爱编 ID。** 长串随机字符模型记不住，很容易输出一个看起来像 ID、实际不存在的串。一旦把这个假 ID 存进 `chunk_refs`，用户点引用就指向空气。
 
-短句柄 `c000`、`c001` 解决第一个问题；但第二个问题不能只靠「让模型别编」——**模型输出始终是不可信输入**。真正可靠的做法是：编译前发短句柄，编译后把短句柄翻译回真实 ID，翻译不了的就丢弃并记录诊断。这一关的核心思想就是这句：**允许模型用短名字说话，但落库前必须由程序把名字换成它认识的真 ID**。
+编译前给来源分配 `c000`、`c001` 这样的短编号。收到 `citations` 后，程序逐个查本轮的句柄表。查到的换回长期有效的证据 ID，查不到的放入诊断。
 
 ## 一张地图：一轮编译的六步
 
@@ -64,7 +64,7 @@ class HandleTable:
 - `_by_id`：真实 ID → `c000`，用来登记时去重、渲染时查句柄。
 - `_unknown`：翻译失败的句柄清单，供诊断查看是哪一项写错了。
 
-`register` 是**幂等**的：同一个 ID 第二次登记返回同一个句柄，不浪费编号。`f"{self._prefix}{self._next:0{self._width}d}"` 里 `:03d` 把数字补成三位——`0` 变 `c000`，`1` 变 `c001`。宽度只在编号 ≥1000 时才需要调整。`HANDLE_PATTERN = re.compile(r"^c\d{3,}$")` 定义了合法格式，清理正文时靠它识别短引用标记。
+`register` 是**幂等**的：同一个 ID 第二次登记返回同一个句柄，不浪费编号。`f"{self._prefix}{self._next:0{self._width}d}"` 里 `:03d` 把数字补成三位——`0` 变 `c000`，`1` 变 `c001`。宽度是最少位数，到 1000 时会自然输出 `c1000`。句柄格式由 `HANDLE_PATTERN` 描述，正文清理另外使用内联引用的正则。
 
 `resolve` 用 `get` 查不到就返回 `None`，同时把句柄记进 `_unknown`。**未知句柄绝不当成真 ID 使用**——这是整关最重要的一条防线。
 
@@ -128,9 +128,9 @@ COMPILE_SCHEMA = {
 }
 ```
 
-`required` 列出四个必填字段，`generate_json` 会约束模型按这个结构返回。**为什么不用自由文本再正则去扒？** 因为自由文本格式不稳：模型可能把引用写在脚注、写在句尾、或者干脆漏掉。规定成 JSON 数组字段，程序就能稳定地遍历每一项去翻译。第三章的 `generate_json` 在这里换了角色 `wiki` 复用。
+`required` 列出期望的四个字段。兼容 API 请求启用 JSON 对象模式，并把具体 Schema 附在提示中。调用方仍要处理漏字段或解析失败。**为什么不用自由文本再正则去扒？** 因为自由文本格式不稳：模型可能把引用写在脚注、写在句尾、或者干脆漏掉。规定成 JSON 数组字段，程序就能稳定地遍历每一项去翻译。第三章的 `generate_json` 在这里换了角色 `wiki` 复用。
 
-但结构化输出只保证「格式对」，不保证「内容对」。模型仍可能：
+成功解析 JSON 之后，应用仍可能遇到下面三种输出。
 
 - 在 `citations` 里写一个没登记过的 `c777`（幻觉句柄）。
 - 在正文里写 `[c000]` 却没把它列进 `citations`（引用没登记）。
@@ -179,14 +179,17 @@ def _deterministic_page(title, sources, handles):
     }
 ```
 
-正文是原文拼接，每个来源后面跟一个短句柄标记，`citations` 列出全部句柄。它不优美，但**每一句话都能追回原文**——这正是 Wiki 页的底线要求。
+正文按顺序拼接来源，每段后附短句柄，`citations` 列出全部句柄。后续清理去掉可见编号，并将对应的真实 ID 记到页面引用中。
 
 ## 第 3 块：翻译引用——未知句柄必须丢
 
 `resolve_citations` 是防线第一道：
 
 ```python
-def resolve_citations(citations: list[str], handles: HandleTable) -> list[str]:
+def resolve_citations(
+    citations: list[str], handles: HandleTable
+) -> list[str]:
+    """Resolve model-produced handles to stable evidence ids, dropping unknowns."""
     resolved: list[str] = []
     for handle in citations:
         stable = handles.resolve(handle)
@@ -221,7 +224,7 @@ def resolve_citations(citations: list[str], handles: HandleTable) -> list[str]:
 
 模型漏引一条，`chunk_refs` 会少，但 `source_refs` 不变。这种差异是诊断线索——说明这次生成没充分用到输入。
 
-第三行更关键：如果翻译后一个真 ID 都没有，说明模型输出整页都不可信，程序不采用它，而是回退到确定性页面。**宁可要一页朴素但句句可查的原文拼接，也不要一页漂亮却全是不可信引用的文字。**
+表里的第三行翻译后没有可用引用，程序会改用确定性页面。可在响应对照旧候选的 `unknown_handles` 与新页面的 `chunk_refs`，看清失败原因和回退产物各存在哪里。
 
 这一步只检查编号能否在本轮映射中找到。仍需打开 E、S，核对「本机演示」究竟支撑哪句话。若生成正文少了一行源表，即使编号能翻译，也要进入下一课的保护分支。 [编译结果的校验与回退](../../backend/app/wiki/compiler.py#L163-L198)
 
@@ -291,7 +294,7 @@ async def prepare_page(title: str, sources: list[dict[str, Any]]) -> tuple[dict,
 
 </details>
 
-**为什么把生成和写入分开？** `prepare_page` 只准备内容，不碰数据库；`compile_page` 调用它拿到三个返回值后，才走 `check_page_version` 和 `persist_page` 写入。中间隔着版本检查——生成过程要等模型，可能有几秒，这几秒里别人可能已经改了这一页。把「生成」和「写入」分开，才能在写入前重新核对版本。这正是下一课 05-C 要处理的并发问题。 [编译和保存入口](../../backend/app/wiki/compiler.py#L116-L145)
+**为什么把生成和写入分开？** `prepare_page` 只准备内容，不碰数据库；`compile_page` 生成前预检版本，拿到这三个值后调用 `persist_page`，由它在写入阶段再次检查版本。中间隔着版本检查——生成过程要等模型，可能有几秒，这几秒里别人可能已经改了这一页。把「生成」和「写入」分开，才能在写入前重新核对版本。这正是下一课 05-C 要处理的并发问题。 [编译和保存入口](../../backend/app/wiki/compiler.py#L116-L145)
 
 还有两个细节值得看：`title` 被 `[:255]` 截断，因为数据库字段有长度上限；`summary` 用 `str(...)` 统一转成字符串，`None` 时才保留为 `None`。这些是「生成结果进数据库前的清洗」，和去重、翻译一样，都是不可信输入落地前的规范化。
 
@@ -318,14 +321,14 @@ python tutorials/04-knowledge-base/lab/kb_practice.py check handles
 
 | 本课的词 | 源码位置 | 设计意图 |
 | --- | --- | --- |
-| `HandleTable` | `backend/app/wiki/handles.py` | 会话内短名，减少 token、抑制幻觉 ID |
+| `HandleTable` | `backend/app/wiki/handles.py` | 编译内分配短名，提供短名到证据 ID 的映射 |
 | `COMPILE_SCHEMA` | `backend/app/wiki/compiler.py` | 结构化输出契约，让引用可被程序遍历 |
 | `resolve_citations` | `backend/app/wiki/compiler.py` | 不可信输出的可信化：未知丢弃、去重保序 |
 | `strip_inline_citations` | `backend/app/wiki/handles.py` | 稳定引用放结构化字段，正文保持干净 |
 | `_deterministic_page` | `backend/app/wiki/compiler.py` | 无模型可跑的确定性回退，保证可追溯 |
 | `prepare_page` / `persist_page` | `backend/app/wiki/compiler.py` | 生成与写入分离，中间可重查版本 |
 
-一个边界要记牢：**句柄不是 ID，只是映射的钥匙**。`c000` 在这一页指 E，在另一页可能指完全不同的证据。任何把句柄直接当持久 ID 存的写法都是错的——落库前必须翻译回真实 `evidence_id`。诊断里的 `unknown_handles` 不是可有可无的装饰，它告诉你模型这次编了几个不存在的引用，是判断生成质量的重要信号。
+换一组证据再问一次。若输入顺序改成 `[S, E]`，这轮的 `c000` 会指向 S。页面持久化的是查表后得到的证据 ID，因此两次编译即使出现同一个短名，也能各自回查。
 
 ## 下一步
 

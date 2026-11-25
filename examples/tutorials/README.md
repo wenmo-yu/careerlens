@@ -49,7 +49,12 @@ python3 examples/tutorials/lesson-05-rrf/main.py --drop-b   # 只移除榜 A 的
 python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
 ```
 
-06 先按[准备 Python](../../tutorials/setup/Python准备.md)建立 `backend/.venv`，在其中安装后端项目（`python -m pip install -e .` 在 `backend` 目录执行）。回到仓库根目录，在 Windows 用 `backend/.venv/Scripts/python.exe examples/tutorials/lesson-06-eval/main.py`，在 macOS/Linux 用 `backend/.venv/bin/python examples/tutorials/lesson-06-eval/main.py`。预期打印两组召回率 `1.0` 和 `0.5`。
+06 沿用[动手准备](../../tutorials/setup/动手准备.md)里的后端 Python。从仓库根运行 `python examples/tutorials/lesson-06-eval/main.py`。预期打印两组召回率 `1.0` 和 `0.5`。
+
+## MCP 与测评的额外练习
+
+- [读取实际报告的 MCP 客户端](read_mcp_report.py)接第 07 课生成的教学报告，按 [07-A](../../tutorials/07-A-MCP服务与ACP对照.md)从工具与资源各读取一次。
+- [四维合成答案](fixtures/work-style-neutral.json)与[两维六题量表](fixtures/my_scale.json)供 [09](../../tutorials/09-画像与自陈测评.md)提交与校验。
 
 ## 合成夹具
 

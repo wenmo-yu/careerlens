@@ -4,7 +4,7 @@
 
 **把经历变成证据，再用证据回答"我适合什么岗位、还缺什么、下一步怎么做"。**
 
-**[在 GitHub 上开始学习](tutorials/README.md#学习路径)** · [在线教程站](https://wenmo-yu.github.io/careerlens/) · [本机启动（需 Docker）](#快速开始) · [文档](docs/README.md) · [架构](docs/architecture.md) · [API 与配置](docs/api-and-configuration.md) · [路线图](ROADMAP.md)
+**[在 GitHub 上开始学习](tutorials/从这里开始.md)** · [在线教程站](https://wenmo-yu.github.io/careerlens/) · [本机启动（需 Docker）](#快速开始) · [文档](docs/README.md) · [架构](docs/architecture.md) · [API 与配置](docs/api-and-configuration.md) · [路线图](ROADMAP.md)
 
 [![Quality Gate](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml)
 [![Release](https://img.shields.io/github/v/release/wenmo-yu/careerlens)](https://github.com/wenmo-yu/careerlens/releases)
@@ -134,7 +134,7 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 
 ## 零基础入门与教程
 
-从八篇浏览器概念课开始，跟着林澈的资料学会找证据，并读懂项目实际用到的 LangGraph、混合 RAG 与 Wiki，再按第 01 篇把工作台跑起来。之后按章读 Agent 工作流、工具调用、子 Agent，再走到检索、Wiki、后台运行时和 MCP。每篇末尾都有下一课。 [GitHub 学习路径](tutorials/README.md#学习路径) · [在线教程站](https://wenmo-yu.github.io/careerlens/)
+先用 3 分钟判断林澈的一条经历。接着可读四篇基础课，也可先运行工作台。进入源码前，按提示写一个最小证据助手，再跟到真实的 Agent、检索、Wiki、后台运行与 MCP。模型、评测和画像另有可选实验。 [GitHub 学习路径](tutorials/README.md#学习路径) · [在线教程站](https://wenmo-yu.github.io/careerlens/)
 
 ## 验证
 

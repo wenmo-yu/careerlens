@@ -1,11 +1,10 @@
 """练习 06：亲手让评测指标下降——收藏卡挤掉相关证据（Recall@2: 1 → 0.5）。
 
 对应课程：tutorials/08-advanced/08-2-评测.md
-需要项目的 Python 环境（pydantic 等依赖，用 backend/.venv），不联网、不调模型。
+需要安装了后端依赖的课程 Python 环境。练习使用本地确定性规则。
 
 运行（仓库根目录）：
-    backend/.venv/Scripts/python.exe examples/tutorials/lesson-06-eval/main.py
-    # macOS/Linux: backend/.venv/bin/python ...
+    python examples/tutorials/lesson-06-eval/main.py
 
 它做两件事：对两份最小数据集，各打印 (1) 检索 Top-2 命中了哪些证据，(2) 四项评测指标。
 两份数据集只差一条"未标为相关"的收藏卡，其余完全相同。

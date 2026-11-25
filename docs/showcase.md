@@ -24,6 +24,8 @@
 
 ![虚构案例体验页面](assets/demo.jpg)
 
+![案例页岗位匹配表，标出 Kubernetes 的缺口和证据列](assets/demo-requirements.jpg)
+
 ## 3. 系统设计
 
 系统设计页说明 Web、API/MCP、业务服务、PostgreSQL 与 Qdrant 的职责，以及 JD 匹配与 Copilot 检索为何走不同路径。

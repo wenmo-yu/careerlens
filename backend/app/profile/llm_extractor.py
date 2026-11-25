@@ -2,6 +2,7 @@ import json
 
 from pydantic import BaseModel, Field
 
+from app.ingestion.claim_strength import is_preference_claim
 from app.llm import LLMProvider, get_llm_provider
 from app.models.evidence import Evidence
 from app.profile.extractor import extract_profile_items
@@ -50,7 +51,7 @@ async def extract_profile_with_fallback(
     preference_ids = {
         record.id
         for record in evidence
-        if record.source_metadata.get("claim_strength") == "preference_signal"
+        if is_preference_claim(record.content, record.source_type, record.source_metadata or {})
     }
     source = [
         {"evidence_id": record.id, "source": record.source_name, "content": record.content}

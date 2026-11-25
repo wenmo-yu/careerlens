@@ -147,7 +147,8 @@ def _hex_consistency(code: str) -> dict:
     gaps = []
     for first, second in zip(code, code[1:], strict=False):
         if first in _HEX_ORDER and second in _HEX_ORDER:
-            gaps.append(abs(_HEX_ORDER[first] - _HEX_ORDER[second]))
+            gap = abs(_HEX_ORDER[first] - _HEX_ORDER[second])
+            gaps.append(min(gap, len(_HEX_ORDER) - gap))
     if not gaps:
         level = "无法判断"
     elif max(gaps) <= 1:

@@ -1,8 +1,12 @@
 """Assessment packs: licence metadata, deterministic scoring and API contracts."""
 
+import json
+from pathlib import Path
+
 import pytest
 
 from app.assessment import ScoringError, get_instrument, list_instruments, score_answers
+from app.assessment.loader import _validate
 from app.catalog.loader import load_roles
 
 
@@ -100,6 +104,30 @@ def test_trait_scoring_applies_reverse_keys():
     assert by_key["O"]["band"] == "偏高"
     assert by_key["E"]["score"] == 50.0
     assert result["hints"]
+
+
+def test_interest_adjacent_dimensions_wrap_around_the_hexagon():
+    scores = {"C": 5, "R": 4, "I": 3}
+    answers = _answers("riasec_interest", lambda item: scores.get(item["dimension"], 1))
+    result = score_answers("riasec_interest", answers)
+
+    assert result["code"] == "CRI"
+    assert result["consistency"]["level"] == "高"
+    assert result["consistency"]["adjacent_pairs"] == 2
+
+
+def test_tutorial_assessment_fixtures_are_complete():
+    fixture_root = Path(__file__).resolve().parents[2] / "examples/tutorials/fixtures"
+    pack = fixture_root / "my_scale.json"
+    sample = _validate(json.loads(pack.read_text(encoding="utf-8")), pack.name)
+    answers = json.loads((fixture_root / "work-style-neutral.json").read_text(encoding="utf-8"))
+
+    assert len(sample["dimensions"]) == 2
+    assert len(sample["items"]) == 6
+    assert answers["consent"] is True
+    result = score_answers("work_style_4d", answers["answers"])
+    assert result["answered_count"] == 32
+    assert result["code"] == "????"
 
 
 async def test_instrument_api_hides_scoring_keys(client):

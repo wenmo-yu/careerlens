@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from app.ingestion.claim_strength import is_preference_claim
 from app.models.evidence import Evidence
 from app.profile.alias_match import affirmed_alias_matches
 from app.profile.catalog import ROLE_ALIASES, SKILL_ALIASES
@@ -15,7 +16,7 @@ def extract_profile_items(evidence: list[Evidence]) -> list[dict]:
 
     catalogs = (("skill", SKILL_ALIASES), ("target_role", ROLE_ALIASES))
     for record in evidence:
-        if record.source_metadata.get("claim_strength") == "preference_signal":
+        if is_preference_claim(record.content, record.source_type, record.source_metadata or {}):
             continue
         for category, catalog in catalogs:
             for name, aliases in catalog.items():

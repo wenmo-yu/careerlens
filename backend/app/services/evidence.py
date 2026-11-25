@@ -6,40 +6,10 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ingestion.chunking import chunk_text
+from app.ingestion.claim_strength import classify_claim_strength
 from app.ingestion.contract import content_fingerprint
 from app.models.evidence import Evidence
 from app.runtime.index_outbox import enqueue_index, try_index_now
-
-# HY4-A: pasted text that only describes an interaction (favourite / like /
-# follow) must be treated the same as browser-captured interactions. Otherwise
-# a sentence like "收藏了 Kubernetes 教程" can be promoted to a Kubernetes
-# skill by the deterministic catalog extractor, while the same sentence coming
-# from browser-helper is correctly filtered as a preference signal.
-_PREFERENCE_CUES = ("收藏", "点赞", "喜欢", "关注", "订阅", "标记", "稍后看", "想看", "马住")
-# A concrete action or result makes the statement a self-reported experience,
-# not a pure interaction signal. Keep this list deliberately narrow.
-_ACTION_CUES = (
-    "部署", "实现", "完成", "通过", "构建", "搭建", "运行", "开发", "写过", "做过",
-    "参与", "负责", "发布", "提交", "交付", "设计", "测试", "使用", "熟悉", "掌握",
-)
-_PUBLISH_CUES = ("我写了", "我发布了", "我做过", "我实现了", "我完成了", "我构建了", "我部署了")
-
-
-def classify_claim_strength(content: str, metadata: dict[str, Any]) -> dict[str, Any]:
-    """Annotate pasted text so interaction-only statements cannot become facts.
-
-    Existing metadata (e.g. an explicit ``claim_strength`` from a connector) is
-    never overwritten. Returns a new dict to avoid mutating caller state.
-    """
-    result = dict(metadata or {})
-    if result.get("claim_strength"):
-        return result
-    text = content or ""
-    if any(cue in text for cue in _PUBLISH_CUES) or any(cue in text for cue in _ACTION_CUES):
-        result["claim_strength"] = "self_reported_published"
-    elif any(cue in text for cue in _PREFERENCE_CUES):
-        result["claim_strength"] = "preference_signal"
-    return result
 
 
 def _source_entry(source_type: str, source_name: str, metadata: dict[str, Any]) -> dict[str, Any]:
