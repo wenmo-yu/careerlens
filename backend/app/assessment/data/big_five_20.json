@@ -1,0 +1,89 @@
+{
+  "instrument_id": "big_five_20",
+  "version": "2026.11",
+  "title": "大五工作风格（20 题短版）",
+  "subtitle": "20 题 · 约 5 分钟 · 构念来自公有领域 IPIP，题目为自写",
+  "construct": "大五人格五因素：开放性、尽责性、外向性、宜人性、情绪敏感性。描述常态倾向，不测能力。",
+  "estimated_minutes": 5,
+  "response_scale": {
+    "min": 1,
+    "max": 5,
+    "labels": ["很不符合", "不太符合", "一般", "比较符合", "很符合"],
+    "prompt": "这句话在多大程度上符合你在工作或学习中的常态？"
+  },
+  "license": {
+    "items": "project-authored",
+    "license": "MIT",
+    "attribution": "五因素构念与 IPIP（International Personality Item Pool）一致；IPIP 题库为公有领域，本项目按其因素定义自写中文题目，未逐条翻译商业量表。",
+    "not_used": [
+      "NEO-PI-3 / NEO-FFI：商业版权量表，未复制。",
+      "BFI-2：学术量表，题目受版权保护，未复制。",
+      "IPIP-NEO 长版：公有领域，但条目极多；本版未直接搬用，保持题量可完成。"
+    ]
+  },
+  "disclaimer": "探索性自评，未做常模与信效度验证；人格描述不能预测岗位绩效，也不能作为招聘筛选依据。",
+  "scoring": {"type": "trait"},
+  "dimensions": [
+    {
+      "key": "O",
+      "label": "开放性",
+      "description": "对新想法、新方法与抽象问题的接受度。",
+      "high": "愿意试新方法、想得较远；适合探索型任务，但要防止方案飘在空中。",
+      "low": "偏好熟悉且可验证的做法；执行稳，但要主动留出尝试新方案的空间。"
+    },
+    {
+      "key": "C",
+      "label": "尽责性",
+      "description": "计划、条理、交付闭环与自我要求。",
+      "high": "计划性强、交付稳定；注意别把标准定到无法收尾。",
+      "low": "灵活、临场发挥好；需要用外部节点和清单补上闭环。"
+    },
+    {
+      "key": "E",
+      "label": "外向性",
+      "description": "社交能量、主动表达与对外沟通意愿。",
+      "high": "在交流中获取能量；适合对外沟通与推动，但要留独处思考时间。",
+      "low": "独立专注、表达谨慎；适合深度工作，但要主动同步进展。"
+    },
+    {
+      "key": "A",
+      "label": "宜人性",
+      "description": "合作、体谅与冲突处理倾向。",
+      "high": "愿意理解对方、协作顺滑；关键分歧上要敢说不同意见。",
+      "low": "直接、以事为先；注意反馈方式，避免不必要的对抗。"
+    },
+    {
+      "key": "N",
+      "label": "情绪敏感性",
+      "description": "对压力与不确定性的反应强度；低分代表更稳定。",
+      "high": "对风险与变化较敏感；适合做风险检查，但要防止反复内耗。",
+      "low": "压力下较稳定；注意别忽略团队里真实的焦虑信号。"
+    }
+  ],
+  "items": [
+    {"id": "bf-o-01", "text": "我喜欢接触没做过的新任务。", "dimension": "O"},
+    {"id": "bf-o-02", "text": "我常想一些抽象的问题。", "dimension": "O"},
+    {"id": "bf-o-03", "text": "我对艺术、设计或音乐有持续兴趣。", "dimension": "O"},
+    {"id": "bf-o-04", "text": "我不太愿意尝试不熟悉的方法。", "dimension": "O", "reverse": true},
+
+    {"id": "bf-c-01", "text": "我会按计划把事情做完。", "dimension": "C"},
+    {"id": "bf-c-02", "text": "我的文件和待办整理得比较清楚。", "dimension": "C"},
+    {"id": "bf-c-03", "text": "我常拖到最后一刻才开始。", "dimension": "C", "reverse": true},
+    {"id": "bf-c-04", "text": "做事前我会先确认要求和标准。", "dimension": "C"},
+
+    {"id": "bf-e-01", "text": "我在多人场合容易主动开口。", "dimension": "E"},
+    {"id": "bf-e-02", "text": "我需要独处时间来恢复精力。", "dimension": "E", "reverse": true},
+    {"id": "bf-e-03", "text": "我喜欢在团队里承担对外沟通。", "dimension": "E"},
+    {"id": "bf-e-04", "text": "陌生人多的场合我会尽量少说话。", "dimension": "E", "reverse": true},
+
+    {"id": "bf-a-01", "text": "我愿意先理解对方的立场。", "dimension": "A"},
+    {"id": "bf-a-02", "text": "我说话比较直接，常顾不上对方感受。", "dimension": "A", "reverse": true},
+    {"id": "bf-a-03", "text": "同事愿意找我商量难处。", "dimension": "A"},
+    {"id": "bf-a-04", "text": "我容易对别人产生不耐烦。", "dimension": "A", "reverse": true},
+
+    {"id": "bf-n-01", "text": "遇到不确定的事我会反复担心。", "dimension": "N"},
+    {"id": "bf-n-02", "text": "压力大时我仍能保持稳定。", "dimension": "N", "reverse": true},
+    {"id": "bf-n-03", "text": "我容易因为小失误自责很久。", "dimension": "N"},
+    {"id": "bf-n-04", "text": "突发变化很少影响我的情绪。", "dimension": "N", "reverse": true}
+  ]
+}

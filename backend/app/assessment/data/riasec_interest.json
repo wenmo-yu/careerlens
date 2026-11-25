@@ -1,0 +1,119 @@
+{
+  "instrument_id": "riasec_interest",
+  "version": "2026.11",
+  "title": "职业活动兴趣（RIASEC 探索版）",
+  "subtitle": "48 题 · 约 10 分钟 · 只看你愿不愿意做，不测能力",
+  "construct": "霍兰德 RIASEC 六类职业兴趣：实用、研究、艺术、社会、企业、常规。",
+  "estimated_minutes": 10,
+  "response_scale": {
+    "min": 1,
+    "max": 5,
+    "labels": ["很不愿意", "不太愿意", "一般", "比较愿意", "很愿意"],
+    "prompt": "假设条件允许，你有多愿意做这件事？"
+  },
+  "license": {
+    "items": "project-authored",
+    "license": "MIT",
+    "attribution": "题目为本项目自写的中文活动陈述；RIASEC 是公开的职业兴趣模型，模型本身不受版权保护。",
+    "not_used": [
+      "O*NET Interest Profiler：美国劳工部以 CC BY-ND 4.0 发布，允许原样转载但禁止改编；本项目未逐条复制，也未翻译其题目。",
+      "Self-Directed Search（SDS）、Strong Interest Inventory：商业版权量表，未复制。",
+      "IPIP-RIASEC：公有领域量表，可作为后续英文原题对照，本版本未直接搬用。"
+    ]
+  },
+  "disclaimer": "自评兴趣不是能力，也不是岗位结论；未做常模与信效度验证。结果只用于扩展方向，不改变技能覆盖与岗位匹配分。",
+  "scoring": {"type": "interest", "code_length": 3, "match_roles": true},
+  "dimensions": [
+    {
+      "key": "R",
+      "label": "实用型",
+      "description": "喜欢动手、工具、设备与看得见的实物结果。",
+      "hint": "偏向工程落地、设备与现场类任务；可优先积累可运行的作品与排障记录。"
+    },
+    {
+      "key": "I",
+      "label": "研究型",
+      "description": "喜欢分析、推理、实验与解释现象。",
+      "hint": "偏向分析、算法与知识类任务；用可复现的实验与数据结论证明自己。"
+    },
+    {
+      "key": "A",
+      "label": "艺术型",
+      "description": "喜欢创作、表达、审美与开放的问题。",
+      "hint": "偏向设计、内容与体验类任务；用作品集展示判断力，而不是只列工具。"
+    },
+    {
+      "key": "S",
+      "label": "社会型",
+      "description": "喜欢帮助、教学、倾听与协作。",
+      "hint": "偏向支持、培训与用户类任务；把带人和解决问题的案例写清楚。"
+    },
+    {
+      "key": "E",
+      "label": "企业型",
+      "description": "喜欢推动、说服、组织资源与承担结果。",
+      "hint": "偏向推进、商务与负责人类任务；用你推动过的具体结果说话。"
+    },
+    {
+      "key": "C",
+      "label": "常规型",
+      "description": "喜欢规范、秩序、核对与稳定流程。",
+      "hint": "偏向数据、流程与质量类任务；展示你把混乱变可核对的能力。"
+    }
+  ],
+  "items": [
+    {"id": "ri-r-01", "text": "拆装并修好一台出故障的设备", "dimension": "R"},
+    {"id": "ri-r-02", "text": "使用工具制作一件木制品或金属件", "dimension": "R"},
+    {"id": "ri-r-03", "text": "在户外检查线路、管道或设备", "dimension": "R"},
+    {"id": "ri-r-04", "text": "操作机床、3D 打印机等设备做出实物", "dimension": "R"},
+    {"id": "ri-r-05", "text": "给汽车、自行车或家电做保养", "dimension": "R"},
+    {"id": "ri-r-06", "text": "按图纸组装一套机械结构", "dimension": "R"},
+    {"id": "ri-r-07", "text": "在实验室或车间调试仪器", "dimension": "R"},
+    {"id": "ri-r-08", "text": "负责设备巡检并处理现场小故障", "dimension": "R"},
+
+    {"id": "ri-i-01", "text": "分析一组数据，找出其中的规律", "dimension": "I"},
+    {"id": "ri-i-02", "text": "读一篇技术论文并复现里面的方法", "dimension": "I"},
+    {"id": "ri-i-03", "text": "设计实验验证一个猜想", "dimension": "I"},
+    {"id": "ri-i-04", "text": "排查系统故障的根本原因", "dimension": "I"},
+    {"id": "ri-i-05", "text": "系统研究一个新领域的概念和原理", "dimension": "I"},
+    {"id": "ri-i-06", "text": "用统计方法比较几种方案的优劣", "dimension": "I"},
+    {"id": "ri-i-07", "text": "为一个复杂问题建立可检验的模型", "dimension": "I"},
+    {"id": "ri-i-08", "text": "读大量日志并定位异常模式", "dimension": "I"},
+
+    {"id": "ri-a-01", "text": "写一篇故事、剧本或长文", "dimension": "A"},
+    {"id": "ri-a-02", "text": "设计海报、封面或界面视觉", "dimension": "A"},
+    {"id": "ri-a-03", "text": "拍摄并剪辑一段视频", "dimension": "A"},
+    {"id": "ri-a-04", "text": "为产品想一个有创意的名字和文案", "dimension": "A"},
+    {"id": "ri-a-05", "text": "用绘画、音乐或手工表达一个想法", "dimension": "A"},
+    {"id": "ri-a-06", "text": "重新设计一个空间或展陈", "dimension": "A"},
+    {"id": "ri-a-07", "text": "给一个品牌做整套视觉风格", "dimension": "A"},
+    {"id": "ri-a-08", "text": "把复杂内容讲成易懂的图文", "dimension": "A"},
+
+    {"id": "ri-s-01", "text": "给新人做一对一的技能辅导", "dimension": "S"},
+    {"id": "ri-s-02", "text": "倾听别人的困扰并帮着梳理", "dimension": "S"},
+    {"id": "ri-s-03", "text": "组织一次团队互助活动", "dimension": "S"},
+    {"id": "ri-s-04", "text": "给用户做产品使用培训", "dimension": "S"},
+    {"id": "ri-s-05", "text": "在社区做志愿服务", "dimension": "S"},
+    {"id": "ri-s-06", "text": "协调冲突，让双方都能接受", "dimension": "S"},
+    {"id": "ri-s-07", "text": "设计一份面向初学者的学习材料", "dimension": "S"},
+    {"id": "ri-s-08", "text": "帮同事改简历或准备面试", "dimension": "S"},
+
+    {"id": "ri-e-01", "text": "向客户介绍方案并争取签约", "dimension": "E"},
+    {"id": "ri-e-02", "text": "牵头推进一个跨团队项目", "dimension": "E"},
+    {"id": "ri-e-03", "text": "在会议上说服他人接受我的方案", "dimension": "E"},
+    {"id": "ri-e-04", "text": "负责一个小组的目标和分工", "dimension": "E"},
+    {"id": "ri-e-05", "text": "策划一场活动并拉到资源", "dimension": "E"},
+    {"id": "ri-e-06", "text": "和合作方谈条件、定价格", "dimension": "E"},
+    {"id": "ri-e-07", "text": "从零启动一个新业务方向", "dimension": "E"},
+    {"id": "ri-e-08", "text": "在公开场合做路演或演讲", "dimension": "E"},
+
+    {"id": "ri-c-01", "text": "把杂乱的资料整理成清晰的表格", "dimension": "C"},
+    {"id": "ri-c-02", "text": "核对账目或数据，确保没有差错", "dimension": "C"},
+    {"id": "ri-c-03", "text": "按规范建立一套文档归档规则", "dimension": "C"},
+    {"id": "ri-c-04", "text": "维护一份长期更新的清单或台账", "dimension": "C"},
+    {"id": "ri-c-05", "text": "检查流程是否符合规定", "dimension": "C"},
+    {"id": "ri-c-06", "text": "把重复的报表工作做成模板", "dimension": "C"},
+    {"id": "ri-c-07", "text": "安排日程、预算和物资清单", "dimension": "C"},
+    {"id": "ri-c-08", "text": "逐条核对合同或需求清单", "dimension": "C"}
+  ]
+}

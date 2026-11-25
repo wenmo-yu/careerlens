@@ -1,0 +1,101 @@
+{
+  "instrument_id": "work_style_4d",
+  "version": "2026.11",
+  "title": "四维工作偏好（探索版）",
+  "subtitle": "32 题 · 约 8 分钟 · 可跳过、可重测、可删除",
+  "construct": "荣格四组偏好：精力方向、信息获取、决策方式、生活节奏。只描述工作习惯，不测能力。",
+  "estimated_minutes": 8,
+  "response_scale": {
+    "min": 1,
+    "max": 5,
+    "labels": ["很不符合", "不太符合", "一般", "比较符合", "很符合"],
+    "prompt": "这句话在多大程度上符合你在工作或学习中的常态？"
+  },
+  "license": {
+    "items": "project-authored",
+    "license": "MIT",
+    "attribution": "题目为本项目自写中文表述，计分规则公开，未复制任何商业量表题目。",
+    "not_used": [
+      "MBTI®：Myers & Briggs Foundation 的注册商标与版权题库，未复制、未声称官方。",
+      "OEJTS 1.2：Open Psychometrics 版本采用 CC BY-NC-SA 4.0，含非商业与相同方式共享限制，未复制。",
+      "16Personalities 等商业站点：题目与解读文字受版权保护，未复制。"
+    ]
+  },
+  "disclaimer": "探索性自评，不是 MBTI 官方测评，未做信效度验证；结果只用于自我反思与沟通，不用于招聘、医疗或其他高风险决策。",
+  "scoring": {"type": "dichotomy"},
+  "dimensions": [
+    {
+      "key": "EI",
+      "label": "精力方向",
+      "description": "你更习惯从外部交流还是内部思考中获得能量。",
+      "poles": [
+        {"key": "E", "label": "外倾", "hint": "边聊边想、快速对齐；适合需要频繁沟通与推动的角色，但要留出独立收尾时间。"},
+        {"key": "I", "label": "内倾", "hint": "先想清楚再表达、深度专注；适合长链路分析与独立交付，但要主动安排同步节点。"}
+      ]
+    },
+    {
+      "key": "SN",
+      "label": "信息获取",
+      "description": "你更信任具体事实与经验，还是模式、可能性与推演。",
+      "poles": [
+        {"key": "S", "label": "实感", "hint": "重视可复现的步骤与细节；适合排障、数据核对与工程落地，但要防止只优化眼前。"},
+        {"key": "N", "label": "直觉", "hint": "擅长抽象与迁移、先看整体；适合方案设计与新方向探索，但要补上验证与细节。"}
+      ]
+    },
+    {
+      "key": "TF",
+      "label": "决策方式",
+      "description": "你做取舍时更依赖一致的标准与逻辑，还是相关人的感受与价值。",
+      "poles": [
+        {"key": "T", "label": "思考", "hint": "先看事实与论证是否成立；适合技术判断与评审，但表达上要照顾对方接受度。"},
+        {"key": "F", "label": "情感", "hint": "先看对人的影响与关系；适合协作、用户沟通与带人，但要明确可检验的标准。"}
+      ]
+    },
+    {
+      "key": "JP",
+      "label": "生活节奏",
+      "description": "你更喜欢提前定好并闭环，还是保留空间、随机调整。",
+      "poles": [
+        {"key": "J", "label": "计划", "hint": "节点清晰、交付稳定；适合多任务推进，但要给意外留缓冲。"},
+        {"key": "P", "label": "灵活", "hint": "适应变化、临场效率高；适合探索型任务，但要防止拖延与范围失控。"}
+      ]
+    }
+  ],
+  "items": [
+    {"id": "ws-ei-01", "text": "遇到难题时，我更愿意马上找人一起讨论。", "dimension": "EI", "pole": "E"},
+    {"id": "ws-ei-02", "text": "连续开会或与人交流之后，我通常更有精神。", "dimension": "EI", "pole": "E"},
+    {"id": "ws-ei-03", "text": "我喜欢在有人走动的开放空间里工作。", "dimension": "EI", "pole": "E"},
+    {"id": "ws-ei-04", "text": "我常在做决定前先把想法说给别人听。", "dimension": "EI", "pole": "E"},
+    {"id": "ws-ei-05", "text": "我需要一段不被打扰的独处时间才能想清楚问题。", "dimension": "EI", "pole": "I"},
+    {"id": "ws-ei-06", "text": "人多的场合持续久了，我会明显消耗。", "dimension": "EI", "pole": "I"},
+    {"id": "ws-ei-07", "text": "我习惯先在心里把方案想完整，再对外说。", "dimension": "EI", "pole": "I"},
+    {"id": "ws-ei-08", "text": "推进复杂问题时，我更偏好用文字而不是当面讨论。", "dimension": "EI", "pole": "I"},
+
+    {"id": "ws-sn-01", "text": "我更信任亲自做过、看得见结果的方法。", "dimension": "SN", "pole": "S"},
+    {"id": "ws-sn-02", "text": "学习新工具时，我喜欢先按步骤完整走一遍。", "dimension": "SN", "pole": "S"},
+    {"id": "ws-sn-03", "text": "我容易注意到数据和文档里的细节不一致。", "dimension": "SN", "pole": "S"},
+    {"id": "ws-sn-04", "text": "我倾向于在现有方案上做渐进改进。", "dimension": "SN", "pole": "S"},
+    {"id": "ws-sn-05", "text": "我常从一个具体问题联想到更远的可能性。", "dimension": "SN", "pole": "N"},
+    {"id": "ws-sn-06", "text": "我喜欢先理解整体框架，再补细节。", "dimension": "SN", "pole": "N"},
+    {"id": "ws-sn-07", "text": "我对还没发生、但可能出现的趋势更感兴趣。", "dimension": "SN", "pole": "N"},
+    {"id": "ws-sn-08", "text": "重复性流程做久了，我会想换一种做法。", "dimension": "SN", "pole": "N"},
+
+    {"id": "ws-tf-01", "text": "给同事反馈时，我优先说清事实和逻辑问题。", "dimension": "TF", "pole": "T"},
+    {"id": "ws-tf-02", "text": "做取舍时，我更能接受对事不对人的结论。", "dimension": "TF", "pole": "T"},
+    {"id": "ws-tf-03", "text": "我判断一个方案，先看它是否自洽、可验证。", "dimension": "TF", "pole": "T"},
+    {"id": "ws-tf-04", "text": "讨论分歧时，我愿意直接指出对方论证的漏洞。", "dimension": "TF", "pole": "T"},
+    {"id": "ws-tf-05", "text": "我很容易察觉团队里谁状态不对。", "dimension": "TF", "pole": "F"},
+    {"id": "ws-tf-06", "text": "做决定时，我会重点考虑对相关人的影响。", "dimension": "TF", "pole": "F"},
+    {"id": "ws-tf-07", "text": "我倾向于先认可对方的努力，再谈改进。", "dimension": "TF", "pole": "F"},
+    {"id": "ws-tf-08", "text": "团队气氛紧张时，我会主动去缓和。", "dimension": "TF", "pole": "F"},
+
+    {"id": "ws-jp-01", "text": "我喜欢提前定好计划，并按节点推进。", "dimension": "JP", "pole": "J"},
+    {"id": "ws-jp-02", "text": "待办事项没有闭环会让我不舒服。", "dimension": "JP", "pole": "J"},
+    {"id": "ws-jp-03", "text": "我倾向尽早做出决定，而不是一直保留选项。", "dimension": "JP", "pole": "J"},
+    {"id": "ws-jp-04", "text": "出行或做项目前，我会先列清单。", "dimension": "JP", "pole": "J"},
+    {"id": "ws-jp-05", "text": "我喜欢保留调整空间，边走边看。", "dimension": "JP", "pole": "P"},
+    {"id": "ws-jp-06", "text": "临近截止日期时，我往往效率更高。", "dimension": "JP", "pole": "P"},
+    {"id": "ws-jp-07", "text": "计划被打断时，我能很快切换到新的安排。", "dimension": "JP", "pole": "P"},
+    {"id": "ws-jp-08", "text": "我不喜欢过早把方案定死。", "dimension": "JP", "pole": "P"}
+  ]
+}

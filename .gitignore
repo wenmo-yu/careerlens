@@ -18,6 +18,9 @@ __pycache__/
 coverage.xml
 htmlcov/
 data/
+# Assessment item packs are source, not local datasets.
+!backend/app/assessment/data/
+!backend/app/assessment/data/*.json
 uploads/
 # Personal browser-helper exports should never enter the public repository.
 careerlens-bilibili-*.json
