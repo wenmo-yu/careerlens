@@ -30,7 +30,9 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -e "./backend[dev]" pip-audit
       - name: Audit installed Python packages
-        run: pip-audit --desc --strict --skip-editable
+        # --skip-editable excludes this project itself; --strict would treat that
+        # skip as an error, so plain audit is what we want.
+        run: pip-audit --desc --skip-editable
 
   node:
     runs-on: ubuntu-latest

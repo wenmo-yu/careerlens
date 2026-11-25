@@ -6,9 +6,9 @@ updates:
       interval: monthly
     open-pull-requests-limit: 3
 
-  # pip rather than uv: the project installs with `pip install -e .` and has no
-  # uv.lock, so the uv ecosystem would have nothing to resolve against.
-  - package-ecosystem: pip
+  # uv, not pip: backend/uv.lock is what the Docker image syncs from, so that
+  # is the lockfile updates must touch.
+  - package-ecosystem: uv
     directory: /backend
     schedule:
       interval: weekly
