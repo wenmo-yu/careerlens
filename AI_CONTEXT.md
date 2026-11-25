@@ -214,7 +214,8 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 
 | 文件 | 放的是什么代码 |
 | --- | --- |
-| `backend/app/observability/tracing.py` / `metrics.py` | OpenTelemetry 配置与指标 |
+| `backend/app/observability/tracing.py` / `metrics.py` | OpenTelemetry 配置；`metrics.py` 是工作台展示用的内存模型调用统计 |
+| `backend/app/observability/prometheus.py` | `GET /metrics` 的计数器与延迟直方图；纯 ASGI 中间件（`BaseHTTPMiddleware` 会缓冲 SSE 流）。标签用路径模板，未知路径归为 `unmatched` |
 | `backend/app/evaluation/runner.py` | 评测执行、微平均 F1 等指标 |
 | `backend/app/evaluation/regression.py` | 回归门禁 |
 | `backend/app/evaluation/cli.py` | 评测命令行 |
@@ -250,12 +251,13 @@ HTTP/MCP 请求
 | `frontend/app/layout.tsx` | 根布局、全局样式与站点壳 |
 | `frontend/app/page.tsx` | 公开首页：居中大标题 + 真实产品截图主视觉；暖白编辑风的入口 |
 | `frontend/app/globals.css` | 只做 `@import` 入口，按层引入 `app/styles/` 下五个文件；不要再往这里加规则 |
-| `frontend/app/styles/tokens.css` | **唯一**设计令牌层：`--bg/--surface/--ink/--muted/--line/--brand(#4f46e5)`、字号阶、圆角、阴影、`--shell:1200px`。旧变量名（`--paper/--panel/--lime/--accent`）保留为别名，指向新值 |
+| `frontend/app/styles/tokens.css` | **唯一**设计令牌层：暖纸 `--bg #f1ede1`、墨 `--ink #1b1912`、赤陶 `--brand #a3441d`、深青 `--pine #1d4f45`、字号阶、圆角（4–13px）、阴影、`--shell:1200px`。`--sans/--serif` 在 `base.css` 的 `body` 上重新声明，因为 next/font 把 `--font-*` 挂在 body，`:root` 里引用会解析成空值 |
 | `frontend/app/styles/base.css` / `shell.css` / `landing.css` / `workspace.css` | 基础排版与控件、站点外壳、营销页、工作台；新增样式按归属放进对应层 |
 | `frontend/app/start/page.tsx` | 新手开始页 |
 | `frontend/app/demo/page.tsx` | 演示页 |
 | `frontend/app/architecture/page.tsx` | 公开架构展示页 |
 | `frontend/app/workspace/page.tsx` | 工作台渲染层（约 340 行）：工具头、五步流程条、各区块 JSX；不再持有业务状态 |
+| `frontend/e2e/happy-path.spec.ts` | Playwright 端到端：导入证据 → 画像 → 岗位匹配（真实确认 + worker）→ 报告；另有首页跳转与 404。`PW_CHANNEL=msedge` 可复用本机浏览器 |
 | `frontend/lib/use-workspace.ts` | 工作台全部状态与副作用（约 520 行）：32 个 state、26 个 handler、挂载时恢复已保存画像；改交互先看这里 |
 | `frontend/app/error.tsx` / `loading.tsx` / `not-found.tsx` | 路由级错误、加载与 404 状态页；样式在 `styles/shell.css` 的 `state-*` 段 |
 | `frontend/components/site-chrome.tsx` | 共享站点导航/外壳 |

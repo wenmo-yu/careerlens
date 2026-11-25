@@ -12,8 +12,8 @@ Install and verify the project before opening a pull request:
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".\backend[dev]"
 Push-Location backend
-..\.venv\Scripts\python.exe -m ruff check .
-..\.venv\Scripts\python.exe -m pytest -q
+..\.venv\Scripts\python.exe -m ruff check --config pyproject.toml . ../examples/tutorials
+..\.venv\Scripts\python.exe -m pytest -q --cov --cov-fail-under=78
 ..\.venv\Scripts\python.exe -m app.evaluation.cli --dataset app/evaluation/dev_benchmark_v3.json --baseline ../eval/baselines/careerlens-dev-benchmark-v3.json
 Pop-Location
 
@@ -23,6 +23,13 @@ pnpm install --frozen-lockfile
 pnpm lint
 pnpm test
 pnpm build
+
+# End-to-end. Needs the API on :8000, a worker and the built app on :3000:
+#   Start-Process python -ArgumentList "-m","uvicorn","app.main:app","--port","8000"
+#   Start-Process python -ArgumentList "-m","app.runtime.worker"
+#   pnpm start
+# PW_CHANNEL=msedge reuses an installed browser instead of downloading Chromium.
+$env:PW_CHANNEL="msedge"; pnpm test:e2e
 ```
 
 For integration changes, start Docker and run the disposable full-stack smoke test:
@@ -44,7 +51,7 @@ Follow the [code of conduct](CODE_OF_CONDUCT.md) and use the [security policy](S
 We use a trunk-based flow with short-lived branches and pull requests:
 
 1. Branch from `main` with a scoped prefix: `feat/`, `fix/`, `chore/`, or `docs/` (for example `feat/wiki-compile`).
-2. Push the branch and open a pull request against `main`. The **Quality Gate** workflow runs on every PR: backend ruff + pytest + frozen regression gate, frontend lint + build + browser-helper tests, and a Docker full-stack smoke test. All checks must pass.
+2. Push the branch and open a pull request against `main`. The **Quality Gate** workflow runs on every PR: backend ruff + pytest with a coverage floor + frozen regression gate, frontend lint + build + browser-helper tests, a Playwright end-to-end run, and a Docker full-stack smoke test. All checks must pass. **Dependency Audit** runs weekly and on dependency changes; it is a separate workflow so a newly published CVE does not block unrelated pull requests.
 3. Keep one logical change per PR. Add or update tests for behavior changes, and update docs/CHANGELOG when user-facing behavior changes.
 4. Merge with **Squash and merge** so `main` stays linear and readable. Delete the branch after merge — release tags, not long-lived branches, are how we preserve history.
 

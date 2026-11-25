@@ -323,6 +323,24 @@ curl -X POST http://localhost:8000/api/v1/assessments/instruments/work_style_4d/
 
 不足题量返回 422 并说明还差多少；未答项不插补。结果写入 `assessment_results`，`source=self_report`，不进入事实画像、不改岗位匹配分；画像概览的 `assessments` 只回显每个量表最近一次。计分公式、许可比对与结果边界见 [测评题库与许可](assessments.md)。
 
+## 监控指标
+
+`GET /metrics` 以 Prometheus 文本格式暴露：
+
+| 指标 | 类型 | 说明 |
+| --- | --- | --- |
+| `careerlens_http_requests_total` | counter | 按 `method` / `path` / `status` 计数 |
+| `careerlens_http_request_duration_seconds` | histogram | 端到端耗时，桶从 10ms 到 60s |
+| `careerlens_http_requests_in_flight` | gauge | 当前并发请求数 |
+
+`path` 使用路由模板（`/api/v1/profiles/{user_id}`），不是原始 URL，因此不会因为用户变多而爆掉序列数；未匹配路径合并为 `unmatched`。
+
+该端点与 `/health/*` 一样不带鉴权、也不携带个人数据。直接暴露到公网时用 `METRICS_ENABLED=false` 关闭，或在网关层限制来源。
+
+```bash
+curl -s http://localhost:8000/metrics | head -20
+```
+
 ## 评测与模型观测
 
 评测不使用 LLM-as-a-Judge，而是与冻结标签中的画像、Evidence 和 JD 状态比较。网页和 CI 默认运行 v3 合成开发基准：
