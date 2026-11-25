@@ -9,6 +9,7 @@ import { CoverageCard, EvidenceTimeline, ProfileRadar, SkillMatrix } from "@/com
 import { ReportOverview, ScoreBreakdown } from "@/components/score-breakdown";
 import { RunCenter } from "@/components/run-center";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import type { ReactNode } from "react";
 import type { KnowledgeMode, LearningPlanStep } from "@/lib/api";
 import { useWorkspace } from "@/lib/use-workspace";
 
@@ -57,7 +58,7 @@ export default function Home() {
           <p>先从简历、自述或导出内容建立 Evidence。</p>
         </div>
         <div className="two-column">
-          <form className="panel input-panel" onSubmit={handleBuildProfile}>
+          <form id="import-form" className="panel input-panel" onSubmit={handleBuildProfile}>
             <label>用户标识<input value={userId} disabled={busy !== null} onChange={(event) => {
               setUserId(event.target.value);
               setLatestRun(null);
@@ -78,11 +79,16 @@ export default function Home() {
             {skills.length ? <div className="skill-list">{skills.map((skill) => (
               <article key={skill.id}>
                 <div><strong>{skill.name}</strong><small>{skill.evidence_ids.length} 条证据</small></div>
-                <div className="bar"><i style={{ width: `${skill.confidence * 100}%` }} /></div>
-                <b>{Math.round(skill.confidence * 100)}%</b>
+                <LevelScale level={skill.level} />
+                <span className="skill-meta">L{skill.level}<em>可信{confidenceBand(skill.confidence)}</em></span>
               </article>
-            ))}</div> : <Empty text="导入经历后，这里会显示带内部可信程度和 Evidence ID 的技能画像。" />}
-            {skills.length > 0 && <p className="profile-score-note">百分比是抽取器的启发式可信程度，用于排序和展示；不是“具备该能力”的统计概率。请结合 Evidence 原文核对。</p>}
+            ))}</div> : (
+              <Empty
+                text="导入经历后，这里会显示带等级、证据条数与 Evidence ID 的技能画像。"
+                action={<a className="empty-action" href="#import-form">填入第一段经历 ↑</a>}
+              />
+            )}
+            {skills.length > 0 && <p className="profile-score-note">刻度是抽取器给出的等级（1–5）；可信度只分高/中/低三档，因为同分证据的细微差别不可信。两者都不是“具备该能力”的概率，请结合 Evidence 原文核对。</p>}
           </div>
         </div>
         {profile ? (
@@ -202,7 +208,12 @@ export default function Home() {
               <article><b>03</b><div><span>能力缺口</span><strong>{report.content.skill_gaps.map((item) => item.name).join(" · ") || "当前 JD 无明确缺口"}</strong></div></article>
               <article><b>04</b><div><span>下一步行动</span><strong>{report.content.action_plan[0]}</strong></div></article>
               <blockquote>{report.content.interview_pitch}</blockquote>
-            </> : <Empty text="报告会保留版本号、Provider 诊断与 Evidence 引用。" />}
+            </> : (
+              <Empty
+                text="报告会保留版本号、Provider 诊断与 Evidence 引用。先完成一次岗位匹配，再生成报告。"
+                action={<a className="empty-action" href="#matching">去岗位匹配 ↓</a>}
+              />
+            )}
           </div>
         </div>
         {report && <ReportOverview content={report.content as unknown as Record<string, unknown>} />}
@@ -271,7 +282,16 @@ export default function Home() {
                     <p>{item.content}</p><code>{item.evidence_id}</code>
                   </details>)}
               </div>}
-            </> : <Empty text="试着问：为什么认为我适合 Agent 开发？" />}
+            </> : (
+              <Empty
+                text="Copilot 只回答与你的证据有关的问题。可以先从这句开始。"
+                action={
+                  <button type="button" className="empty-action" onClick={() => setChatInput("为什么认为我适合 Agent 开发？")}>
+                    用这个问题开始 ↑
+                  </button>
+                }
+              />
+            )}
             <form className="chat-input" onSubmit={handleChat}><input value={chatInput} onChange={(event) => setChatInput(event.target.value)} placeholder="询问你的职业画像…" required /><button aria-label="发送" disabled={busy !== null}>↑</button></form>
           </div>
         </div>
@@ -327,9 +347,20 @@ export default function Home() {
   );
 }
 
-function Empty({ text }: { text: string }) {
-  return <div className="empty"><span>＋</span><p>{text}</p></div>;
+function Empty({ text, action }: { text: string; action?: ReactNode }) {
+  return <div className="empty"><span>＋</span><p>{text}</p>{action}</div>;
 }
+
+/** Skill level as five discrete marks: a 1/5 and a 5/5 must never look alike. */
+function LevelScale({ level }: { level: number }) {
+  return (
+    <span className="level-scale" role="img" aria-label={`等级 ${level} / 5`}>
+      {[1, 2, 3, 4, 5].map((n) => <i key={n} className={n <= level ? "on" : ""} />)}
+    </span>
+  );
+}
+
+const confidenceBand = (value: number) => (value >= .9 ? "高" : value >= .8 ? "中" : "低");
 
 function Metric({ label, value }: { label: string; value?: number }) {
   return <article><span>{label}</span><strong>{value === undefined ? "—" : Math.round(value * 100)}<small>{value === undefined ? "" : "%"}</small></strong><i><b style={{ width: `${(value ?? 0) * 100}%` }} /></i></article>;

@@ -119,9 +119,10 @@ export function SkillMatrix({ profile }: { profile: Profile | null }) {
         {rows.map((row) => (
           <article key={row.name}>
             <div><strong>{row.name}</strong><span className={`pill ${row.status}`}>{STATUS_LABEL[row.status] ?? row.status}</span></div>
-            <small>Level {row.level} / 5 · {row.evidenceCount} 条证据</small>
-            <div className="bar"><i className={row.status} style={{ width: `${row.confidence * 100}%` }} /></div>
-            <small>启发式可信度 {Math.round(row.confidence * 100)}%</small>
+            <span className="level-scale" role="img" aria-label={`等级 ${row.level} / 5`}>
+              {[1, 2, 3, 4, 5].map((n) => <i key={n} className={n <= row.level ? "on" : ""} />)}
+            </span>
+            <small>L{row.level} · {row.evidenceCount} 条证据 · 可信{row.confidence >= .9 ? "高" : row.confidence >= .8 ? "中" : "低"}</small>
           </article>
         ))}
       </div>
