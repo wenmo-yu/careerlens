@@ -1,10 +1,11 @@
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.core.database import SessionFactory
+from app.observability.prometheus import render_metrics
 
 router = APIRouter()
 
@@ -41,3 +42,16 @@ async def ready() -> dict[str, object]:
     # (Compose/Kubernetes) keep sending traffic to an instance with broken deps.
     return JSONResponse(status_code=200 if ready else 503, content=payload)
 
+
+
+@router.get("/metrics", include_in_schema=False)
+async def metrics() -> object:
+    """Prometheus scrape endpoint.
+
+    Deliberately unauthenticated like the probes: it carries no personal data,
+    only request counts and latency histograms. Disable it with
+    METRICS_ENABLED=false when the API is exposed directly to the internet.
+    """
+    if not get_settings().metrics_enabled:
+        raise HTTPException(status_code=404, detail="metrics disabled")
+    return render_metrics()

@@ -17,6 +17,7 @@ dependencies = [
   "langgraph-checkpoint-postgres>=3,<4",
   "mcp>=2,<3",
   "pydantic-settings>=2.6,<3",
+  "prometheus-client>=0.21,<1",
   "psycopg[binary,pool]>=3.2,<4",
   "pymupdf>=1.25,<2",
   "python-docx>=1.1,<2",
@@ -30,6 +31,7 @@ dependencies = [
 dev = [
   "pytest>=8.3,<9",
   "pytest-asyncio>=0.24,<1",
+  "pytest-cov>=5,<8",
   "ruff>=0.8,<1",
 ]
 ml = [
@@ -54,7 +56,22 @@ packages = ["app"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["app"]
+# Migrations are exercised by tests/test_migrations.py but their bodies are
+# declarative; counting them would inflate the number without adding signal.
+omit = ["app/evaluation/cli.py"]
+
+[tool.coverage.report]
+skip_covered = true
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+]
 
 [tool.ruff]
 line-length = 100

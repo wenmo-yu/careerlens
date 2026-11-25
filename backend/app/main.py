@@ -11,6 +11,7 @@ from app.api.routes.health import router as health_router
 from app.core.config import get_settings
 from app.core.database import create_schema, engine
 from app.graph.checkpoint import configure_checkpoint
+from app.observability.prometheus import PrometheusMiddleware
 from app.observability.tracing import configure_telemetry
 
 
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    application.add_middleware(PrometheusMiddleware)
     application.include_router(health_router, tags=["health"])
     application.include_router(router, prefix=settings.api_prefix)
     application.state.telemetry_provider = configure_telemetry(application, settings)

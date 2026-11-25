@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     app_name: str = "CareerLens API"
     app_env: str = "development"
     api_prefix: str = "/api/v1"
+    # /metrics exposes request counts and latency. Keep it enabled for local
+    # and container scrapes; put it behind the gateway if the API is public.
+    metrics_enabled: bool = True
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     database_url: str = "postgresql+asyncpg://career:career@localhost:5432/career"
     auto_create_schema: bool = True
