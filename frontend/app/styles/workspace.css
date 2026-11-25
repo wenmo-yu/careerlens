@@ -315,7 +315,7 @@
 .score-card p { margin: 0; color: var(--ink-2); font-size: var(--t-xs); line-height: 1.65; }
 .score-card .score-disclaimer {
   padding-top: 8px;
-  border-top: 1px solid rgba(79, 70, 229, .2);
+  border-top: 1px solid rgba(163, 68, 29, .22);
   color: var(--brand-hover);
   font-size: var(--t-2xs);
   font-weight: 600;
@@ -477,7 +477,7 @@
   color: var(--muted);
   font-size: var(--t-2xs);
 }
-.retrieval-badges .fallback { border-color: #fde68a; background: var(--warn-soft); color: var(--warn); }
+.retrieval-badges .fallback { border-color: #e4cf9d; background: var(--warn-soft); color: var(--warn); }
 
 .evidence-stack { display: grid; gap: 6px; max-width: 78%; }
 .evidence-stack > b { margin: 6px 0 2px; color: var(--faint); font-size: var(--t-2xs); font-weight: 650; letter-spacing: .06em; }
@@ -597,7 +597,7 @@
   padding: 10px;
   border-radius: var(--r-sm);
   background: var(--ink);
-  color: #a5b4fc;
+  color: #8c5a3a;
   font-size: var(--t-2xs);
   word-break: break-all;
 }
@@ -693,11 +693,19 @@
 .matrix-grid article { padding: 11px 12px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2); }
 .matrix-grid article > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .matrix-grid small { display: block; margin: 5px 0; color: var(--faint); font-size: var(--t-2xs); }
-.coverage-bar { display: flex; height: 10px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
+.coverage-bar {
+  display: flex;
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  /* An inset hairline keeps a 0% bar visibly empty instead of looking filled. */
+  box-shadow: inset 0 0 0 1px var(--line);
+  overflow: hidden;
+}
 .coverage-bar span { display: block; height: 100%; }
 .coverage-bar .supported { background: var(--success); }
-.coverage-bar .weak { background: #f59e0b; }
-.coverage-bar .missing { background: #fca5a5; }
+.coverage-bar .weak { background: #b07d22; }
+.coverage-bar .missing { background: #c98a7e; }
 .coverage-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-size: var(--t-xs); color: var(--muted); }
 .timeline-list { list-style: none; margin: 0; padding: 0; }
 .timeline-list li { display: flex; gap: 12px; padding: 9px 0 9px 12px; border-left: 2px solid var(--line); }
@@ -1026,8 +1034,8 @@
   .conversation { padding: 16px 14px 84px; }
   .chat-input { left: 14px; right: 14px; }
   .bubble, .evidence-stack { max-width: 92%; }
-  .skill-list article { grid-template-columns: 1fr 60px; gap: 8px 12px; }
-  .skill-list article .bar { grid-column: 1 / -1; grid-row: 2; }
+  .skill-list article { grid-template-columns: 1fr auto; gap: 8px 12px; }
+  .skill-list article .level-scale { grid-column: 1 / -1; grid-row: 2; }
   .learning-board article { flex-direction: column; gap: 10px; }
   .learning-week { display: flex; align-items: baseline; gap: 8px; padding: 0 0 8px; border-right: 0; border-bottom: 1px solid var(--line); }
   .instrument-tabs { grid-template-columns: 1fr; }
@@ -1082,7 +1090,7 @@
 .radar-ring { fill: none; stroke: var(--line); stroke-width: 1; }
 .radar-axis { stroke: var(--line); stroke-width: 1; }
 .radar-area {
-  fill: rgba(79, 70, 229, .13);
+  fill: rgba(163, 68, 29, .14);
   stroke: var(--brand);
   stroke-width: 1.8;
   stroke-linejoin: round;
@@ -1093,21 +1101,21 @@
 .radar-legend span { display: inline-flex; align-items: baseline; gap: 4px; color: var(--muted); font-size: var(--t-2xs); }
 .radar-legend b { color: var(--ink); font-size: var(--t-xs); font-variant-numeric: tabular-nums; }
 
-.pill.confirmed { background: var(--success-soft); border-color: #a7f3d0; color: var(--success); }
+.pill.confirmed { background: var(--success-soft); border-color: #b6cfc7; color: var(--success); }
 .pill.supported { background: var(--brand-soft); border-color: var(--brand-line); color: var(--brand-hover); }
-.pill.weak { background: var(--warn-soft); border-color: #fde68a; color: var(--warn); }
+.pill.weak { background: var(--warn-soft); border-color: #e4cf9d; color: var(--warn); }
 .pill.pending { background: var(--surface-3); border-color: var(--line); color: var(--muted); }
 
 .matrix-grid .bar i.confirmed { background: var(--success); }
 .matrix-grid .bar i.supported { background: var(--brand); }
-.matrix-grid .bar i.weak { background: #f59e0b; }
+.matrix-grid .bar i.weak { background: #b07d22; }
 .matrix-grid .bar i.pending { background: var(--line-strong); }
 
 .coverage-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .coverage-legend .dot { width: 7px; height: 7px; border-radius: 50%; }
 .coverage-legend .dot.supported { background: var(--success); }
-.coverage-legend .dot.weak { background: #f59e0b; }
-.coverage-legend .dot.missing { background: #fca5a5; }
+.coverage-legend .dot.weak { background: #b07d22; }
+.coverage-legend .dot.missing { background: #c98a7e; }
 .insight-method { margin-top: 10px; }
 .insight-method summary { color: var(--muted); font-size: var(--t-2xs); font-weight: 600; }
 .insight-method p { margin: 6px 0 0; color: var(--faint); font-size: var(--t-2xs); line-height: 1.7; }
@@ -1157,3 +1165,55 @@
 .capability-grid dd { overflow-wrap: anywhere; }
 .capability-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
 .capability-grid dd { overflow-wrap: anywhere; }
+
+/* ---------- skill level marks + empty-state actions ---------- */
+.level-scale {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 3px;
+}
+.level-scale i {
+  display: block;
+  height: 6px;
+  background: var(--line);
+  transition: background var(--fast) var(--ease);
+}
+.level-scale i.on { background: var(--brand); }
+
+.skill-list article { grid-template-columns: minmax(120px, 1fr) 92px 60px; }
+.skill-meta {
+  display: grid;
+  gap: 1px;
+  justify-items: end;
+  color: var(--ink-2);
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.skill-meta em { color: var(--faint); font-size: var(--t-2xs); font-style: normal; font-weight: 500; }
+
+.empty-action {
+  justify-self: center;
+  margin-top: 2px;
+  padding: 6px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.empty-action:hover { border-color: var(--brand); color: var(--brand); }
+
+/* A single action in the run card must not stretch to full width: `.report-actions
+   button` grows by default, which made "打开结果" a full-bleed bar. */
+.run-center .report-actions { margin-top: 14px; padding-top: 0; }
+.run-center .report-actions button { flex: 0 0 auto; min-width: 132px; }
+
+/* A single action in the run card must not stretch to full width: `.report-actions
+   button` grows by default, which made "打开结果" a full-bleed bar. */
+.run-center .report-actions { margin-top: 14px; padding-top: 0; }
+.run-center .report-actions button { flex: 0 0 auto; min-width: 132px; }

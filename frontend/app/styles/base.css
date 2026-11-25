@@ -9,10 +9,17 @@ html {
 }
 
 body {
+  /* next/font sets --font-* on <body>, so the families must be composed here:
+     a :root declaration cannot see them and would resolve to an empty value. */
+  --sans: var(--font-manrope), var(--font-noto), "PingFang SC", "Microsoft YaHei", sans-serif;
+  --serif: var(--font-serif), "Source Han Serif SC", "Songti SC", "STSong", Georgia, serif;
   margin: 0;
-  background: var(--bg);
+  background-color: var(--bg);
+  /* A very light dot grid: reads as paper texture, disappears at a glance. */
+  background-image: radial-gradient(rgba(90, 74, 44, .05) 1px, transparent 1px);
+  background-size: 22px 22px;
   color: var(--ink);
-  font-family: var(--font-manrope), var(--font-noto), -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--sans);
   font-size: var(--t-base);
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
@@ -36,16 +43,25 @@ h1, h2, h3, h4, h5 {
   text-wrap: balance;
 }
 
+/* Serif for display copy only. Body and UI stay sans so numbers and form
+   controls keep their rhythm. */
+h1, h2, h3, h4 {
+  font-family: var(--serif);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.22;
+}
+
 h1 { font-size: var(--t-4xl); }
 h2 { font-size: var(--t-3xl); }
 h3 { font-size: var(--t-xl); }
 h4 { font-size: var(--t-lg); }
-h5 { font-size: var(--t-base); }
+h5 { font-size: var(--t-base); font-family: var(--sans); }
 
 strong, b { font-weight: 650; }
 
 small { font-size: var(--t-sm); }
-code, pre, kbd { font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace; }
+code, pre, kbd { font-family: var(--mono); }
 
 ::selection { background: var(--brand-soft); color: var(--brand-hover); }
 
@@ -95,7 +111,7 @@ button.danger {
   background: var(--danger);
   border-color: var(--danger);
 }
-button.danger:hover:not(:disabled) { background: #991b1b; border-color: #991b1b; }
+button.danger:hover:not(:disabled) { background: #7d211a; border-color: #7d211a; }
 
 /* ---------- forms ---------- */
 label {
@@ -177,9 +193,9 @@ input[type="checkbox"], input[type="radio"] {
   letter-spacing: .01em;
   text-transform: none;
 }
-.pill.strong, .pill.passed { background: var(--success-soft); border-color: #a7f3d0; color: var(--success); }
-.pill.partial { background: var(--warn-soft); border-color: #fde68a; color: var(--warn); }
-.pill.gap, .pill.failed { background: var(--danger-soft); border-color: #fecaca; color: var(--danger); }
+.pill.strong, .pill.passed { background: var(--success-soft); border-color: #b6cfc7; color: var(--success); }
+.pill.partial { background: var(--warn-soft); border-color: #e4cf9d; color: var(--warn); }
+.pill.gap, .pill.failed { background: var(--danger-soft); border-color: #e0b6ae; color: var(--danger); }
 .pill.t { background: var(--brand-soft); border-color: var(--brand-line); color: var(--brand-hover); }
 
 .bar {
