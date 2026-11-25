@@ -47,6 +47,10 @@
     .markdown-section blockquote { border-left: 4px solid var(--theme-color); background: #f4f7f5; padding: 10px 16px; margin: 16px 0; }
     .markdown-section blockquote > p:first-child { margin-top: 0; }
     .markdown-section blockquote > p:last-child { margin-bottom: 0; }
+    .sidebar-nav .course-section { margin: 0; }
+    .sidebar-nav .course-section > summary { cursor: pointer; color: #245948; font-weight: 600; }
+    .sidebar-nav .course-section > summary:focus-visible { outline: 2px solid var(--theme-color); outline-offset: 3px; }
+    .sidebar-nav .course-section > ul { margin-top: .25rem; }
   </style>
 </head>
 <body>
@@ -78,6 +82,26 @@
     normalizeTutorialRoute();
     window.addEventListener('hashchange', normalizeTutorialRoute);
 
+    function foldCourseSidebar() {
+      const routeKey = hash => decodeURI(hash.split('?')[0]).replace(/\.md$/, '');
+      const current = routeKey(window.location.hash);
+      for (const item of document.querySelectorAll('.sidebar-nav > ul > li')) {
+        if (item.querySelector(':scope > details')) continue;
+        const label = item.querySelector(':scope > p > strong, :scope > strong');
+        const lessons = item.querySelector(':scope > ul');
+        if (!label || !lessons) continue;
+        const group = document.createElement('details');
+        group.className = 'course-section';
+        const title = document.createElement('summary');
+        title.textContent = label.textContent;
+        group.open = Array.from(lessons.querySelectorAll('a')).some(
+          link => routeKey(new URL(link.href).hash) === current
+        );
+        group.append(title, lessons);
+        item.replaceChildren(group);
+      }
+    }
+
     window.$docsify = {
       name: 'CareerLens 教程',
       repo: 'wenmo-yu/careerlens',
@@ -104,6 +128,7 @@
       plugins: [
         function (hook) {
           hook.doneEach(function () {
+            foldCourseSidebar();
             var main = document.querySelector('.markdown-section');
             if (!main || document.getElementById('github-source-link')) return;
             var path = (location.hash || '').replace(/^#\/?/, '').split('?')[0];

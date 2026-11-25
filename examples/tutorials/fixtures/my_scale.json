@@ -1,0 +1,34 @@
+{
+  "instrument_id": "my_scale",
+  "version": "2026.11",
+  "title": "项目练习习惯",
+  "subtitle": "两维六题课堂示例",
+  "construct": "观察一次项目练习中自述的计划和复查习惯。",
+  "estimated_minutes": 3,
+  "response_scale": {
+    "min": 1,
+    "max": 5,
+    "labels": ["很不符合", "不太符合", "一般", "比较符合", "很符合"],
+    "prompt": "回想最近一次独立练习，这句话符合你当时的做法吗？"
+  },
+  "license": {
+    "items": "project-authored",
+    "license": "MIT",
+    "attribution": "CareerLens 教程原创合成题目。",
+    "not_used": ["未采用 MBTI、BFI 或其他正式测评的题目。"]
+  },
+  "disclaimer": "课堂练习量表，未做信效度验证。结果仅供本人回顾学习过程。",
+  "scoring": {"type": "trait"},
+  "dimensions": [
+    {"key":"P","label":"计划","description":"开始前怎样安排任务。","high":"倾向预先列项。","low":"倾向边做边调整。"},
+    {"key":"R","label":"复查","description":"结束时怎样检查结果。","high":"倾向留证复查。","low":"倾向做完即收尾。"}
+  ],
+  "items": [
+    {"id":"ms-p-01","text":"开始前我写下了这次练习要交的成果。","dimension":"P"},
+    {"id":"ms-p-02","text":"我为遇到困难时的排查预留了时间。","dimension":"P"},
+    {"id":"ms-p-03","text":"通常我先动手，到一半才决定任务顺序。","dimension":"P","reverse":true},
+    {"id":"ms-r-01","text":"完成后我用改过的输入重跑了一次。","dimension":"R"},
+    {"id":"ms-r-02","text":"我留下了能让别人重跑的命令和输出。","dimension":"R"},
+    {"id":"ms-r-03","text":"第一次出现预期结果后，我立刻结束了检查。","dimension":"R","reverse":true}
+  ]
+}

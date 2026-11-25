@@ -153,6 +153,7 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | 文件 | 放的是什么代码 |
 | --- | --- |
 | `evidence.py` | 证据写入、去重、来源追加、删除联动 |
+| `backend/app/ingestion/claim_strength.py` | 粘贴文本的分句标注和历史纯收藏判断，导入、确定性画像、模型引用过滤共同使用 |
 | `source_ingestion.py` | 标准化导入流程，把 SourceDocument/ParsedBlock 转成 Evidence |
 | `profile.py` / `profile_updates.py` | 画像重建、条目抽取、修正提案的原子确认 |
 | `jobs.py` / `job_requirements.py` / `learning_path.py` | JD 逐条匹配、权重评分、按每周小时排学习路线 |
@@ -324,7 +325,8 @@ HTTP/MCP 请求
 
 | 文件 | 用途 |
 | --- | --- |
-| `tutorials/README.md` | 学习路径总入口；8 篇概念课 → 跑产品 → Agent 源码 → 数据知识库 → 任务与接入 → 进阶 |
+| `tutorials/README.md` | 四篇基础概念 → 跑产品 → 最小实现与 Agent 源码 → 知识库 → 任务与接入 → 选做和结课 |
+| `tutorials/setup/动手准备.md` | 终端、编辑器、统一 Python 环境与 8000 / 8030 / 8031 的账号、数据交接 |
 | `tutorials/从这里开始.md` | Docsify 首页；3 分钟证据判断题 |
 | `tutorials/术语表.md` | 术语口径 |
 | `tutorials/常见问题.md` | FAQ |
@@ -362,6 +364,7 @@ HTTP/MCP 请求
 | `08-advanced/08-2-评测.md` | 评测实验与指标 |
 | `08-advanced/08-3-贡献与结课.md` | 贡献流程与结课交付 |
 | `01-agent-design/` | 10 篇 Agent 源码课 + README + `lab/`；从请求状态、路由、工具、MCP、引用、会话到子 Agent 与综合跟做 |
+| `01-agent-design/入门练习-从零写证据助手.md` | 从空目录写证据、检索和引用的最小实现，选做 FastAPI |
 | `04-knowledge-base/` | 6 篇数据知识库课 + README + `lab/kb_practice.py`；去重、检索、Wiki 编译、表格保护、版本回滚、综合验收 |
 | `setup/Python准备.md` | 选做 Python 环境准备 |
 
@@ -372,6 +375,8 @@ HTTP/MCP 请求
 | 路径 | 放的是什么 |
 | --- | --- |
 | `examples/tutorials/README.md` | 六个跟做脚本的依赖与命令索引 |
+| `examples/tutorials/read_mcp_report.py` | 用只读令牌从工具和资源两处读取第 07 篇的同一份报告 |
+| `examples/tutorials/fixtures/{my_scale,work-style-neutral}.json` | 第 09 篇的量表包与可提交答案，原始数据在 assessment 目录 |
 | `examples/tutorials/_client.py` | 教学脚本共用的轻量 API 客户端 |
 | `examples/tutorials/lesson-01-evidence/` | 证据闭环练习 |
 | `lesson-02-dedup/` | 去重预测练习 |

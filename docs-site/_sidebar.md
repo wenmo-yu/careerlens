@@ -1,20 +1,19 @@
 - [从这里开始](tutorials/从这里开始.md)
 - [完整学习路径](tutorials/README.md)
 
-- **1. 学概念**
+- **1. 学会判断证据**
   - [00-1 Agent 是什么](tutorials/00-foundations/00-1-Agent是什么.md)
   - [00-2 提示词与证据](tutorials/00-foundations/00-2-提示词与证据.md)
   - [00-3 RAG 与检索](tutorials/00-foundations/00-3-RAG与检索.md)
   - [00-4 数据模型](tutorials/00-foundations/00-4-数据模型大白话.md)
-  - [00-5 LangGraph 与工作流](tutorials/00-foundations/00-5-LangGraph与工作流.md)
-  - [00-6 LangChain 入门](tutorials/00-foundations/00-6-LangChain与模型工具.md)
-  - [00-7 混合 RAG 与排名融合](tutorials/00-foundations/00-7-混合RAG与排名融合.md)
-  - [00-8 Wiki 知识组织](tutorials/00-foundations/00-8-Wiki知识组织.md)
 
 - **2. 跑一遍产品**
   - [01 第一次跑起来](tutorials/01-第一次跑起来.md)
 
-- **3. 读 Agent 源码**
+- **3. 写并读 Agent 源码**
+  - [动手准备 · 终端、Python 与编号](tutorials/setup/动手准备.md)
+  - [从空目录写证据助手](tutorials/01-agent-design/入门练习-从零写证据助手.md)
+  - [Agent 源码课目录](tutorials/01-agent-design/README.md)
   - [01-A 建立练习副本](tutorials/01-agent-design/01-A-Agent工作流.md)
   - [01-A1 请求与状态](tutorials/01-agent-design/01-A1-请求与状态.md)
   - [01-A2 路由与结束条件](tutorials/01-agent-design/01-A2-路由与结束条件.md)
@@ -51,6 +50,12 @@
   - [09 画像、自陈测评与 GitHub 导入](tutorials/09-画像与自陈测评.md)
   - [08-3 贡献与结课](tutorials/08-advanced/08-3-贡献与结课.md)
   - [结课模板](tutorials/结课模板.md)
+
+- **按需补概念**
+  - [00-5 LangGraph 与工作流](tutorials/00-foundations/00-5-LangGraph与工作流.md)
+  - [00-6 LangChain 入门](tutorials/00-foundations/00-6-LangChain与模型工具.md)
+  - [00-7 混合 RAG 与排名融合](tutorials/00-foundations/00-7-混合RAG与排名融合.md)
+  - [00-8 Wiki 知识组织](tutorials/00-foundations/00-8-Wiki知识组织.md)
 
 - **跟做时查阅**
   - [静态观察路线](tutorials/静态观察路线.md)

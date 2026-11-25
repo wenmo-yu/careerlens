@@ -6,9 +6,9 @@
 
 上一关的 `compile_page` 里有个不起眼的 `check_page_version`——生成之前查一次版本，写入之前 `persist_page` 又查一次。为什么查两次？因为中间隔着模型生成，可能要几秒。这段等待里，别人可能已经改过这页。如果不管，一个几分钟前启动的编译任务会把最新的手工修改覆盖掉。
 
-这类问题叫**丢失更新（lost update）**：两个人各自读到旧值，各自写回，后写的把先写的抹掉，而且双方都觉得自己保存成功了。传统的解决办法是加锁（悲观并发），但 Wiki 编辑常常是「读了好久才写」，长期持锁不现实。项目用的是**乐观并发**：不加锁，但提交时检查「我基于的版本还是不是当前版本」，不是就拒绝。
+这类问题叫**丢失更新（lost update）**：两个人各自读到旧值，各自写回，后写的把先写的抹掉，而且双方都觉得自己保存成功了。传统的解决办法是加锁（悲观并发），但 Wiki 编辑常常是「读了好久才写」，长期持锁不现实。项目用**乐观并发**。阅读和生成期间可以放开数据库锁，提交时用带版本条件的 `UPDATE` 比对当前行。版本已变时，旧编辑会被拒绝。
 
-回滚也有讲究。最直觉的做法是把旧内容直接盖回去、历史里删掉中间版本——但这会破坏可追溯性。项目把回滚也表达成**一次普通编辑**：内容是旧的，但作为一个新版本保存，历史完整保留。这样任何时候都能回答「这一页经历过什么」。
+回滚也有讲究。最直觉的做法是把旧内容直接盖回去、历史里删掉中间版本——但这会破坏可追溯性。项目把回滚也表达成**一次普通编辑**：内容是旧的，但作为一个新版本保存，先前的快照由历史保留规则管理，刚被替换的内容也会形成快照。这样能在仍保留的版本中追溯改动。
 
 ## 一张地图：当前页 + 快照 + 版本条件
 
@@ -39,7 +39,7 @@ flowchart TD
 - `WikiPage` 保存**当前可见内容**。每页在用户内用 `slug` 唯一定位，唯一键 `(user_id, slug)`。字段有 `version`、`status`、两组引用（`source_refs`、`chunk_refs`）、两组链接（`out_links`、`in_links`）。
 - `WikiRevision` 保存**曾被换下来的版本**。按 `(page_id, version)` 唯一。它是一份不可变快照——写进去就不改。 [当前页与历史快照](../../backend/app/models/wiki.py#L29-L91)
 
-当前版本可以直接读 `GET /api/v1/wiki/{slug}`。发生**有效改动**后，被替换的那一版才出现在 `revisions`。所以「历史里没有版本 2」可能有两种意思：要么从没到过版本 2，要么版本 2 到版本 3 的改动是无效的（没触发版本递增）。这引出下一个问题：什么才算「有效改动」。
+当前版本可以直接读 `GET /api/v1/wiki/{slug}`。有效改动发生后，被替换的那一版才出现在 `revisions`。历史里看不到版本 2 时，先查当前页。如果当前就是 2，它还没有被换下。若当前版本更高，再检查旧快照是否已被裁剪。
 
 `EDIT_SOURCES = ("user", "agent", "pipeline", "revert")` 四个值标出每一版是谁写的；`PAGE_STATUSES = ("draft", "published", "archived")` 是页面生命周期。两组都是字符串常量而非枚举——SQLite/PostgreSQL 都能存，保持模型简单。
 
@@ -78,7 +78,7 @@ snapshot = _snapshot(page) if changed or provenance_changed else None
 | 恢复版本 1 的标题和引用 | 当前版成为 3 | 保存刚被换下的版本 2 |
 | 只更新 `out_links` | 版本不变 | 无快照 |
 
-回到第一章 00-6 讲过的道理：版本号是「内容身份」的一部分。用户看到「版本 3」就知道这页被实质改过三次；如果改个内部链接就跳版本，版本号就失去了这个意义。 [字段、快照和裁剪](../../backend/app/services/wiki_pages.py#L19-L72)
+第一次编译得到版本 1，两次有效更新后是版本 3。仅更改链接账本时版本号保持原值。 [字段、快照和裁剪](../../backend/app/services/wiki_pages.py#L19-L74)
 
 ## 第 3 块：快照记的是「被换下来的那版」的作者
 
@@ -92,7 +92,10 @@ def _snapshot(page: WikiPage) -> WikiRevision:
         user_id=page.user_id,
         version=page.version,
         title=page.title,
-        ...
+        page_type=page.page_type,
+        content=page.content,
+        summary=page.summary,
+        status=page.status,
         source_refs=list(page.source_refs),
         chunk_refs=list(page.chunk_refs),
         # The author of the version being replaced, not the incoming writer.
@@ -233,12 +236,15 @@ python tutorials/04-knowledge-base/lab/kb_practice.py check versions
 
 看看 `backend/tests/test_wiki_schema.py` 的 `test_stale_write_is_rejected_across_sessions`。它用两个数据库会话持有各自看到的版本，验证一方提交后旧对象仍无法覆盖更新——这正是上面第二层检查存在的意义。另一个用例会检查回滚本身会写成新版本。 [版本和并发测试](../../backend/tests/test_wiki_schema.py#L31-L123)
 
-## 第 4 块：回滚是一次普通编辑，历史不删
+## 第 4 块：把旧内容恢复成新版本
 
 `revert_page` 的注释写得很清楚：「Revert to a revision as an ordinary edit: new version, history kept.」
 
 ```python
-async def revert_page(session, *, page, target_version):
+async def revert_page(
+    session: AsyncSession, *, page: WikiPage, target_version: int
+) -> WikiPage:
+    """Revert to a revision as an ordinary edit: new version, history kept."""
     revision = await session.scalar(
         select(WikiRevision).where(
             WikiRevision.page_id == page.id,
@@ -246,36 +252,48 @@ async def revert_page(session, *, page, target_version):
         )
     )
     if revision is None:
-        raise WikiRevisionNotFound(...)
+        raise WikiRevisionNotFound(f"no revision {target_version} for page {page.id}")
     if revision.source_refs is None or revision.chunk_refs is None:
         raise WikiRevisionNotFound("this legacy revision has no verifiable source lineage")
     source_ids = set(revision.source_refs + revision.chunk_refs)
     if source_ids:
         existing = set(await session.scalars(
-            select(Evidence.id).where(
-                Evidence.user_id == page.user_id,
-                Evidence.id.in_(source_ids),
-            ).with_for_update()
+            select(Evidence.id)
+            .where(Evidence.user_id == page.user_id, Evidence.id.in_(source_ids))
+            .order_by(Evidence.id)
+            .with_for_update()
         ))
         if existing != source_ids:
             raise WikiRevisionNotFound("this revision references unavailable evidence")
     if target_version == page.version:
+        # Reverting to current is a no-op target; treat as not found to avoid a
+        # misleading no-change version bump.
         raise WikiRevisionNotFound("cannot revert to the current version")
     return await update_page(
-        session, page=page, base_version=page.version, edit_source="revert",
-        values={...revision 的可见字段...},
-        source_refs=revision.source_refs, chunk_refs=revision.chunk_refs,
+        session,
+        page=page,
+        base_version=page.version,
+        edit_source="revert",
+        values={
+            "title": revision.title,
+            "content": revision.content,
+            "summary": revision.summary,
+            "page_type": revision.page_type,
+            "status": revision.status,
+        },
+        source_refs=revision.source_refs,
+        chunk_refs=revision.chunk_refs,
     )
 ```
 
 四个设计点：
 
 1. **目标版本必须存在**，否则 `WikiRevisionNotFound`。
-2. **引用必须仍可核验**。旧快照的 `source_refs`/`chunk_refs` 为空（旧数据）或指向已被删除的证据，都拒绝回滚。因为回滚到一页引用失效的内容，等于制造一个不可追溯的页面。这与第一章「证据先于结论」一脉相承。
+2. **引用必须仍可核验**。旧快照的 `source_refs` 或 `chunk_refs` 为 `null` 时缺少可核验的血缘，也会被拒绝。空列表表示这组引用明确为空。非空引用中的每个证据 ID 都必须仍归该用户所有。因为回滚到一页引用失效的内容，等于制造一个不可追溯的页面。这与第一章「证据先于结论」一脉相承。
 3. **不能回滚到当前版本**——那是无意义操作，还会产生一个「内容没变但版本跳了」的假版本。
-4. **回滚走 `update_page`**，`edit_source="revert"`，`base_version=page.version`。所以它享受同一套乐观并发和快照逻辑：旧内容成为新版本，刚被换下的那版存进历史。历史只增不减。
+4. **回滚走 `update_page`**，`edit_source="revert"`，`base_version=page.version`。所以它享受同一套乐观并发和快照逻辑：旧内容成为新版本，刚被换下的那版存进历史。超过保留上限时仍会裁剪旧快照。
 
-`_prune_revisions` 负责控制历史规模：优先保留最近 5 份流水线（`pipeline`）快照，再用总上限 50 兜底；超限裁剪时先处理机器快照，人工编辑（`user`/`agent`/`revert`）的保留更久。理由很直白：机器每次重编译都可能产生快照，量最大、价值最低；人工改版少而珍贵。 [裁剪逻辑](../../backend/app/services/wiki_pages.py#L58-L74)
+`_prune_revisions` 先裁剪流水线快照，只保留最近 5 份。全部历史仍超过 50 份时，优先删较旧的流水线快照，再删其他较旧快照。代码把 `user`、`agent`、`revert` 归在优先保留的一组。 [裁剪逻辑](../../backend/app/services/wiki_pages.py#L19-L23) · [快照裁剪](../../backend/app/services/wiki_pages.py#L58-L74)
 
 ## 在 Swagger 重现 201、409 和恢复
 
@@ -283,7 +301,7 @@ async def revert_page(session, *, page, target_version):
 
 1. 用原标题和相同证据，设 `base_version=1` 重编译。Demo 预期仍返回 201，`page.version=1`。**为什么没跳版本？** 因为可见字段和引用都没变，`changed or provenance_changed` 为假，不建快照也不递增。
 2. 这次改标题为「Python 与 Docker 课程项目 第二版」，仍带 `base_version=1`，可把 `edit_source` 改为 `user`。成功后版本是 2。打开 `GET /api/v1/wiki/{slug}/revisions`，填本次的 slug 和 `user_id`。应该看到旧版 1 的原题目和 `edit_source=pipeline`。
-3. 再用旧的 `base_version=1` 发送，预期 **409**。`detail` 会说明期望的版本与当前版本。重读当前页时，标题仍为第二版——过期写入没有产生任何影响。
+3. 再用旧的 `base_version=1` 发送，预期 **409**。这条同步编译请求的 `detail` 会同时给出当前版本和期望版本。重读当前页时，标题仍为第二版——过期写入没有产生任何影响。
 4. 在 `POST /api/v1/wiki/{slug}/revert` 填同一个 slug，发送下面的 JSON。预期返回 200，标题恢复成原样，`version=3`，`last_edit_source=revert`。再查历史，版本 2 和版本 1 都在。
 
 ```json
@@ -301,12 +319,12 @@ async def revert_page(session, *, page, target_version):
 | --- | --- | --- |
 | `WikiPage` / `WikiRevision` | `backend/app/models/wiki.py` | 当前值与不可变快照分离 |
 | `VISIBLE_FIELDS` | `backend/app/services/wiki_pages.py` | 定义什么算「有效改动」 |
-| `update_page` | `backend/app/services/wiki_pages.py` | 所有写入的唯一收口，统一执行版本不变量 |
+| `update_page` | `backend/app/services/wiki_pages.py` | 更新现有页时检查版本并保存被替换的快照 |
 | `StaleWikiWriteError` | `backend/app/services/wiki_pages.py` | 过期写入的专用信号，上层转 409 |
 | `revert_page` | `backend/app/services/wiki_pages.py` | 回滚即普通编辑，历史保留 |
 | `_prune_revisions` | `backend/app/services/wiki_pages.py` | 优先裁机器快照，保住人工编辑 |
 
-一个统一性的价值：`update_page` 是**所有页面写入的唯一收口**——流水线编译、Agent、人工编辑、回滚都走它。所以版本不变量只在这一个地方实现，任何入口都绕不过去。第一章讲「单一收口」时说过，规则写在一个必经之路上才不会漏；这里就是活例子。 [写入路径说明](../../backend/app/services/wiki_pages.py#L1-L8)
+同步编译、后台编译和回滚在改动已有页面时共用 `update_page`。首次创建走 `create_compiled_page`，由用户与 slug 的唯一约束处理并发新建。 [页面写入路径](../../backend/app/services/wiki_pages.py) · [编译保存入口](../../backend/app/wiki/compiler.py)
 
 ## 下一步
 

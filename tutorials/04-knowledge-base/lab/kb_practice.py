@@ -143,6 +143,7 @@ if __name__ == "__main__":
         launch(
             description=__doc__,
             default_workspace=DEFAULT_WORKSPACE,
+            default_port=8031,
             lessons=LESSONS,
             hints=HINTS,
         )

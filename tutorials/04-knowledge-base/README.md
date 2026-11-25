@@ -2,7 +2,7 @@
 
 林澈在两份文档里写了同一句话：「我用 Python 做过一个课程项目，只在本机演示。」他还整理了一张记录 Docker 启动和健康检查的表。用这三份材料一路追下去，你会写出 CareerLens 的文档解析、证据去重、本地检索和 Wiki 编译关键部分，最后亲手从 Wiki 找回原句和两个文件位置。
 
-这一章回答一个贯穿始终的问题：**一份材料从文件变成可追溯的结论，中间到底经过哪些处理，每一步为什么不能省？** 你写的每个函数都对着 `backend/` 里的真实源码，不是玩具示例。
+这一章围绕一个问题展开。林澈上传两份文件之后，系统怎样把一句话变成有出处的结论？带敲练习从 `backend/` 的原有实现选出函数，写完就用仓库里的测试核对。一个贯穿始终的问题：**一份材料从文件变成可追溯的结论，中间到底经过哪些处理，每一步为什么不能省？** 你写的每个函数都对着 `backend/` 里的真实源码，不是玩具示例。
 
 ## 课程地图
 
@@ -19,32 +19,32 @@
 | [05-C 写版本、冲突和回滚](05-C-Wiki版本与回滚.md) | 写旧版快照和条件更新，复现同时编辑时的 409，恢复旧内容 |
 | [05-D 查 Wiki、比较三种模式并回溯](05-D-Wiki查询与综合验收.md) | 写 Wiki 查询，比较 `rag`、`wiki`、`hybrid`，走完整条查询和回溯路线 |
 
-**六节带敲课**（03-A、04-A、05-A～05-D）都按同一结构展开：先讲这一关在整条链里的位置，再用一张 Mermaid 图和表格给出概念地图，然后逐块拆解源码背后的「为什么」，接着跟写函数、看失败反推表、对照项目落点。它们和第一章概念课、第三章源码课的深度一致——不是只给结论，而是把设计取舍讲透。
+先用 02、03、04、05 四节主课走一遍材料链，再在 03-A、04-A、05-A～05-D 六节源码课里补写相应环节。每个带敲关卡都给出预测用的输入、练习文件、完整实现和失败提示。第 03 课也带敲 DOCX 解析，因此动手路线一共七关。
 
-## 一条主线贯穿六关
+## 从解析到回查
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontFamily":"system-ui, sans-serif","lineColor":"#b08a4e","edgeLabelBackground":"#faf6ed","primaryColor":"#fdfbf6","primaryBorderColor":"#c9a86a","primaryTextColor":"#2a2620","lineColorText":"#2a2620"},"flowchart":{"nodeSpacing":18,"rankSpacing":26,"curve":"basis"}}}%%
 flowchart TD
-    accTitle: 第四章六关如何串成一条可追溯的链
-    a["03-A 判重<br/>一条 E 记住两个出处"] --> b["04-A 检索<br/>E 能被问题命中"]
+    accTitle: 第四章七关如何串成一条可追溯的链
+    p["03 解析<br/>给 DOCX 的正文标位置"] --> a["03-A 判重<br/>一条 E 记住两个出处"] --> b["04-A 检索<br/>E 能被问题命中"]
     b --> c["05-A 编译<br/>E 进 Wiki 的 chunk_refs"]
     c --> d["05-B 守卫<br/>编译时表格不丢行"]
     d --> e["05-C 版本<br/>页面改动可追溯"]
     e --> f["05-D 查询<br/>Wiki 命中回到 E 和两份文件"]
     class a,f endpoints
-    class b,c,d,e work
+    class p,b,c,d,e work
     classDef endpoints fill:#2f2a22,stroke:#2f2a22,color:#fff
     classDef work fill:#f2e3c7,stroke:#b08a4e,color:#3b2f1c
 ```
 
-少任何一环，最后「从 Wiki 追回原句和两个文件」都走不通。读每一关时都想想：它在这条链上解决的是哪个「如果不做就会坏掉」的问题。
+顺着箭头走，同一个证据编号 E 会被反复用到。每做完一关，记下这一步新增了哪个能查询的字段，最后用它回到 Wiki、证据正文或原文件。
 
 ## 选一种读法
 
 **只用浏览器。** 看各课的例子、概念地图和可展开源码，先做 ID、排名、重复行和版本的预测，再对照结果。第一课会画出资料经过的每一张表。每篇都附了失败反推表：看到某个测试结果，先猜是哪一步漏了，再去核对代码。
 
-**亲手敲。** 先按第三章的说明准备 Python 3.11+ 和后端依赖。终端命令从仓库根执行。第四章会建立一份独立练习副本，默认放在 `.cache/knowledge-practice/backend`，各课都用这一份。练习使用本地 SQLite、Demo 和本地评分，Python 环境装好后即可完成主线。 [准备 Python 和虚拟环境](../01-agent-design/01-A-Agent工作流.md)
+**亲手敲。** 从仓库根执行命令，沿用第三章已装好 `backend[dev]` 的 Python。新建的知识库副本在 `.cache/knowledge-practice/backend`，默认端口 **8031**，账号 **`kb-study`**。各课共用这一份本地 SQLite，原来 8030 的证据 ID 可以留在记录中，这里会从两份 DOCX 取得新编号。 [两种练习环境](../setup/动手准备.md#核对环境与编号)
 
 ## 第一次打开练习
 
@@ -81,13 +81,13 @@ python tutorials/04-knowledge-base/lab/kb_practice.py check parse
 python tutorials/04-knowledge-base/lab/kb_practice.py serve
 ```
 
-打开 [8030 端口 Swagger](http://127.0.0.1:8030/docs)。第三章若已占用 8030，可以先停它，也可以让第四章用 8031。如果你选择了自定义副本和 8031，两项都传入启动命令。
+打开 [8031 的进程检查](http://127.0.0.1:8031/health/live)，看到 `status: ok` 后再进入 [知识库 Swagger](http://127.0.0.1:8031/docs)。想运行另一份知识库练习时，为副本选另一个端口，例如：
 
 ```bash
-python tutorials/04-knowledge-base/lab/kb_practice.py --workspace .cache/knowledge-practice-2 serve --port 8031
+python tutorials/04-knowledge-base/lab/kb_practice.py --workspace .cache/knowledge-practice-2 serve --port 8033
 ```
 
-记下完整启动命令和实际端口。下面各课的链接示范默认 8030，选择 8031 时用 `http://127.0.0.1:8031/docs`。换课时保留同一份 SQLite 数据。涉及重启的步骤先在服务终端按 Ctrl+C，再执行原启动命令。第四章的 HTTP 实验做完后即可关闭服务。
+记下完整命令和实际端口。下面的链接示范默认 8031，自选端口时修改浏览器地址。换课时保留同一份 SQLite。涉及重启的步骤先在服务终端按 Ctrl+C，再执行原启动命令。
 
 做完 Demo 想试着用模型重写 Wiki 时，可以按第三章的设置填写本章副本的 `backend/.env.model`，在原 `serve` 命令末尾加 `--use-model-config`。 [模型配置课](../01-agent-design/模型配置.md)
 

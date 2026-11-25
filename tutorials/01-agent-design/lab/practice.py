@@ -156,7 +156,7 @@ FUNCTION_HINTS = {
     "chat": (
         "检查访问权限，再读当前用户画像、证据和可用的岗位分析。",
         "核对会话归属，加载旧消息，把本轮数据交给 run_career_graph。",
-        "保存一问一答，提交后读回会话并组装 ChatResponse。",
+        "用同一 UTC 时点及其后一微秒保存一问一答，提交后读回会话并组装 ChatResponse。",
     ),
     "create_proposal": (
         "先生成候选变更；非 Demo 提供器可提供验证过的结构化候选。",
@@ -347,6 +347,7 @@ def main(
     *,
     description: str = __doc__,
     default_workspace: Path = DEFAULT_WORKSPACE,
+    default_port: int = 8030,
     lessons=LESSONS,
     hints=FUNCTION_HINTS,
 ) -> int:
@@ -361,9 +362,7 @@ def main(
         "lesson", choices=(*lessons, "all"),
     )
     serve = commands.add_parser("serve", help="Run the practice API on the loopback address.")
-    serve.add_argument(
-        "--port", type=int, default=8030,
-    )
+    serve.add_argument("--port", type=int, default=default_port)
     worker = commands.add_parser(
         "worker", help="Run a Worker against the same practice SQLite database."
     )
@@ -396,7 +395,7 @@ def main(
         return run_demo(
             workspace,
             args.command,
-            getattr(args, "port", 8030),
+            getattr(args, "port", default_port),
             use_model_config=args.use_model_config,
         )
     except KeyboardInterrupt:
