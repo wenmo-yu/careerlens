@@ -21,6 +21,7 @@ Set-Location frontend
 corepack enable
 pnpm install --frozen-lockfile
 pnpm lint
+pnpm test
 pnpm build
 ```
 

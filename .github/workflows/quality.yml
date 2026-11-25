@@ -60,10 +60,8 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
-      - name: Test workbench capture preview and progress stream
-        run: |
-          node --experimental-strip-types lib/browser-capture.test.mjs
-          node --experimental-strip-types lib/run-events.test.mjs
+      - name: Test frontend pure functions and stream parsing
+        run: pnpm test
       - name: Test browser helper capture and collection
         run: |
           node ../browser-helper/test-capture.mjs
