@@ -1,8 +1,17 @@
 # 07-A · MCP 服务与 ACP：两个协议各接哪一段
 
-**阅读约 9–12 分钟，练习约 10 分钟。** 先读过[工具调用](01-agent-design/01-B-工具调用.md)与[后台运行时](06-后台运行时.md)。纸面可以完成接线判断。跑测试需要[后端开发依赖](../CONTRIBUTING.md)，使用合成数据。
+**阅读约 15–18 分钟，练习约 10 分钟。** 先读过[工具调用](01-agent-design/01-B-工具调用.md)与[后台运行时](06-后台运行时.md)。纸面可以完成接线判断。跑测试需要[后端开发依赖](../CONTRIBUTING.md)，使用合成数据。
 
-假设你已经跑出了林澈的报告，想让桌面助手读取它。再加一项需求：想在编辑器里控制另一个 Agent 会话，看它有没有开始工作，并批准它的一次操作。这两个需求都谈到「接入」，通信的两端却不同。
+假设你已经跑出了林澈的报告，想让桌面助手读取它。再加一项需求：想在编辑器里控制另一个 Agent 会话，看它有没有开始工作，并批准它的一次操作。这两个需求都谈到「接入」，通信的两端却不同——这正是本课要分清的。
+
+## 为什么要分清这两个协议
+
+「让外部程序用上 CareerLens」和「让编辑器控制一个 Agent 干活」听上去都叫接入，但方向和两端的角色完全不同：
+
+- **MCP** 回答的是：一个客户端（桌面助手、别的 Agent）怎么**发现并调用** CareerLens 已经具备的能力？这里 CareerLens 是**能力提供方（Server）**。
+- **ACP** 回答的是：编辑器/IDE 怎么**驱动一个外部编码 Agent**，收发进度、处理权限请求？这里 Agent 是被驱动的那一方，CareerLens 仓库本身并没有实现 ACP。
+
+把两者混成「接入协议」会导致接错端：想让桌面助手读报告，该接 MCP；想在编辑器里开 Agent 会话，那是 ACP 的事，跟 CareerLens 能不能提供报告能力无关。
 
 ## 在 CareerLens 里找到 MCP 服务
 
@@ -16,7 +25,52 @@ MCP（Model Context Protocol）让有 MCP 客户端的应用发现并使用一�
 
 以读取为例，外部客户端先获取工具列表，找到 `get_career_report`，传 `user_id` 和 `report_id`。开启鉴权时，处理程序检查调用者身份和权限。通过后读取已有报告，并记录工具调用的审计事件。HTTP API 和 MCP 共用数据与服务，所以本次调用可以读到同一份报告。 [MCP 架构](https://modelcontextprotocol.io/docs/learn/architecture) · [CareerLens 服务端](../backend/app/mcp/server.py)
 
-服务端支持两种传输方式。本地 `stdio` 让可信客户端通过标准输入输出和子进程通信。`streamable-http` 把服务作为独立的 HTTP 端点，远程使用时要配置 Bearer Token 和相应的权限。仓库的接入文档写有用户身份和权限范围的配置。 [接入与安全](../docs/integrations-and-security.md)
+### 完整的 MCP 合约：10 个工具、3 个资源、3 个提示
+
+`test_mcp_exposes_complete_contract` 会在客户端列出全部声明，所以这里的数量是硬合约，改一个名字测试就会失败。
+
+**10 个 tool**（括号内是读/写 scope）：
+
+| 工具 | scope | 做什么 |
+| --- | --- | --- |
+| `list_user_content` | read | 列该用户 Evidence，按时间倒序，`limit` 夹到 1–200 |
+| `get_evidence` | read | 按 ID 读单条，不匹配该用户报 `Evidence not found for this user` |
+| `import_text_evidence` | write | 导入文本证据，metadata 标 `imported_via=mcp` |
+| `search_evidence` | read | 检索证据，返回候选和 `retrieval` 诊断 |
+| `get_user_profile` | read | 读画像条目 |
+| `list_job_analyses` | read | 列岗位分析，最多 100 条 |
+| `analyze_job_description` | write | 分析岗位，`weekly_hours` 夹到 1–80 |
+| `generate_career_report` | write | 生成职业报告 |
+| `list_career_reports` | read | 列报告，最多 100 条 |
+| `get_career_report` | read | 按 ID 读单份报告，含 Markdown |
+
+**3 个 resource template**（URI 精确匹配）：
+
+- `profile://{user_id}` → 画像 JSON
+- `evidence://{user_id}/{evidence_id}` → 单条证据
+- `report://{user_id}/{report_id}` → 报告（含 Markdown）
+
+Resource 委托给对应的 tool，所以读 resource 也会产生 `mcp.profile.read` / `mcp.evidence.read` / `mcp.report.read` 审计。Prompt 不记审计。
+
+**3 个 prompt**：`explain_profile_claim`、`review_job_match`、`prepare_interview_pitch`。它们是给客户端取用的提示模板，比如让模型「只把证据直接支持的结论标为 supported」。
+
+### 鉴权：三道检查
+
+服务端支持两种传输方式。本地 `stdio` 让可信客户端通过标准输入输出和子进程通信。`streamable-http` 把服务作为独立的 HTTP 端点，远程使用时要配置 Bearer Token 和相应的权限。 [接入与安全](../docs/integrations-and-security.md)
+
+鉴权逻辑分三层（`server.py`）：
+
+1. **构建期**：`MCP_AUTH_MODE` 只接受 `disabled` / `required`。`required` 时注入 `CareerLensTokenVerifier`，它复用业务 token 表 `verify_access_token`，命中就更新 `last_used_at`。
+2. **调用期身份**：`_authorized_principal(user_id, scope)` 先取 token。没有 token 时放行并给通配 scope——但这只在 stdio 这种进程边界内成立；HTTP 部署必须开鉴权。有 token 时强制 `token.subject == user_id`，防止 A 用户的 token 读 B 用户的数据。
+3. **调用期 scope**：要求 `scope in token.scopes`，或者持有 `manage`（manage 覆盖一切）。读类工具要 `read`，写类要 `write`。
+
+`streamable-http` 还有一条硬规则：绑定非回环地址（`host` 不是 `127.0.0.1`/`localhost`/`::1`）却没开鉴权，启动时直接 `RuntimeError`。远程暴露服务必须带鉴权，不能靠「应该没人扫到」。测试 `test_streamable_http_requires_bearer_token` 验证未带 token 的 POST 返回 **401**。
+
+### 审计：每个工具调用都留痕
+
+所有 tool 调用最后都走 `_commit_audit`，写一条 `AuditEvent`，action 前缀统一是 `mcp.`。完整清单：`mcp.evidence.list/read/import/search`、`mcp.profile.read`、`mcp.job.list/analyze`、`mcp.report.generate/list/read`。审计记录包含 principal、resource_type、resource_id 和 details。
+
+这意味着「API 和 MCP 共用一套业务服务」不等于「绕过审计」。MCP 读报告走的是和 HTTP 相同的报告服务，但额外记录了一条 `mcp.report.read`——外部接入这件事本身是可观测的。 [审计实现](../backend/app/mcp/server.py#L144-L161)
 
 ## ACP 在桌面 Agent 会话中的位置
 
@@ -32,6 +86,13 @@ flowchart TD
     Server --> Reports["CareerLens 报告与证据服务"]
 ```
 
+图里有两条独立的连接，别把它们画成一条：
+
+- **上一条（ACP）**：编辑器 ↔ 外部 Agent。传的是会话、提示、流式更新、权限请求。
+- **下一条（MCP）**：Agent 里的客户端 ↔ CareerLens 服务。传的是工具调用和资源读取。
+
+**CareerLens 在图的下端**，作为 MCP 服务被消费；它不参与上半段的 ACP 会话。这个位置感很重要——它决定了你要解决的是「提供能力」还是「驱动会话」。
+
 ### CareerLens 自己的任务进度在哪
 
 CareerLens 第三期沿用 Web 架构，仓库未实现 ACP 服务。工作台提交任务到 `POST /api/v1/runs`，Worker 处理任务，页面用 SSE 接收进度事件。需要确认的动作通过 Web 界面提交决定。关闭页面以后，可以用同一个 Run ID 找回后台记录。这些就是在本仓库里要沿源码追踪的生命周期。 [第三期架构决定](../docs/phase-3-runtime.md) · [Run API](../backend/app/api/routes/runs.py)
@@ -39,8 +100,8 @@ CareerLens 第三期沿用 Web 架构，仓库未实现 ACP 服务。工作台�
 | 你想做的事 | 到哪看 |
 | --- | --- |
 | 桌面助手读取已有的林澈报告 | CareerLens 的 MCP Tool 或 Resource |
-| 在 CareerLens 页面刷新并接回后台进度 | Run ID、SSE 和事件序号 |
-| 写一个编辑器客户端，和支持 ACP 的编码 Agent 建会话 | ACP 的会话和权限协议 |
+| 在 CareerLens 页面刷新并接回后台进度 | Run ID、SSE 和事件序号（见 06） |
+| 写一个编辑器客户端，和支持 ACP 的编码 Agent 建会话 | ACP 的会话和权限协议（外部实现） |
 
 上图描述外部客户端的一种部署。CareerLens 作为其中的 MCP 服务，桌面 Agent 和 ACP 会话由外部程序提供。
 
@@ -53,12 +114,14 @@ cd backend
 python -m pytest -q tests/test_mcp.py
 ```
 
-再打开[测试源码](../backend/tests/test_mcp.py)，找到这两条用例。
+再打开[测试源码](../backend/tests/test_mcp.py)，里面有四个用例：
 
-1. `test_mcp_exposes_complete_contract` 从客户端请求工具、资源模板和提示模板。写出一项读取工具、一个报告 URI 和一个提示名。然后回 `server.py` 找到对应声明。
+1. `test_mcp_exposes_complete_contract` 从客户端请求工具、资源模板和提示模板。写出一项读取工具、一个报告 URI 和一个提示名。然后回 `server.py` 找到对应声明。注意工具用「子集」断言、资源和提示用「精确相等」断言。
 2. `test_mcp_job_report_flow_is_audited` 用合成的 Python 项目做岗位分析，拿到 `job_analysis_id` 去生成报告，再按 `report_id` 取回版本 1，最后读一次资源 URI。末尾检查数据库里出现了 `mcp.job.analyze`、`mcp.report.generate` 和 `mcp.report.read` 三类审计动作。你可以把这三个动作按自己的理解画成一条调用线。
+3. `test_mcp_token_verifier_reuses_api_tokens` 用真实的 API token 造一个客户端，验证 verifier 返回的 `client_id`、`subject`、`scopes` 与原 token 一致，无效 token 返回 `None`。这证明 MCP 和 HTTP 共用一套 token 体系。
+4. `test_streamable_http_requires_bearer_token` 构造一个 `required` 模式的服务，对 `/mcp` 发空请求，断言 401。
 
-这个练习用同进程 MCP 客户端和测试库。测试文件还检查令牌复用和 HTTP 需要认证的行为。可以把测试通过和真实桌面客户端完成接入分别记录，两个环境验证的内容不同。
+这个练习用同进程 MCP 客户端和测试库。可以把「测试通过」和「真实桌面客户端完成接入」分别记录，两个环境验证的内容不同：测试证明合约和审计逻辑正确，真实客户端还要验证传输、鉴权配置和用户体验。
 
 <details>
 <summary>只用浏览器时的自查答案</summary>
@@ -66,6 +129,28 @@ python -m pytest -q tests/test_mcp.py
 工具可选 `get_career_report`，报告资源模板是 `report://{user_id}/{report_id}`，提示名可选 `prepare_interview_pitch`。已有报告由 MCP 读取。在工作台刷新后看进度，沿 Run 和 SSE 查。编辑器中的外部 Agent 会话走它所支持的 ACP。
 
 </details>
+
+### 失败反推
+
+| 现象 | 最可能的原因 |
+| --- | --- |
+| 合约测试说少了某个工具 | 改了 tool 函数名，或忘记加 `@mcp.tool()` 装饰器 |
+| 报 `The access token cannot access another user` | 传的 `user_id` 和 token 的 subject 不一致 |
+| 报 `Missing required scope` | token 没有对应 scope，也没有 `manage` |
+| 审计断言失败 | 走的是 HTTP 服务而不是 MCP 服务，或读 resource 没记审计 |
+| 非回环 HTTP 启动报错 | 没设 `MCP_AUTH_MODE=required` |
+
+## 这些概念在 CareerLens 里落在哪
+
+| 本课的词 | 源码位置 | 作用 |
+| --- | --- | --- |
+| `build_mcp_server` | `backend/app/mcp/server.py` | 构建服务，按 auth mode 注入 verifier |
+| `_authorized_principal` | `backend/app/mcp/server.py` | 调用期校验用户身份与 scope |
+| `_commit_audit` | `backend/app/mcp/server.py` | 每次 tool 调用写审计事件 |
+| `CareerLensTokenVerifier` | `backend/app/mcp/server.py` | 复用业务 token 表 |
+| Run / SSE | `backend/app/api/routes/runs.py` | CareerLens 自己的进度通道，不是 ACP |
+
+一个边界再强调：**MCP 让外部能力被消费，ACP 让外部 Agent 被驱动**。CareerLens 只做了前者，并用 Run + SSE 解决了「自己的任务怎么报进度」。想在编辑器里驱动一个编码 Agent，那是 ACP 客户端和 Agent 之间的事，CareerLens 可以作为那个 Agent 的 MCP 能力来源之一。
 
 ## 下一步
 
