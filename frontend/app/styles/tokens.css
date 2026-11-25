@@ -1,0 +1,87 @@
+/* ============================================================
+   CareerLens · design tokens
+   Single source of truth. No second :root anywhere else.
+   ============================================================ */
+:root {
+  /* surfaces */
+  --bg: #f6f7f9;
+  --bg-subtle: #fbfcfd;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
+
+  /* text */
+  --ink: #0f172a;
+  --ink-2: #334155;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --on-brand: #ffffff;
+
+  /* lines */
+  --line: #e5e9f0;
+  --line-strong: #cfd6e0;
+
+  /* brand */
+  --brand: #4f46e5;
+  --brand-hover: #4338ca;
+  --brand-soft: #eef2ff;
+  --brand-line: #c7d2fe;
+
+  /* semantic */
+  --success: #047857;
+  --success-soft: #ecfdf5;
+  --warn: #b45309;
+  --warn-soft: #fffbeb;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --info: #0369a1;
+  --info-soft: #f0f9ff;
+
+  /* radius */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+
+  /* elevation */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, .05);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, .04), 0 2px 8px rgba(15, 23, 42, .04);
+  --shadow-md: 0 2px 4px rgba(15, 23, 42, .04), 0 12px 28px rgba(15, 23, 42, .07);
+  --shadow-lg: 0 8px 24px rgba(15, 23, 42, .08), 0 32px 72px rgba(15, 23, 42, .10);
+  --ring: 0 0 0 3px rgba(79, 70, 229, .18);
+
+  /* layout */
+  --shell: 1200px;
+  --gutter: 32px;
+
+  /* type scale (rem-free, px for predictability) */
+  --t-2xs: 10px;
+  --t-xs: 11px;
+  --t-sm: 12px;
+  --t-base: 14px;
+  --t-md: 15px;
+  --t-lg: 17px;
+  --t-xl: 20px;
+  --t-2xl: 24px;
+  --t-3xl: 30px;
+  --t-4xl: 38px;
+  --t-5xl: 52px;
+
+  /* motion */
+  --ease: cubic-bezier(.22, .61, .36, 1);
+  --fast: .16s;
+  --normal: .26s;
+
+  /* legacy aliases kept so older class names keep working */
+  --paper: var(--bg);
+  --panel: var(--surface);
+  --lime: var(--brand);
+  --accent: var(--brand);
+  --accent-soft: var(--brand-soft);
+  --brass: var(--brand);
+  --sand: var(--line-strong);
+  --clay: var(--danger);
+  --sage: var(--success-soft);
+}

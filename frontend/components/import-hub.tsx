@@ -87,7 +87,7 @@ export function ImportHub({ userId, onNotice }: {
         </div>
         <label className="link-consent">
           <input type="checkbox" checked={draft.confirmed} onChange={(event) => setDraft({ ...draft, confirmed: event.target.checked })} />
-          我确认这是来自我自己的公开内容，并理解系统不会访问该链接。
+          <span>我确认这是来自我自己的公开内容，并理解系统不会访问该链接。</span>
         </label>
         <button type="button" onClick={submitLink}>生成证据卡</button>
       </div>
@@ -112,7 +112,7 @@ export function ImportHub({ userId, onNotice }: {
         <label className="link-consent">
           <input type="checkbox" checked={repoConsent}
             onChange={(event) => setRepoConsent(event.target.checked)} />
-          我确认这些仓库属于我自己，令牌只勾选了 Contents 与 Metadata 的只读权限。
+          <span>我确认这些仓库属于我自己，令牌只勾选了 Contents 与 Metadata 的只读权限。</span>
         </label>
         <button type="button" disabled={githubBusy} onClick={submitGithub}>
           {githubBusy ? "读取中…" : "读取仓库并生成证据"}

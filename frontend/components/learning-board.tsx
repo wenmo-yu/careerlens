@@ -28,7 +28,12 @@ export function CourseCatalog({ courses, skill }: { courses: Course[]; skill?: s
   const rows = skill ? courses.filter((row) => row.skill.toLowerCase() === skill.toLowerCase()) : courses;
   if (!rows.length) return <p className="insight-empty">当前技能在目录里没有对应资源。</p>;
   return (
-    <div className="course-grid">
+    <div className="course-catalog">
+      <div className="catalog-head">
+        <h4>本地课程目录</h4>
+        <p>按技能关联的公开学习资源，标注许可、成本与核对日期；链接指向原始站点。</p>
+      </div>
+      <div className="course-grid">
       {rows.map((row) => (
         <article key={row.course_id}>
           <div><span>{row.level} · {row.format}</span><b>{row.estimated_hours}h</b></div>
@@ -38,6 +43,7 @@ export function CourseCatalog({ courses, skill }: { courses: Course[]; skill?: s
           <small>先修：{row.prerequisites.join("、") || "无"} · 核对于 {row.last_checked_at}</small>
         </article>
       ))}
+      </div>
     </div>
   );
 }
