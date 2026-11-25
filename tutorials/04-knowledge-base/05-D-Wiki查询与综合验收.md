@@ -1,14 +1,14 @@
 # 05-D · 查 Wiki、比较三种模式并回溯
 
-现在有两份可查的数据：源证据与已发布的主题页。它们都能回答关于 Python 的问题，返回的编号却指向不同对象。本课写 Wiki 查询，观察三种模式，最后从一个 Wiki 命中追回林澈的原句和两个文件位置。这是第四章的综合验收关——前面六关写的判重、评分、编译、守卫、版本，都在这里被串成一条完整的查询与回溯路线。 [第四章目录](./README.md)
+现在有两份可查的数据：源证据与已发布的主题页。它们都能回答关于 Python 的问题，返回的编号却指向不同对象。本课写 Wiki 查询，观察三种模式，最后从一个 Wiki 命中追回林澈的原句和两个文件位置。这是第四章的综合验收关——前六关写的解析、去重、评分、编译、守卫和版本，都在这里被串成一条完整的查询与回溯路线。 [第四章目录](./README.md)
 
 ## 为什么要写这一关
 
 前面几关一直在「建」：导入证据、编译 Wiki、保护表格、管理版本。用户真正关心的是「问一句话，能不能得到可追溯的答案」。这一关补上查询侧的最后一环，并回答一个容易混淆的问题：
 
-**RAG 命中和 Wiki 命中都带一个 `evidence_id` 字段，它们一样吗？**
+**为什么 Wiki 的评分结果里也会看到 `evidence_id`？**
 
-不一样。RAG 命中里的 `evidence_id` 真是证据 ID；Wiki 命中是**借了同一个评分函数的字段名**来传页面 ID。如果不在包装层把它翻译成 `page_id` 和 `slug`，上层就会拿一个页面 ID 去查证据详情，得到 404。这一关的核心就是把这个「借字段」的错位纠正过来，并让三种查询模式的结果能和平共处。
+RAG 候选用 `evidence_id` 标识原文。Wiki 评分的中间值是**借了同一个评分函数的字段名**来传页面 ID。如果不在包装层把它翻译成 `page_id` 和 `slug`，上层就会拿一个页面 ID 去查证据详情，得到 404。这一关的核心就是把这个「借字段」的错位纠正过来，并让三种查询模式的结果能和平共处。
 
 ## 一张地图：两种产物，两条回查路
 
@@ -110,7 +110,7 @@ python tutorials/04-knowledge-base/lab/kb_practice.py open wiki-query
 
 再写 `search_wiki_pages`：
 
-1. 一条 `select(WikiPage)` 同时用 `user_id` 与 `status=="published"` 限制行。若第一页都没有，返回空数组。
+1. 一条 `select(WikiPage)` 同时用 `user_id` 与 `status=="published"` 限制行。该用户没有已发布页时，返回空列表。
 2. 把每行投影成评分器认识的字段，尤其是 `"id": page.id` 与 `"content": f"{page.title}\n{page.content}"`。标题中的词也会为匹配贡献分数。
 3. 逐条读取评分返回的 `item["evidence_id"]`，用页面字典找回实际页面，调用 `_wiki_hit`。例如只命中页 P 时，外部响应应该给 `page_id=P`。从 P 读取的 `chunk_refs=[E,S]` 仍然是证据编号。
 
@@ -204,7 +204,7 @@ hits = [
 
 `zip_longest` 而不是 `zip` 是关键：`zip` 遇到较短的那路就停，长路后面的结果全丢；`zip_longest` 用 `None` 补齐空位，再被 `if hit is not None` 过滤掉。诊断字段 `rag_count`、`wiki_count`、`source_kinds` 让上层知道这次各路贡献了多少。
 
-**注意这不是 RRF。** 第四、第一章讲过的 RRF 是**按名次算融合分数重新排序**；这里的 `rank_interleave` 只是**按位置轮流取**，不比较分数、不重排。两种机制目的不同：RRF 用于「同一路内部多召回源的融合」，交错用于「两种不同产物在展示层的公平露出」。别把 `knowledge_fusion=rank_interleave` 误读成「做了排名融合」。
+`rank_interleave` 轮流取两份已排好序的列表。此前算过的 RRF 会按名次给同一候选累计贡献，再按总分重排。可从同一响应的两个诊断位置观察它们。`retrieval.fusion` 描述证据检索内部如何合榜，`retrieval.knowledge_fusion` 描述 RAG 与 Wiki 如何合并。
 
 ## 用同一句话跑三种查询模式
 
@@ -243,7 +243,7 @@ RAG 的后端诊断中可以看到 `fusion=weighted_score`——那是 04-A 本�
 
 只用浏览器阅读时，写出「Wiki slug → E → D-A、D-B」、以及从证据能得出的最强结论。练过 API 的读者可以再录一次相同请求的三张响应，展示怎样从三种答案的候选路径回到同一句「只在本机演示」。
 
-**这条链把六关串起来了**：03-A 让 E 记住两个出处 → 04-A 让 E 能被检索命中 → 05-A 把 E 编译进 Wiki 页的 `chunk_refs` → 05-B 保证编译时表格没丢行 → 05-C 保证页面改动可追溯 → 本关把 Wiki 命中翻译回页面、再沿 `chunk_refs` 回到 E 和两个文件。少任何一环，最后这一步都走不通。
+把这条回查记录和七关的产物对照。第 03 课得到正文的块位置，03-A 把两个块都登记到 E，04-A 让 E 成为检索候选，05-A 把 E 记到 Wiki 引用，05-B 检查表格行，05-C 记录被替换的版本。本关从候选页回到 E 和两个文件。
 
 ## 选做：观察材料撤回后的结果
 
@@ -260,7 +260,7 @@ RAG 的后端诊断中可以看到 `fusion=weighted_score`——那是 04-A 本�
 | `search_wiki_pages` | `backend/app/wiki/search.py` | 已发布页的文本检索，复用证据评分函数 |
 | `_wiki_hit` | `backend/app/wiki/search.py` | 把页面 ID 从借来的字段里纠正出来 |
 | `search_knowledge` | `backend/app/services/knowledge.py` | 三模式分支与名次交错 |
-| `rank_interleave` | `backend/app/services/knowledge.py` | 展示层公平露出，不是 RRF 融合 |
+| `rank_interleave` | `backend/app/services/knowledge.py` | 交替取两路已经排好序的结果，然后按上限截断 |
 | `delete_evidence_record` | `backend/app/services/privacy.py` | 材料撤回时清理引用它的页面与快照 |
 
 ## 下一步

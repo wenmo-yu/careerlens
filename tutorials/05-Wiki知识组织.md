@@ -2,9 +2,11 @@
 
 搜「Python」时，林澈能找到几段内容，但每次回答「这个项目做了什么、在哪运行」都要重新翻材料。把相关原文整理成一页主题页，他可以先读整页，再回查关键句落在哪份文件。本课先通过 API 编出一页，把整条编译管线走一遍；后面四课（05-A～05-D）再分别把短句柄、表格保护、版本和查询拆开亲手写。 [第四章目录](./04-knowledge-base/README.md)
 
+浏览器读者可以先用 E 和 S 预测两个引用字段。动手读者沿用 03-A 的 API 和账号，记下本次 `slug`、`version`、`source_refs` 和 `chunk_refs`，后面会用同一页练回滚。
+
 ## 为什么要编译主题页
 
-原始证据是一条条独立文本，适合「查某句话出自哪里」，但不适合回答「这个项目的全貌是什么」。后者需要把多条相关材料组织成一页：有标题、有结构、有引用，还能从每一句追回原文。这就是 Wiki 主题页。
+原始证据是一条条独立文本，适合「查某句话出自哪里」，但不适合回答「这个项目的全貌是什么」。后者需要把多条相关材料组织成一页：有标题、有结构、有引用，读者可以打开这页登记的原文逐条核对结论。这就是 Wiki 主题页。
 
 它和 Evidence 的分工要分清：
 
@@ -86,11 +88,11 @@ flowchart LR
 | 选择了两条证据 | `page.source_refs` 按输入保存去重后的证据 ID |
 | 生成页引用的材料 | `page.chunk_refs`。Demo 里会收下 E 和 S，模型模式可能只引用部分来源 |
 | 页正文 | `page.content` 中能看到原文与完整三行表格 |
-| 模型路径 | `diagnostics.provider=demo`，`diagnostics.unknown_handles` 通常是空列表 |
+| 模型路径 | 默认练习应看到 `diagnostics.provider=demo` 和 `diagnostics.unknown_handles=[]` |
 
-这里要分清 `source_refs` 和 `chunk_refs`：前者是**这次编译用了哪些材料**（输入侧，就是你传的 `evidence_ids`），后者是**页面正文实际引用了哪些证据**（输出侧）。Demo 把两条都列进 `chunk_refs`；模型模式下，如果模型只在正文里引用了其中一条，`chunk_refs` 就可能只有一条——这时 `unknown_handles` 和诊断能帮你判断是「模型没用到」还是「模型编了假句柄」。
+`source_refs` 记录提交给编译器的证据。`chunk_refs` 记录生成结果的 `citations` 中能翻译回原文的 ID。Demo 两条都收下。模型漏掉一条时，`chunk_refs` 可能变短。`unknown_handles` 只记录查不到的句柄，单看它无法判断模型为何漏引。打开原文后，再核对具体句子。
 
-再用 `GET /api/v1/wiki/{slug}`，路径格填刚用的 slug，另一个格填实际 `user_id`。它会返回当前页面。打开 E 的证据详情，抄一句原文与两个文件名。新页面还没有覆盖过任何版本，在 `GET /api/v1/wiki/{slug}/revisions` 填同样两个字段，预期得到空数组。第 05-C 课会动手建立版本记录。 [页面详情和历史接口](../backend/app/api/routes/wiki.py#L94-L168)
+再用 `GET /api/v1/wiki/{slug}`，路径格填刚用的 slug，另一个格填实际 `user_id`。它会返回当前页面。再展开 `GET /api/v1/evidence/{evidence_id}`，填 E 和实际 `user_id`，抄下 `content` 的原句和 `source_metadata.sources` 中的两个文件名。新页面还没有覆盖过任何版本，在 `GET /api/v1/wiki/{slug}/revisions` 填同样两个字段，预期得到空数组。第 05-C 课会动手建立版本记录。 [页面详情和历史接口](../backend/app/api/routes/wiki.py#L94-L168)
 
 ## 顺着这一次编译看原代码
 
@@ -139,7 +141,7 @@ flowchart LR
 
 完整产品工作台有「编译 Wiki」。打开 `frontend/app/workspace/page.tsx` 的 `handleWikiCompile`，它收集选中的证据，调用 `createRun` 提交 `wiki_compile`。Worker 调用 `wiki_curator` 生成候选，再核验引用和保存，当前版本写入时的作者标记为 `agent`。这条路线可以看到任务 Run 与步骤。刚才的同步路线可以直接观察 201 响应和页面字段。 [工作台编译入口](../frontend/app/workspace/page.tsx#L189-L207) · [后台 Wiki 操作](../backend/app/runtime/operations.py#L132-L165)
 
-**两个入口，一套产物。** 同步 `POST /api/v1/wiki/compile` 当场返回 201 和页面；工作台走 `POST /api/v1/runs` 提交后台任务，等 Run 成功后在任务中心点「打开结果」。两者最终创建的都是 `wiki_pages` 表里的同一类页面，共用 `prepare_page` → `persist_page` 的校验和写入逻辑。区别只在「谁调用、怎么拿到结果」，不在「页面怎么生成」。这条原则在第 07 课还会再遇到（岗位分析也是同步/后台两个入口、同一种产物）。
+**两个入口，一套产物。** 同步 `POST /api/v1/wiki/compile` 当场返回 201 和页面；工作台走 `POST /api/v1/runs` 提交后台任务，等 Run 成功后在任务中心点「打开结果」。两者最终创建的都是 `wiki_pages` 表里的同一类页面，共用 `prepare_page` → `persist_page` 的校验和写入逻辑。后台还会记录子 Agent 的步骤、重新核验所选材料、检查提交资格。两种入口复用同一套候选编译与页面写入代码。这条原则在第 07 课还会再遇到（岗位分析也是同步/后台两个入口、同一种产物）。
 
 ## 这些概念在 CareerLens 里落在哪
 
