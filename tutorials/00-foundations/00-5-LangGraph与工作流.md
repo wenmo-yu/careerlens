@@ -6,7 +6,7 @@
 
 00-1 给了你「谁决定下一步」的框架，00-2 到 00-4 讲了材料、提示词和数据结构。这一章回答一个具体问题：**这些步骤在代码里怎么组织，才能既按规则走、又能在需要时停下来、还能断线续跑？**
 
-函数里写一堆 `if` 当然也能分支，但当流程变长、要暂停等人确认、要失败重来、要跨请求续接时，`if` 会迅速变成一团理不清的面条。LangGraph 把这类「有状态、多步骤、可暂停」的工作抽象成一张图——你画节点和边，它负责执行、保存、恢复。
+函数里的 `if` 已经能表达分支。流程拉长后，暂停等人、失败重试和跨请求续接还需要各自的状态。LangGraph 用一张图描述这些步骤。你定义状态、节点和边，运行时沿图执行。接入 checkpointer 后，图还可以保存并恢复执行状态。
 
 CareerLens 的对话图是绝佳标本：它不大（五个节点），却把「按意图分支」「检索后按结果再分支」「不偷偷写库」都放进图里。学完这章，你能读懂这张图，也能自己画一张。
 
@@ -17,8 +17,8 @@ CareerLens 的对话图是绝佳标本：它不大（五个节点），却把「
 | State（状态） | 应用状态的共享快照，通常是带类型的 schema | 当前任务带着走的记事本 | `CareerState`，见 `backend/app/graph/career.py` |
 | Node（节点） | 读取状态、做工作、返回更新的函数 | 一个明确的工作步骤 | `understand_intent`、`retrieve_evidence` 等五个节点 |
 | Edge（边） | 固定或条件的转移，决定下一个节点 | 下一步走哪条路 | `START` 入口、`route_intent`、`route_answer`、`END` |
-| Checkpointer | 保存 thread 状态快照的组件 | 存档点 | `InMemorySaver` / `AsyncPostgresSaver` |
-| Thread | 一段执行的编号 | 存档的钥匙 | `thread_id` |
+| Checkpointer | 按 thread 保存图执行状态的组件 | 负责存档的组件 | `InMemorySaver` / `AsyncPostgresSaver` |
+| Thread | 用一个编号串起的一组执行与快照 | 带固定编号的存档 | `thread_id` |
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontFamily":"system-ui, sans-serif","fontSize":"14px","lineColor":"#55746c","edgeLabelBackground":"#f4f8f6"},"flowchart":{"nodeSpacing":22,"rankSpacing":26,"curve":"basis"}}}%%
@@ -29,9 +29,10 @@ flowchart TB
     N1 --> SE{"下一条边"}
     SE -->|固定| N2["下一个节点"]
     SE -->|条件| N3["按状态选分支"]
-    N2 --> CP[("checkpointer · thread 快照")]
-    N3 --> CP
-    CP --> E(["END · 输出"])
+    N2 --> E(["END · 输出"])
+    N3 --> E
+    N2 -.保存状态.-> CP[("checkpointer · thread 快照")]
+    N3 -.保存状态.-> CP
     style N1 fill:#eaf6f1,stroke:#60a28d,color:#143f36
     style SE fill:#fff4d9,stroke:#ba893b,color:#644117
     style CP fill:#edf3fc,stroke:#7188a8,color:#1c3858
@@ -75,7 +76,7 @@ CareerLens 的 `CareerState` 声明了问题、用户、历史、意图、画像
 - `retrieve_evidence` 返回 `retrieved_evidence` 和 `retrieval_diagnostics`，不改答复字段。
 - `compose_answer` 返回答复与模型诊断；失败时 `fallback: true` 并记下原因。
 
-LangGraph 默认用「后写覆盖」合并同一字段；需要累积的字段可以定义 reducer，例如把多次工具结果追加成列表。多数时候不必自己写 reducer：一个节点返回部分更新，比把整个状态复制一遍更不容易出错。 [状态与 reducer 官方说明](https://docs.langchain.com/oss/python/langgraph/graph-api)
+沿前后相接的节点执行时，后一次写入会覆盖同一字段。需要累积的字段可以定义 reducer，例如把多次工具结果追加成列表。如果两个并行节点在同一步都写同一个字段，也需要定义怎么合并，否则会报并发更新错误。CareerLens 的这条聊天路径按顺序前进，各节点只交回自己改动的字段。 [状态与 reducer 官方说明](https://docs.langchain.com/oss/python/langgraph/graph-api)
 
 ### 为什么「节点只返回部分更新」是个好设计
 
@@ -93,7 +94,7 @@ LangGraph 默认用「后写覆盖」合并同一字段；需要累积的字段�
 
 官方文档把持久化分两类：**checkpointer** 保存某个 thread 的图状态快照，用于对话连续、人工介入、时间旅行和故障恢复；**store** 保存跨 thread 的应用数据，例如长期偏好。调用图时传 `thread_id`，就知道恢复到哪份状态。 [持久化官方说明](https://docs.langchain.com/oss/python/langgraph/persistence)
 
-CareerLens 默认用 `InMemorySaver` 编译图；配置持久化后端时，启动阶段会换成 `AsyncPostgresSaver`。进程重启后，内存版本不保留 checkpoint，数据库版本保留。 [checkpoint 配置源码](../../backend/app/graph/checkpoint.py)
+第三章的独立练习副本使用 `InMemorySaver`，进程重启后从内存里保存的图状态会消失。第 01 篇的默认 Compose 启动则使用 `AsyncPostgresSaver`，图状态写入 PostgreSQL。打开 `backend/app/graph/checkpoint.py` 的 `configure_checkpoint`，可以看到 `auto` 也会按数据库地址选择保存方式。 [checkpoint 配置源码](../../backend/app/graph/checkpoint.py) · [Compose 配置](../../docker-compose.yml)
 
 ### 容易混淆的三样东西
 
@@ -101,7 +102,7 @@ CareerLens 默认用 `InMemorySaver` 编译图；配置持久化后端时，启�
 | --- | --- | --- |
 | checkpoint | 一次图执行到某节点的状态快照 | 一个 `thread_id` |
 | 消息表 `ConversationMessage` | 用户在聊天框里看到的历史消息 | 一个会话，可回看、可组装上下文 |
-| 长期画像 `ProfileItem` | 从证据抽取并经用户确认的能力条目 | 一个用户，跨会话 |
+| 长期画像 `ProfileItem` | 从证据抽取的能力条目，也会保存用户确认后的画像变更 | 一个用户，跨会话 |
 
 它们不是同一份数据。对话续接主要靠消息表提供上下文；checkpoint 管图的运行状态；画像的长期修改走「草案 → 确认」接口，不由图在聊天里自动提交。 [系统设计文档](../../docs/agent-and-retrieval.md)
 
@@ -122,11 +123,11 @@ CareerLens 当前**没有在对话图里用 `interrupt()` 暂停**。它用的�
 | 需要在这里暂停等人 | 纯计算、无副作用 |
 | 需要独立观察耗时/结果 | 只是把字段改个名字 |
 
-CareerLens 把「理解意图」单独做节点，因为它决定走哪条边；把「检索」单独做节点，因为它有诊断、可能失败、结果决定答复路径。而「拼接 JSON 输入」这类动作留在 `compose_answer` 内部，不单独建节点。
+CareerLens 把「理解意图」单独做节点，因为它产出的意图会改变下一步。检索单独做节点，便于观测候选和诊断。检索后的分支仍由意图与现有岗位分析决定。拼接 JSON 输入这类只给答复节点使用的工作留在 `compose_answer` 内部。
 
 ### 条件边 vs 固定边
 
-- **固定边**：`retrieve_evidence` 之后一定进入某个答复节点（具体哪个由条件决定）。
+- **固定边**：`START` 固定进入 `understand_intent`。三个答复出口也各有一条固定边通向 `END`。
 - **条件边**：`route_intent` 根据 `intent` 值选 `memory_guidance` 或其他；`route_answer` 根据「是否缺口问题 + 是否已有分析」选缺口答复或普通答复。
 
 条件边是「图」区别于「流水线」的关键：同一张图能处理不同类型的输入，而每条输入只走其中一条路径。写条件边时，把判断逻辑写成**纯函数**（只看状态、返回分支名），最容易测试和复用。

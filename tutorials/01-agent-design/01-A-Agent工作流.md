@@ -8,11 +8,11 @@
 
 前面「学概念」讲的是**是什么和为什么**：Agent、状态、检索、LangGraph、LangChain、Wiki。这一段讲的是**代码里怎么兑现**：你会亲手把 CareerLens 最核心的十几个函数重新敲一遍，每敲完一个就用项目自己的测试验收。
 
-这两件事不能互相替代。只读概念，你会觉得「我懂了」，但一打开真实源码就发现满眼陌生字段；只copy代码，你能跑通却说不清每个字段为什么在那儿。这段课采用一种折中做法：
+第一次打开真实源码，可以先追一个能在页面上看到的值。下面就沿着你刚输入的那句话走，看到它在哪一层改了名字、在哪一层变成图的状态。之后每关用同样的读法。
 
 - **保留真实的数据库模型、测试和周边函数**，不给你一套空壳玩具。
 - **每次只把你这一关要写的函数变成待补状态**，其余代码原样保留。
-- **用原项目的 pytest 验收**，不是简化版断言。测试通过，意味着你的实现和真实项目的行为一致。
+- **用 pytest 验收**。多数关卡沿用项目已有的回归测试，MCP 工具课还有一项专门测试。通过后，回头讲一遍测试覆盖了哪个输入和结果。 [练习关卡与测试清单](lab/practice.py)
 
 所以在动手之前，先记住这条主线：**读哪个文件 → 补哪个函数 → 跑哪个测试 → 从测试失败定位到代码**。每一关都是这个循环的重复。
 
@@ -115,7 +115,7 @@ def read_intent(state):
 
 ### 字典：一份带标签的数据
 
-`state` 是一份「字段名: 值」组成的**字典**。花括号 `{...}` 包起来，每项写成 `"键": 值`，用逗号隔开。`state["intent"]` 取其中 `intent` 这个键的值。和 JSON 几乎长一样——因为 JSON 本来就是从 JavaScript 的对象字面量来的，Python 字典和它是一类东西。
+`state` 是一份「字段名: 值」组成的**字典**。花括号 `{...}` 包起来，每项写成 `"键": 值`，用逗号隔开。`state["intent"]` 取其中 `intent` 这个键的值。JSON 是网络上传递的文本格式，字典是 Python 运行时拿来读写的数据。前面的接口收到 JSON 后，FastAPI 和 Pydantic 会把它解析成程序可读取的对象。
 
 ### 函数：给一段程序起名字
 
@@ -145,9 +145,9 @@ def read_intent(state):
 
 练习副本解决这三点：
 
-- 启动器把原项目的 `backend/app/` 和 `backend/tests/` **整个复制**到 `.cache/agent-practice/`，你敲的是副本。
+- 启动器把 `backend/app/`、`backend/tests/`、`backend/pyproject.toml` 和 MCP 练习测试复制到 `.cache/agent-practice/`。复制时跳过原项目的环境文件和数据库文件。
 - 每关 `open` 时，启动器用 Python 的 `ast`（语法树）精确定位到那一个函数，只把它的函数体换成注释提示 + `raise NotImplementedError("TODO ...")`。**其余代码一行不动**。
-- `check` 在副本目录里跑**原项目的真实测试**。测试通过 = 你的实现和原项目行为一致。
+- `check` 在副本目录运行这一关选定的测试。测试通过，说明你的代码做对了这些用例。
 
 所以你始终有两份代码可以对照：原项目 `backend/app/graph/career.py` 看标准答案，练习副本 `.cache/agent-practice/backend/app/graph/career.py` 敲自己的版本。
 
@@ -159,7 +159,7 @@ def read_intent(state):
 | --- | --- |
 | `LESSONS` | 每关要补哪些文件的哪些函数、跑哪些测试 |
 | `FUNCTION_HINTS` | `open` 时塞进函数体的分步提示，就是你在练习里看到的那几条 `#` 注释 |
-| `practice_environment` | 固定用 Demo、SQLite 内存库、本地检索，所以不用 Docker 和密钥 |
+| `practice_environment` | 默认用 Demo 和本地检索。`check` 用 SQLite 内存库，`serve` 与 `worker` 共用练习副本中的 SQLite 文件 |
 
 `new` 时它还会检查副本不在原项目目录里（`workspace.is_relative_to(BACKEND)`），避免你一不小心覆盖了原代码。这是一道安全护栏。
 
@@ -219,14 +219,14 @@ python tutorials/01-agent-design/lab/practice.py check state
 | `serve` | 用副本启动 API（8030 端口） | 综合课做端到端请求 |
 | `worker` | 用副本启动后台 Worker | 综合课跑岗位分析任务 |
 
-同一关第二次 `open` 会显示当前文件位置，保留已经写好的内容——它发现函数体已经不是原始实现且有本地改动时，会明确告诉你「Your work was kept」，不会覆盖你的劳动。要另外开始一套副本，在启动器文件名后、子命令前加 `--workspace .cache/agent-practice-2`。后续的 `open`、`check`、`serve` 和 `worker` 都沿用这个写法。
+同一关第二次 `open` 会显示 `Already opened. Your work is ready to continue.`，然后列出的练习文件可以接着写。第一次打开前就改了目标函数时，脚本会报 `has local edits. Its body was kept.`，提示先确认改的是哪份代码。要另外开始一套副本，在启动器文件名后、子命令前加 `--workspace .cache/agent-practice-2`。后续的 `open`、`check`、`serve` 和 `worker` 都沿用这个写法。
 
 ### traceback 怎么读
 
 测试失败时终端会打印一长串调用路径，从最外层一路指到出错行。它看着吓人，其实只要看两头：
 
 - **最底下那一行**是错误类型和消息，例如 `NotImplementedError: TODO state: run_career_graph`——告诉你哪个函数还没写。
-- **中间第一次出现你练习文件路径的那一行**，是真正要改的位置。上面那些 `site-packages` 里的行是框架调用，通常不用管。
+- **从最底部往上找最近的一处练习文件路径**。先看出错函数和它收到的值。若末尾是 `AssertionError`，回到对应的测试断言，比较「测试想看到什么」和「函数实际返回什么」。
 
 先改最底下指出的那个函数，再跑一次。多数错误会这样一层层消掉。
 
@@ -235,7 +235,7 @@ python tutorials/01-agent-design/lab/practice.py check state
 - **在原项目上改代码。** 一定在 `.cache/agent-practice/` 副本里敲，改坏了 `new` 一份新的即可。
 - **从错误的目录运行命令。** `python tutorials/...` 要从项目根运行；`check` 内部会自己切到副本目录。
 - **`check` 通过就以为全懂了。** 测试只验行为。合上答案，能讲清每个字段为什么在，才算真会。
-- **只看 traceback 最后一行。** 它常在框架代码里；要找的是第一处指向你练习文件的行。
+- **只看 traceback 最后一行。** 同时找到它上面离报错最近的练习文件。终端再长，先围绕这个函数查。
 - **改了函数签名或装饰器。** 练习只让你补函数体。改了签名，`open` 的定位逻辑可能认不出你的函数。
 - **急着配真实模型。** 主线全程 Demo + 合成数据，先把流程跑通，再考虑[配置模型](模型配置.md)。
 
