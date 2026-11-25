@@ -1,0 +1,107 @@
+[
+  {
+    "course_id": "cl-start", "title": "从这里开始：零基础走通 CareerLens", "skill": "Python",
+    "level": "beginner", "format": "tutorial", "provider": "CareerLens", "estimated_hours": 1,
+    "cost": "free", "prerequisites": [], "url": "https://wenmo-yu.github.io/careerlens/#/tutorials/%E4%BB%8E%E8%BF%99%E9%87%8C%E5%BC%80%E5%A7%8B",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能说出 Evidence 与画像的区别，并导入一条自己的经历。"
+  },
+  {
+    "course_id": "cl-data", "title": "数据模型与证据链", "skill": "PostgreSQL",
+    "level": "beginner", "format": "tutorial", "provider": "CareerLens", "estimated_hours": 2,
+    "cost": "free", "prerequisites": ["cl-start"], "url": "https://wenmo-yu.github.io/careerlens/#/tutorials/02-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能画出一个 Evidence 如何支撑画像条目，并解释删除后的影响。"
+  },
+  {
+    "course_id": "cl-parse", "title": "解析层：PDF / DOCX 与来源定位", "skill": "Python",
+    "level": "intermediate", "format": "tutorial", "provider": "CareerLens", "estimated_hours": 3,
+    "cost": "free", "prerequisites": ["cl-data"], "url": "https://wenmo-yu.github.io/careerlens/#/tutorials/03-%E8%A7%A3%E6%9E%90%E5%B1%82",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能说明扫描页为何不产生证据，并从任务结果点回原页。"
+  },
+  {
+    "course_id": "cl-rrf", "title": "混合检索与 RRF 手算", "skill": "RAG",
+    "level": "intermediate", "format": "exercise", "provider": "CareerLens", "estimated_hours": 2,
+    "cost": "free", "prerequisites": ["cl-data"], "url": "https://github.com/wenmo-yu/careerlens/tree/main/examples/tutorials/lesson-05-rrf",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能手算一次排名融合，并解释不比较异源分数的原因。"
+  },
+  {
+    "course_id": "cl-agent", "title": "读 Agent 源码：状态、路由与工具", "skill": "LangGraph",
+    "level": "intermediate", "format": "tutorial", "provider": "CareerLens", "estimated_hours": 4,
+    "cost": "free", "prerequisites": ["cl-rrf"], "url": "https://wenmo-yu.github.io/careerlens/#/tutorials/01-agent-design/README",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能说明一次对话的节点流转，并说清引用允许集合来自哪里。"
+  },
+  {
+    "course_id": "cl-mcp", "title": "MCP 服务与 ACP 对照", "skill": "MCP",
+    "level": "advanced", "format": "tutorial", "provider": "CareerLens", "estimated_hours": 2,
+    "cost": "free", "prerequisites": ["cl-agent"], "url": "https://wenmo-yu.github.io/careerlens/#/tutorials/07-A-MCP%E6%9C%8D%E5%8A%A1%E4%B8%8EACP%E5%AF%B9%E7%85%A7",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能列出 MCP 与 HTTP API 共享的业务函数，并说明权限边界。"
+  },
+  {
+    "course_id": "cl-wiki", "title": "Wiki 编译、短句柄与表格行守卫", "skill": "RAG",
+    "level": "advanced", "format": "tutorial", "provider": "CareerLens", "estimated_hours": 3,
+    "cost": "free", "prerequisites": ["cl-rrf"], "url": "https://wenmo-yu.github.io/careerlens/#/tutorials/05-Wiki%E7%9F%A5%E8%AF%86%E7%BB%84%E7%BB%87",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能解释 c000 短句柄如何解析回证据，并说清表格行丢失为何被拒绝。"
+  },
+  {
+    "course_id": "cl-runtime", "title": "后台运行时：Run / Step / Event 与 SSE", "skill": "FastAPI",
+    "level": "advanced", "format": "tutorial", "provider": "CareerLens", "estimated_hours": 4,
+    "cost": "free", "prerequisites": ["cl-agent"], "url": "https://wenmo-yu.github.io/careerlens/#/tutorials/06-%E5%90%8E%E5%8F%B0%E8%BF%90%E8%A1%8C%E6%97%B6",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能说出租约、fencing 与幂等各自防止什么问题。"
+  },
+  {
+    "course_id": "cl-qdrant", "title": "Qdrant 命名向量与 RRF 融合", "skill": "Qdrant",
+    "level": "advanced", "format": "source", "provider": "CareerLens", "estimated_hours": 2,
+    "cost": "free", "prerequisites": ["cl-rrf"], "url": "https://github.com/wenmo-yu/careerlens/blob/main/backend/app/retrieval/qdrant_store.py",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能指出 dense / sparse 两个向量名与 fusion 的位置。"
+  },
+  {
+    "course_id": "cl-eval", "title": "评测口径与回归门禁", "skill": "Python",
+    "level": "intermediate", "format": "exercise", "provider": "CareerLens", "estimated_hours": 2,
+    "cost": "free", "prerequisites": ["cl-data"], "url": "https://wenmo-yu.github.io/careerlens/#/tutorials/08-advanced/08-2-%E8%AF%84%E6%B5%8B",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能解释四个指标各测什么，以及合成基准为何不等于真实准确率。"
+  },
+  {
+    "course_id": "cl-docker", "title": "本机启动与全栈冒烟", "skill": "Docker",
+    "level": "beginner", "format": "tutorial", "provider": "CareerLens", "estimated_hours": 2,
+    "cost": "free", "prerequisites": [], "url": "https://wenmo-yu.github.io/careerlens/#/tutorials/01-%E7%AC%AC%E4%B8%80%E6%AC%A1%E8%B7%91%E8%B5%B7%E6%9D%A5",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能跑通健康检查并解释各服务端口。"
+  },
+  {
+    "course_id": "cl-react", "title": "工作台界面与组件组织", "skill": "React",
+    "level": "intermediate", "format": "source", "provider": "CareerLens", "estimated_hours": 3,
+    "cost": "free", "prerequisites": ["cl-docker"], "url": "https://github.com/wenmo-yu/careerlens/blob/main/frontend/app/workspace/page.tsx",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能指出画像、匹配、任务中心三个模块各自调用哪些 API。"
+  },
+  {
+    "course_id": "cl-ts", "title": "前端 API 客户端与 SSE 解码", "skill": "TypeScript",
+    "level": "intermediate", "format": "source", "provider": "CareerLens", "estimated_hours": 2,
+    "cost": "free", "prerequisites": ["cl-react"], "url": "https://github.com/wenmo-yu/careerlens/blob/main/frontend/lib/run-events.ts",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能说明为何手写 TextDecoder 而不使用 TextDecoderStream。"
+  },
+  {
+    "course_id": "cl-k8s-bridge", "title": "Kubernetes 概念桥接（外部导读）", "skill": "Kubernetes",
+    "level": "beginner", "format": "external", "provider": "Kubernetes 官方文档", "estimated_hours": 2,
+    "cost": "free", "prerequisites": ["cl-docker"], "url": "https://kubernetes.io/zh-cn/docs/concepts/overview/",
+    "license": "CC BY 4.0", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能用自己的话说明 Pod / Deployment / Service 的关系。"
+  },
+  {
+    "course_id": "cl-langchain", "title": "LangChain 与模型工具（概念课）", "skill": "LangChain",
+    "level": "beginner", "format": "tutorial", "provider": "CareerLens", "estimated_hours": 2,
+    "cost": "free", "prerequisites": ["cl-start"], "url": "https://wenmo-yu.github.io/careerlens/#/tutorials/00-foundations/00-6-LangChain%E4%B8%8E%E6%A8%A1%E5%9E%8B%E5%B7%A5%E5%85%B7",
+    "license": "MIT", "language": "zh-CN", "last_checked_at": "2026-11-25",
+    "alternative_ids": [], "verification": "能说明 LangChain 与 LangGraph 的分工，并解释 Provider 抽象。"
+  }
+]

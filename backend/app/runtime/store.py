@@ -106,11 +106,27 @@ async def scope(
     )
 
 
-def event(session: AsyncSession, run: AgentRun, kind: str, **data: Any) -> None:
-    run.event_seq += 1
+async def event(session: AsyncSession, run: AgentRun, kind: str, **data: Any) -> None:
+    """Append an event with a database-assigned, race-free sequence number.
+
+    HY4-E: the old ``run.event_seq += 1`` happened in Python on an ORM object.
+    With parallel specialists each progress callback opens its own transaction,
+    so two callbacks could read the same seq and write duplicate RunEvent rows.
+    ``UPDATE ... RETURNING`` makes the database assign the next number inside a
+    row lock, so concurrent writers always get distinct, consecutive values.
+    """
+    seq = await session.scalar(
+        update(AgentRun)
+        .where(AgentRun.id == run.id)
+        .values(event_seq=AgentRun.event_seq + 1)
+        .returning(AgentRun.event_seq)
+    )
+    if seq is None:
+        raise RunConflict("Run no longer exists")
+    run.event_seq = seq
     session.add(
         RunEvent(
-            run_id=run.id, user_id=run.user_id, seq=run.event_seq,
+            run_id=run.id, user_id=run.user_id, seq=seq,
             generation=run.fencing_token, event_type=kind, data=data,
         )
     )
@@ -170,7 +186,7 @@ async def submit(
     )
     session.add(run)
     await session.flush()
-    event(session, run, "run.waiting_confirmation" if confirmation else "run.queued")
+    await event(session, run, "run.waiting_confirmation" if confirmation else "run.queued")
     return run, True
 
 
@@ -190,7 +206,7 @@ async def get_run(
     )
 
 
-def end(
+async def end(
     session: AsyncSession,
     run: AgentRun,
     status: str,
@@ -205,7 +221,7 @@ def end(
     run.lease_until = None
     run.upload_bytes = None
     run.payload = {}
-    event(session, run, f"run.{status}", **({"reason": reason} if reason else {}))
+    await event(session, run, f"run.{status}", **({"reason": reason} if reason else {}))
 
 
 async def decide(session: AsyncSession, user_id: str, run_id: str, approve: bool):
@@ -223,9 +239,9 @@ async def decide(session: AsyncSession, user_id: str, run_id: str, approve: bool
         if run.target_key:
             run.target_generation = await scope(session, user_id, run.target_key, bump=True)
         run.status = "queued"
-        event(session, run, "run.approved")
+        await event(session, run, "run.approved")
     else:
-        end(session, run, "cancelled", reason="rejected")
+        await end(session, run, "cancelled", reason="rejected")
     return run
 
 
@@ -234,7 +250,7 @@ async def cancel(session: AsyncSession, user_id: str, run_id: str):
     if run is not None and run.status not in TERMINAL:
         await close_running_steps(session, run, "cancelled")
         run.fencing_token += 1
-        end(session, run, "cancelled", reason="cancelled_by_user")
+        await end(session, run, "cancelled", reason="cancelled_by_user")
     return run
 
 
@@ -261,7 +277,7 @@ async def claim_next(session: AsyncSession, owner: str) -> Claim | None:
         .with_for_update(skip_locked=True)
     ))
     for run in abandoned:
-        end(session, run, "failed", reason="run_expired")
+        await end(session, run, "failed", reason="run_expired")
     expired = list(await session.scalars(
         select(AgentRun)
         .where(AgentRun.status == "running", AgentRun.lease_until <= now)
@@ -290,7 +306,7 @@ async def claim_next(session: AsyncSession, owner: str) -> Claim | None:
     run.attempts += 1
     run.lease_owner = owner
     run.lease_until = now_seconds() + settings.run_lease_seconds
-    event(session, run, "run.started", attempt=run.attempts)
+    await event(session, run, "run.started", attempt=run.attempts)
     return Claim(run.id, run.user_id, owner, run.fencing_token, run.operation)
 
 
@@ -298,12 +314,12 @@ async def interrupt(session: AsyncSession, run: AgentRun, reason: str) -> None:
     await close_running_steps(session, run, "interrupted")
     run.fencing_token += 1
     if run.attempts >= run.max_attempts:
-        end(session, run, "failed", reason="retries_exhausted")
+        await end(session, run, "failed", reason="retries_exhausted")
     else:
         run.status = "interrupted"
         run.lease_owner = None
         run.lease_until = None
-        event(session, run, "run.interrupted", reason=reason)
+        await event(session, run, "run.interrupted", reason=reason)
 
 
 def live_claim(claim: Claim):

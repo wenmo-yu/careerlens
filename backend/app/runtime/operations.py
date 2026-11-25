@@ -83,10 +83,35 @@ async def prepare_operation(
         async def save_upload(session: AsyncSession) -> dict:
             records = await ingest_source_document(session, user_id=user_id, parsed=parsed,
                                                    commit=False, **data)
+            # HY4-A: keep the same result-card contract as the synchronous
+            # /evidence/file endpoint. A task can succeed while a scanned PDF
+            # produces zero readable Evidence; the UI must be able to say so.
+            ocr_pending = sum(
+                1 for block in parsed.blocks if block.source_metadata.get("ocr_pending")
+            )
+            readable = sum(
+                1 for block in parsed.blocks
+                if block.content.strip() and not block.source_metadata.get("ocr_pending")
+            )
+            warnings: list[str] = []
+            if ocr_pending:
+                warnings.append(
+                    f"有 {ocr_pending} 页待 OCR；任务成功不等于已读出文字。"
+                )
+            if not readable and ocr_pending:
+                warnings.append(
+                    "本次只识别到扫描页，尚未生成可读证据；请补充 OCR 能力或换用带文字层的 PDF。"
+                )
             return {
                 "count": len(records),
                 "evidence_ids": [record.id for record in records],
-                "parse_status": parsed.parse_status,
+                "parse_status": (
+                    "partial" if ocr_pending and parsed.parse_status == "parsed"
+                    else parsed.parse_status
+                ),
+                "readable_count": readable,
+                "ocr_pending_count": ocr_pending,
+                "warnings": warnings,
             }
 
         return save_upload

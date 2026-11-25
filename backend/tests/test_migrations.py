@@ -45,6 +45,13 @@ def test_alembic_upgrade_creates_current_schema(tmp_path):
         "run_scopes",
         "run_steps",
         "source_documents",
+        # HY4-C/D
+        "saved_jobs",
+        "learning_progress",
+        "assessment_results",
+        "user_constraints",
+        "dimension_definitions",
+        "profile_extensions",
     } <= tables
     with engine.connect() as connection:
         revision = connection.scalar(text("select version_num from alembic_version"))

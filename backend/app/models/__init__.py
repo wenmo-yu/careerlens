@@ -7,14 +7,17 @@ for autogenerate comparison and legacy schema adoption.
 
 from app.models.access_token import AccessToken
 from app.models.account_deletion import AccountDeletionReceipt
+from app.models.assessment import AssessmentResult, UserConstraint
 from app.models.audit import AuditEvent
 from app.models.career_report import CareerReport
 from app.models.conversation import ConversationMessage, ConversationThread
 from app.models.evaluation import EvaluationRun
 from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
+from app.models.learning import LearningProgress, SavedJob
 from app.models.parsed_block import ParsedBlock
 from app.models.profile import ProfileItem
+from app.models.profile_extension import DimensionDefinition, ProfileExtension
 from app.models.profile_suppression import ProfileSuppression
 from app.models.profile_update import ProfileUpdateProposal
 from app.models.run import AgentRun, EvidenceIndexWork, RunEvent, RunScope, RunStep
@@ -25,6 +28,10 @@ __all__ = [
     "AccessToken",
     "AgentRun",
     "AccountDeletionReceipt",
+    "AssessmentResult",
+    "UserConstraint",
+    "DimensionDefinition",
+    "ProfileExtension",
     "AuditEvent",
     "CareerReport",
     "ConversationThread",
@@ -33,6 +40,8 @@ __all__ = [
     "Evidence",
     "EvidenceIndexWork",
     "JobAnalysis",
+    "LearningProgress",
+    "SavedJob",
     "ParsedBlock",
     "ProfileItem",
     "ProfileSuppression",

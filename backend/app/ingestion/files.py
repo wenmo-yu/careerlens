@@ -17,6 +17,7 @@ from docx import Document
 from docx.table import Table
 
 from app.ingestion.contract import ParsedBlock, ParsedDocument
+from app.ingestion.html_export import parse_export_zip, parse_html_export
 
 SUPPORTED_SUFFIXES = {
     ".pdf",
@@ -27,6 +28,10 @@ SUPPORTED_SUFFIXES = {
     ".csv",
     ".tsv",
     ".xlsx",
+    # HY4-D: user-provided exports, parsed locally
+    ".html",
+    ".htm",
+    ".zip",
 }
 
 # XLSX OOXML namespaces for the standard-library reader (no openpyxl needed).
@@ -215,7 +220,12 @@ def parse_document(filename: str, content: bytes) -> ParsedDocument:
     """
     suffix = Path(filename).suffix.lower()
     if suffix not in SUPPORTED_SUFFIXES:
-        raise ValueError(f"Unsupported file type: {suffix or 'unknown'}")
+        hint = (
+            " 旧版 Word .doc 暂不支持，请另存为 .docx 或导出带文字层 PDF 后重试。"
+            if suffix == ".doc"
+            else " 支持 PDF / Word .docx / Excel .xlsx / TXT / Markdown / CSV / TSV。"
+        )
+        raise ValueError(f"Unsupported file type: {suffix or 'unknown'}.{hint}")
 
     if suffix == ".pdf":
         blocks: list[ParsedBlock] = []
@@ -285,6 +295,12 @@ def parse_document(filename: str, content: bytes) -> ParsedDocument:
             source_type="docx",
             metadata={"paragraph_count": len(blocks)},
         )
+
+    if suffix in {".html", ".htm"}:
+        return parse_html_export(filename, content)
+
+    if suffix == ".zip":
+        return parse_export_zip(content)
 
     if suffix in {".csv", ".tsv"}:
         raw, meta = _csv_blocks(content, "\t" if suffix == ".tsv" else ",")

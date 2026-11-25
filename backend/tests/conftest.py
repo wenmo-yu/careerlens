@@ -31,3 +31,14 @@ async def client():
     app.dependency_overrides.clear()
     await test_engine.dispose()
 
+
+@pytest_asyncio.fixture
+async def session_factory():
+    """Direct DB session factory for service-level tests (no HTTP layer)."""
+    test_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with test_engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    yield factory
+    await test_engine.dispose()
+

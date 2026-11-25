@@ -2,14 +2,18 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     auth,
+    catalog,
     chat,
     connectors,
     evaluation,
     evidence,
     jobs,
+    learning,
     observability,
     privacy,
     profile,
+    profile_extensions,
+    recommendations,
     reports,
     runs,
     wiki,
@@ -30,4 +34,8 @@ router.include_router(reports.router, prefix="/reports", tags=["reports"])
 router.include_router(runs.router, prefix="/runs", tags=["runs"])
 router.include_router(privacy.router, prefix="/privacy", tags=["privacy"])
 router.include_router(wiki.router, prefix="/wiki", tags=["wiki"])
+router.include_router(catalog.router, prefix="/catalog", tags=["catalog"])
+router.include_router(recommendations.router, prefix="/recommendations", tags=["recommendations"])
+router.include_router(learning.router, tags=["learning"])
+router.include_router(profile_extensions.router, tags=["profile-extensions"])
 

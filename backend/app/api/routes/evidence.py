@@ -12,6 +12,8 @@ from app.ingestion.contract import source_fingerprint
 from app.ingestion.files import parse_document
 from app.ingestion.media import get_media_extractor, parse_media
 from app.models.evidence import Evidence
+from app.models.parsed_block import ParsedBlock
+from app.models.source_document import SourceDocument
 from app.retrieval.service import search_evidence
 from app.runtime.index_outbox import enqueue_index, try_index_now
 from app.runtime.store import scope
@@ -24,6 +26,64 @@ from app.services.source_ingestion import ingest_source_document
 router = APIRouter()
 Session = Annotated[AsyncSession, Depends(get_session)]
 Authorization = Annotated[str | None, Header()]
+
+
+async def _document_import_result(
+    session: AsyncSession, user_id: str, source_hash: str, records: list,
+) -> EvidenceBatchRead:
+    """HY4-A: build an explainable result for file/media imports.
+
+    The source document is the parse authority (parse_status, page count); the
+    parsed blocks tell us how much text was actually readable and how many
+    pages are still waiting for OCR. A successful task is not the same as a
+    successful read — scanned-only PDFs keep ocr_pending blocks and produce no
+    Evidence, which must be visible to the user instead of looking like a
+    silent success.
+    """
+    document = (
+        await session.scalars(
+            select(SourceDocument).where(
+                SourceDocument.user_id == user_id,
+                SourceDocument.source_hash == source_hash,
+            )
+        )
+    ).first()
+    warnings: list[str] = []
+    if document is None:
+        return EvidenceBatchRead(
+            items=records, count=len(records),
+            readable_count=len(records), warnings=warnings,
+        )
+    blocks = list(
+        await session.scalars(
+            select(ParsedBlock).where(ParsedBlock.doc_id == document.id)
+        )
+    )
+    pending = sum(1 for block in blocks if block.source_metadata.get("ocr_pending"))
+    readable = sum(
+        1 for block in blocks
+        if block.content.strip() and not block.source_metadata.get("ocr_pending")
+    )
+    if pending:
+        warnings.append(
+            f"有 {pending} 页待 OCR；任务成功不等于已读出文字，这些页面暂未形成证据。"
+        )
+    if not readable and pending:
+        warnings.append(
+            "本次只识别到扫描页，尚未生成可读证据；请补充 OCR 能力或换用带文字层的 PDF。"
+        )
+    parse_status = document.parse_status
+    if parse_status == "parsed" and pending:
+        parse_status = "partial"
+    return EvidenceBatchRead(
+        items=records,
+        count=len(records),
+        parse_status=parse_status,
+        source_document_id=document.id,
+        readable_count=readable,
+        ocr_pending_count=pending,
+        warnings=warnings,
+    )
 
 
 @router.post("/text", response_model=EvidenceBatchRead, status_code=status.HTTP_201_CREATED)
@@ -69,6 +129,7 @@ async def ingest_file(
         raise HTTPException(status_code=413, detail="File is too large")
 
     filename = upload.filename or "upload"
+    source_hash = source_fingerprint(content)
     try:
         parsed = await to_thread.run_sync(parse_document, filename, content)
         records = await ingest_source_document(
@@ -78,12 +139,12 @@ async def ingest_file(
             filename=filename,
             mime_type=upload.content_type,
             file_size=len(content),
-            source_hash=source_fingerprint(content),
+            source_hash=source_hash,
             parsed=parsed,
         )
     except (ValueError, FileDataError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return EvidenceBatchRead(items=records, count=len(records))
+    return await _document_import_result(session, user_id, source_hash, records)
 
 
 @router.post("/media", response_model=EvidenceBatchRead, status_code=status.HTTP_201_CREATED)
@@ -102,6 +163,7 @@ async def ingest_media(
     if len(content) > settings.media_upload_max_bytes:
         raise HTTPException(status_code=413, detail="Media file is too large")
     filename = upload.filename or "media-upload"
+    source_hash = source_fingerprint(content)
     try:
         extractor = get_media_extractor()
         parsed = await to_thread.run_sync(parse_media, extractor, filename, content)
@@ -112,14 +174,14 @@ async def ingest_media(
             filename=filename,
             mime_type=upload.content_type,
             file_size=len(content),
-            source_hash=source_fingerprint(content),
+            source_hash=source_hash,
             parsed=parsed,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return EvidenceBatchRead(items=records, count=len(records))
+    return await _document_import_result(session, user_id, source_hash, records)
 
 
 @router.get("", response_model=EvidenceBatchRead)

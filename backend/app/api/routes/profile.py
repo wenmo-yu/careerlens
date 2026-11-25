@@ -11,13 +11,36 @@ from app.schemas.profile import (
     ProfileProposalRead,
     ProfileRead,
 )
+from app.schemas.profile_overview import ProfileOverviewRead
 from app.security import authorize_user
 from app.services.profile import read_profile, rebuild_profile
+from app.services.profile_overview import build_agent_manifest, build_profile_overview
 from app.services.profile_updates import create_proposal, decide_proposal, list_proposals
 
 router = APIRouter()
 Session = Annotated[AsyncSession, Depends(get_session)]
 Authorization = Annotated[str | None, Header()]
+
+
+@router.get("/{user_id}/overview", response_model=ProfileOverviewRead)
+async def get_profile_overview(
+    user_id: str, session: Session, authorization: Authorization = None
+) -> ProfileOverviewRead:
+    await authorize_user(
+        session, user_id=user_id, authorization=authorization, required_scope="read"
+    )
+    return await build_profile_overview(session, user_id)
+
+
+@router.get("/{user_id}/agent-manifest")
+async def get_agent_manifest(
+    user_id: str, session: Session, authorization: Authorization = None
+) -> dict:
+    await authorize_user(
+        session, user_id=user_id, authorization=authorization, required_scope="read"
+    )
+    overview = await build_profile_overview(session, user_id)
+    return build_agent_manifest(user_id, overview)
 
 
 @router.post("/{user_id}/rebuild", response_model=ProfileRead)

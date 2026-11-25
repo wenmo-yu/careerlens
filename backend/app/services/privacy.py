@@ -8,13 +8,16 @@ from app.core.config import get_settings
 from app.graph.career import delete_career_threads
 from app.models.access_token import AccessToken
 from app.models.account_deletion import AccountDeletionReceipt
+from app.models.assessment import AssessmentResult, UserConstraint
 from app.models.audit import AuditEvent
 from app.models.career_report import CareerReport
 from app.models.conversation import ConversationMessage, ConversationThread
 from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
+from app.models.learning import LearningProgress, SavedJob
 from app.models.parsed_block import ParsedBlock
 from app.models.profile import ProfileItem
+from app.models.profile_extension import DimensionDefinition, ProfileExtension
 from app.models.profile_suppression import ProfileSuppression
 from app.models.profile_update import ProfileUpdateProposal
 from app.models.run import AgentRun, EvidenceIndexWork, RunEvent, RunScope, RunStep
@@ -74,6 +77,26 @@ async def export_user_data(
     wiki_revisions = list(
         await session.scalars(select(WikiRevision).where(WikiRevision.user_id == user_id))
     )
+    saved_jobs = list(
+        await session.scalars(select(SavedJob).where(SavedJob.user_id == user_id))
+    )
+    learning_progress = list(
+        await session.scalars(select(LearningProgress).where(LearningProgress.user_id == user_id))
+    )
+    assessments = list(
+        await session.scalars(select(AssessmentResult).where(AssessmentResult.user_id == user_id))
+    )
+    constraints = list(
+        await session.scalars(select(UserConstraint).where(UserConstraint.user_id == user_id))
+    )
+    dimensions = list(
+        await session.scalars(
+            select(DimensionDefinition).where(DimensionDefinition.user_id == user_id)
+        )
+    )
+    extensions = list(
+        await session.scalars(select(ProfileExtension).where(ProfileExtension.user_id == user_id))
+    )
     add_audit_event(
         session,
         principal=principal,
@@ -89,6 +112,12 @@ async def export_user_data(
             "parsed_block_count": len(parsed_blocks),
             "wiki_page_count": len(wiki_pages),
             "wiki_revision_count": len(wiki_revisions),
+            "saved_job_count": len(saved_jobs),
+            "learning_progress_count": len(learning_progress),
+            "assessment_result_count": len(assessments),
+            "user_constraint_count": len(constraints),
+            "dimension_definition_count": len(dimensions),
+            "profile_extension_count": len(extensions),
         },
     )
     await session.commit()
@@ -274,6 +303,63 @@ async def export_user_data(
             )
             for item in wiki_revisions
         ],
+        "saved_jobs": [
+            _serialize(
+                item,
+                (
+                    "id", "title", "jd_text", "source_type", "source_url",
+                    "notes", "created_at", "updated_at",
+                ),
+            )
+            for item in saved_jobs
+        ],
+        "learning_progress": [
+            _serialize(
+                item,
+                (
+                    "id", "plan_id", "skill", "stage", "status", "evidence_ids",
+                    "actual_hours", "note", "created_at", "updated_at",
+                ),
+            )
+            for item in learning_progress
+        ],
+        "assessments": [
+            _serialize(
+                item,
+                (
+                    "id", "instrument", "version", "result_json", "answers_json",
+                    "source", "consent", "taken_at", "created_at",
+                ),
+            )
+            for item in assessments
+        ],
+        "constraints": [
+            _serialize(
+                item,
+                ("id", "kind", "value", "strength", "source", "created_at", "updated_at"),
+            )
+            for item in constraints
+        ],
+        "dimensions": [
+            _serialize(
+                item,
+                (
+                    "id", "key", "label", "description", "source",
+                    "enabled", "created_at", "updated_at",
+                ),
+            )
+            for item in dimensions
+        ],
+        "profile_extensions": [
+            _serialize(
+                item,
+                (
+                    "id", "dimension_key", "value_json", "confidence",
+                    "evidence_ids", "source", "enabled", "updated_at",
+                ),
+            )
+            for item in extensions
+        ],
         "runs": [_serialize(item, (
             "id", "operation", "status", "confirmation", "attempts", "result",
             "error_code", "created_at",
@@ -438,6 +524,12 @@ async def delete_user_account(
         "parsed_blocks": await _count_user_records(session, ParsedBlock, user_id),
         "wiki_pages": await _count_user_records(session, WikiPage, user_id),
         "wiki_revisions": await _count_user_records(session, WikiRevision, user_id),
+        "saved_jobs": await _count_user_records(session, SavedJob, user_id),
+        "learning_progress": await _count_user_records(session, LearningProgress, user_id),
+        "assessment_results": await _count_user_records(session, AssessmentResult, user_id),
+        "user_constraints": await _count_user_records(session, UserConstraint, user_id),
+        "dimension_definitions": await _count_user_records(session, DimensionDefinition, user_id),
+        "profile_extensions": await _count_user_records(session, ProfileExtension, user_id),
         "audit_events": await _count_user_records(session, AuditEvent, user_id),
         "access_tokens": await _count_user_records(session, AccessToken, user_id),
         "runs": await _count_user_records(session, AgentRun, user_id),
@@ -479,6 +571,12 @@ async def delete_user_account(
         SourceDocument,
         WikiRevision,
         WikiPage,
+        SavedJob,
+        LearningProgress,
+        AssessmentResult,
+        UserConstraint,
+        DimensionDefinition,
+        ProfileExtension,
         ConversationThread,
         ConversationMessage,
         AuditEvent,

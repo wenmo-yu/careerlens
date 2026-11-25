@@ -1,0 +1,173 @@
+[
+  {
+    "role_id": "ai-agent-dev",
+    "name": "AI Agent 应用开发",
+    "family": "软件工程 / 智能应用",
+    "typical_tasks": [
+      "设计多轮对话状态与工具调用",
+      "把检索结果约束在证据范围内",
+      "接入模型并保留失败回退"
+    ],
+    "required_skills": [
+      "Python",
+      "LangGraph",
+      "RAG",
+      "FastAPI"
+    ],
+    "nice_to_have": [
+      "MCP",
+      "PostgreSQL",
+      "Docker"
+    ],
+    "entry_evidence": [
+      "用 LangGraph 搭过多轮 Agent",
+      "RAG 检索带引用与降级"
+    ],
+    "growth_path": [
+      "先做单 Agent + 检索",
+      "再补后台任务与可观测性",
+      "最后做多 Agent 分工"
+    ],
+    "source_note": "本地教学模板，依据本教程项目技术栈整理；不代表市场招聘需求统计。",
+    "riasec": [
+      "I",
+      "R"
+    ]
+  },
+  {
+    "role_id": "llm-app-engineer",
+    "name": "LLM 应用工程师",
+    "family": "软件工程 / 模型应用",
+    "typical_tasks": [
+      "实现提示词与结构化输出",
+      "接入 Embedding / Reranker",
+      "做评测与回归门禁"
+    ],
+    "required_skills": [
+      "Python",
+      "RAG",
+      "FastAPI",
+      "Qdrant"
+    ],
+    "nice_to_have": [
+      "LangChain",
+      "PostgreSQL",
+      "Docker"
+    ],
+    "entry_evidence": [
+      "做过向量检索与混合检索",
+      "有可复现的评测基线"
+    ],
+    "growth_path": [
+      "先用 Demo 模型跑通流程",
+      "再接真实模型与角色绑定",
+      "最后建立评测与成本观察"
+    ],
+    "source_note": "本地教学模板，依据本教程项目技术栈整理；不代表市场招聘需求统计。",
+    "riasec": [
+      "I",
+      "C"
+    ]
+  },
+  {
+    "role_id": "backend-py",
+    "name": "Python 后端开发",
+    "family": "软件工程 / 服务端",
+    "typical_tasks": [
+      "设计 API 与数据模型",
+      "保证写操作幂等与事务一致",
+      "处理异步任务与后台队列"
+    ],
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "PostgreSQL",
+      "Docker"
+    ],
+    "nice_to_have": [
+      "Qdrant",
+      "LangGraph"
+    ],
+    "entry_evidence": [
+      "实现过幂等写入与事务",
+      "做过迁移与回归测试"
+    ],
+    "growth_path": [
+      "先做单服务 CRUD",
+      "再补异步任务与索引补偿",
+      "最后做租约与并发控制"
+    ],
+    "source_note": "本地教学模板，依据本教程项目技术栈整理；不代表市场招聘需求统计。",
+    "riasec": [
+      "C",
+      "R"
+    ]
+  },
+  {
+    "role_id": "data-knowledge",
+    "name": "知识库与数据工程",
+    "family": "数据 / 检索",
+    "typical_tasks": [
+      "结构化解析与分块",
+      "建立来源去重与可追溯",
+      "维护版本化知识与回滚"
+    ],
+    "required_skills": [
+      "Python",
+      "Qdrant",
+      "RAG",
+      "PostgreSQL"
+    ],
+    "nice_to_have": [
+      "Docker",
+      "FastAPI"
+    ],
+    "entry_evidence": [
+      "做过 PDF/DOCX 结构解析",
+      "有来源去重与版本快照经验"
+    ],
+    "growth_path": [
+      "先做解析与定位",
+      "再做混合检索",
+      "最后做版本与冲突处理"
+    ],
+    "source_note": "本地教学模板，依据本教程项目技术栈整理；不代表市场招聘需求统计。",
+    "riasec": [
+      "I",
+      "C"
+    ]
+  },
+  {
+    "role_id": "frontend-product",
+    "name": "产品前端开发",
+    "family": "软件工程 / 前端",
+    "typical_tasks": [
+      "把复杂数据做成可理解界面",
+      "实现可访问的文字降级",
+      "组织组件与状态"
+    ],
+    "required_skills": [
+      "React",
+      "TypeScript",
+      "Next.js"
+    ],
+    "nice_to_have": [
+      "FastAPI",
+      "Docker"
+    ],
+    "entry_evidence": [
+      "有可核对的界面作品",
+      "能说明数据来源与降级策略"
+    ],
+    "growth_path": [
+      "先做静态页面",
+      "再接 API 与任务进度",
+      "最后做可视化与可访问性打磨"
+    ],
+    "source_note": "本地教学模板，依据本教程项目技术栈整理；不代表市场招聘需求统计。",
+    "riasec": [
+      "A",
+      "R"
+    ]
+  }
+]

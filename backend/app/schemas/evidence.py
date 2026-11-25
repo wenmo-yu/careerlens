@@ -29,6 +29,13 @@ class EvidenceRead(BaseModel):
 class EvidenceBatchRead(BaseModel):
     items: list[EvidenceRead]
     count: int
+    # HY4-A: import-result card. Optional so every existing caller keeps working.
+    parse_status: str | None = None
+    source_document_id: str | None = None
+    readable_count: int = 0
+    ocr_pending_count: int = 0
+    duplicate_count: int = 0
+    warnings: list[str] = []
 
 
 class ConnectorImportRead(BaseModel):

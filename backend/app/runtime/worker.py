@@ -67,7 +67,7 @@ async def execute(factory: async_sessionmaker, claim: Claim) -> None:
         async with factory.begin() as session:
             run = await lock_claim(session, claim)
             await step(session, run, name, status)
-            event(session, run, f"step.{status}", step=name, **data)
+            await event(session, run, f"step.{status}", step=name, **data)
 
     effect = await prepare_operation(
         factory, operation=claim.operation, user_id=claim.user_id,
@@ -82,8 +82,8 @@ async def execute(factory: async_sessionmaker, claim: Claim) -> None:
         await check_inputs(session, run, lock=True, primary=primary_epoch)
         result = await effect(session)
         await step(session, run, "persist", "succeeded")
-        event(session, run, "step.succeeded", step="persist")
-        end(session, run, "succeeded", result=result)
+        await event(session, run, "step.succeeded", step="persist")
+        await end(session, run, "succeeded", result=result)
 
 
 async def settle_error(
@@ -96,7 +96,7 @@ async def settle_error(
                 await interrupt(session, run, reason)
             else:
                 await close_running_steps(session, run, "failed")
-                end(session, run, "failed", reason=reason)
+                await end(session, run, "failed", reason=reason)
     except LeaseLost:
         return
 
