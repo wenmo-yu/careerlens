@@ -58,9 +58,9 @@ MCP 服务能暴露三类东西，别混：
 
 ### 装饰器到底做了什么
 
-`@mcp.tool()` 写在函数上方，等价于 `get_evidence = mcp.tool()(get_evidence)`：把原函数交给 SDK 登记， SDK 读它的名字、参数注解、docstring，生成一份「工具清单」，然后返回一个登记后的函数。所以客户端 `list_tools()` 能看到工具名和输入格式——那些信息是从你的函数签名里提取的。
+`@mcp.tool()` 写在函数上方，相当于把 `get_evidence` 交给 `mcp.tool()` 返回的装饰器。SDK 读函数名、参数注解和 docstring，把工具登记到服务对象。客户端看到的名称和输入格式来自这次登记。
 
-这也解释了为什么**参数的注解和说明文字很重要**：它们不是给人看的注释，而是会变成工具描述的一部分，模型/客户端靠它们决定怎么填参数。
+用实际工具对一下。`get_evidence` 的两个 `str` 参数会在工具输入里显示为字符串字段，函数里获取上下文的 `ctx` 由 SDK 提供。读完参数再看 docstring，客户端可以据此决定何时需要这项工具。
 
 ### list_tools 与 call_tool 的分工
 
@@ -70,7 +70,7 @@ MCP 服务能暴露三类东西，别混：
 
 ### 两种 @tool，两个层次
 
-稍后还会遇到 `from langchain_core.tools import tool`。这个库的 `@tool` 将 Python 函数包装成 **LangChain 工具对象**，调用方式为 `ainvoke`。本课用它把「读取原文」包装成只要 `evidence_id` 的工具，其中再用 `call_tool` 访问前面登记的 MCP 工具。
+稍后会用到 `from langchain_core.tools import tool`。`@tool` 把 Python 函数包成 **LangChain 工具对象**。本课的函数是 `async def`，所以从客户端使用 `await adapter.ainvoke(...)`，内层再用 `call_tool` 找到前面登记的 MCP 工具。
 
 两种装饰器各自服务于不同的调用方：
 
@@ -79,7 +79,7 @@ MCP 服务能暴露三类东西，别混：
 | `@mcp.tool()` | MCP SDK | 外部应用通过 MCP 协议调用 | `client.call_tool(...)` |
 | `@tool` | LangChain | 模型/Agent 通过工具调用提议 | `adapter.ainvoke(...)` |
 
-它们不冲突，而是叠成两层：LangChain 工具在里面调 MCP 工具。 [00-6 LangChain 入门](../00-foundations/00-6-LangChain与模型工具.md)
+把两次调用顺着读一遍。`ainvoke` 调用本地 LangChain 适配器，适配器里的 `call_tool` 再发给 MCP 服务对象。 [00-6 LangChain 入门](../00-foundations/00-6-LangChain与模型工具.md)
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontFamily":"system-ui, sans-serif","actorBkg":"#eaf6f1","actorBorder":"#60a28d","actorTextColor":"#143f36","actorLineColor":"#a7c2b9","signalColor":"#355c51","signalTextColor":"#203d34","noteBkgColor":"#fff4d9","noteBorderColor":"#ba893b","noteTextColor":"#644117"},"sequence":{"width":112,"height":44,"actorMargin":34,"messageMargin":23,"mirrorActors":false}}}%%
@@ -198,9 +198,9 @@ async with Client(server.mcp) as client:
 
 ### 闭包在这里解决什么问题
 
-MCP 的 `call_tool` 需要 `client` 和 `user_id`，但 LangChain 工具的参数格式只能有 `evidence_id`（因为那是要交给模型填的）。怎么办？把 `client` 和 `user_id` 从外层函数传进来，内层工具函数「记住」它们，对外只暴露 `evidence_id`。
+在本课的 LangChain 工具输入里只公开 `evidence_id`。外层 `build_evidence_tool(client, user_id)` 先拿到客户端和用户编号，内层函数稍后执行时仍能取到这两个值。
 
-这就是闭包的价值：**把固定参数提前绑定，只把该让模型填的参数暴露出去**。`user_id` 尤其不能让模型填——它必须来自受控身份（见 00-2）。闭包把 `user_id` 锁在外层，模型碰不到，正合安全要求。
+可以把 `adapter.args` 打印出来核对。只有原文编号出现在 schema 里。正式接入时，外层的 `user_id` 要来自已经核验的调用者身份，服务端仍检查本次读取的权限和证据归属。
 
 先想清两个返回值。内层返回 `unpack(result)["content"]`，所以调用工具得到的是原文。外层返回内层工具对象，所以测试可以继续检查 `adapter.args` 并执行 `adapter.ainvoke(...)`。`tool` 已在文件顶部导入。给内层函数写说明文字，让框架能生成工具的用途描述。
 

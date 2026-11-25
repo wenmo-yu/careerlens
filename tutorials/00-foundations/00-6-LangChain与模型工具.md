@@ -4,11 +4,11 @@
 
 ## 先把学习的理由摆正
 
-LangChain 是这一层最流行的开源框架之一。学会它，你会得到一套**通用词汇**：以后读官方文档、看别人的 Agent 代码、甚至换一个框架，都能认出「哦，这是模型层，这是提示词模板，这是工具调用」。对零基础的人，这套词汇比某个具体 API 更值钱。
+LangChain 是用来接模型、组织消息和调用工具的开源框架。学会它，你会得到一套**通用词汇**：以后读官方文档、看别人的 Agent 代码、甚至换一个框架，都能认出「这是模型层，这是提示词模板，这是工具调用」。
 
-先把一个事实讲清楚，免得后面猜：按 [项目依赖清单](../../backend/pyproject.toml)，CareerLens 当前安装的是 `langgraph` 和 `langgraph-checkpoint-postgres`，**没有安装 `langchain`**。这不是缺点，也不是疏漏，而是一个取舍——项目把编排交给 LangGraph，把模型调用和检索写成自己的薄层。
+CareerLens 用 `langgraph` 编排对话图，用 `langgraph-checkpoint-postgres` 支持数据库检查点，对话模型则通过项目自己的 Provider 调用。第 3 章的 MCP 跟做还会用到 `langchain-core` 的 `@tool`。本页涉及的 `init_chat_model` 和 `create_agent` 来自完整的 `langchain` 包，选做时单独安装。 [项目依赖](../../backend/pyproject.toml) · [项目的模型 Provider](../../backend/app/llm/provider.py) · [MCP 工具调用练习](../01-agent-design/lab/mcp_tool_check.py)
 
-但「项目没装 LangChain」和「你不需要学 LangChain」是两回事：
+这几组积木在后面的源码课里都用得上。
 
 - LangChain 定义的**概念**（模型、消息、提示词、输出解析、链、工具、Agent、记忆、检索器）是行业通用语，CareerLens 里几乎每一个都能找到对应物。
 - 官方文档里 LangChain 与 LangGraph 经常**一起出现**，读源码和文档时混着讲是常态。分不清就容易被绕晕。
@@ -51,7 +51,25 @@ flowchart TB
     style A fill:#edf3fc,stroke:#7188a8,color:#1c3858
 ```
 
-读图记住一条主线：**提示词进模型，模型出结果，链把它们连起来，Agent 再加上工具和记忆，检索器负责给提示词补材料。**
+读图时，先沿着「提示词 → 模型 → 输出解析」走一遍。这是一条顺序固定的链。放到 Agent 里，模型的一次输出可能是工具请求，应用把结果交回后，模型才接着回答。记忆、检索器可以按应用需要接入。
+
+## 准备选做环境
+
+只读正文可以直接跳到下一节。要运行模型示例，先在自己的练习文件夹打开终端，准备 Python 3.11+。下面两组命令按系统选一组。 [Python 安装步骤](../setup/Python准备.md)
+
+```powershell
+# Windows PowerShell
+py -3 -m venv .venv-langchain
+.\.venv-langchain\Scripts\python.exe -m pip install "langchain[openai]>=1,<2"
+```
+
+```bash
+# macOS / Linux
+python3 -m venv .venv-langchain
+./.venv-langchain/bin/python -m pip install 'langchain[openai]>=1,<2'
+```
+
+在同一文件夹新建 `langchain_lab.py`。按本页的顺序追加想试的 Python 代码。含 `model`、`chat_pt` 或 `search_evidence` 的片段会复用前面定义的对象。运行时，在上面对应的 Python 路径后接 `langchain_lab.py`，例如 Windows 输入 `.\.venv-langchain\Scripts\python.exe langchain_lab.py`。调用 OpenAI 的片段需要该账户可用的 API 密钥和模型权限。只想离线试工具，可以把第 6 块的代码单独放进这个文件运行。
 
 ## 第 1 块：模型 Model —— 统一接住的「发电机」
 
@@ -61,24 +79,29 @@ LangChain 官方文档把模型称为「Agent 的推理引擎」。它有两种�
 
 | 接口 | 输入 | 返回 | 现在该用哪个 |
 | --- | --- | --- | --- |
-| ChatModel（聊天模型） | 一组带角色的消息 | 一条 `AIMessage` | ✅ 聊天、Agent、工具调用都用它 |
+| ChatModel（聊天模型） | 一组带角色的消息 | 一条 `AIMessage` | 聊天、Agent 和工具调用 |
 | 旧式文本补全 LLM | 一段字符串 | 一个字符串 | 仅维护老代码时用 |
 
-一个判断小技巧：如果你调用后拿到的是**字符串**，多半用的是旧式 LLM；拿到的是 `AIMessage` 对象（能读 `.text`、`.tool_calls`），才是现在的聊天模型。ChatModel 的实现类通常以 `Chat` 开头，如 `ChatOpenAI`、`ChatAnthropic`、`ChatGoogleGenerativeAI`。
+直接调用模型时，可以用返回值辨认接口。聊天模型返回 `AIMessage` 对象，可以读 `.text` 和 `.tool_calls`。文本补全接口返回字符串。经过第 5 块的输出解析器之后，聊天模型的回答也会变成字符串。聊天模型的实现类通常以 `Chat` 开头，如 `ChatOpenAI`、`ChatAnthropic`、`ChatGoogleGenerativeAI`。
 
 ### 最省事的入口：init_chat_model
 
 不用记每个厂商的类名，官方提供统一入口：
 
 ```python
-# 选做：需要 Python 与 langchain
+# 选做：基础模型配置，后面的模型示例复用这个变量
+import os
+from getpass import getpass
+
 from langchain.chat_models import init_chat_model
 
-model = init_chat_model("openai:gpt-4o-mini")          # 厂商:模型
-# model = init_chat_model("anthropic:claude-...")      # 换厂商只改这一行
+if not os.environ.get("OPENAI_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = getpass("OpenAI API key: ")
+
+model = init_chat_model("openai:gpt-4o-mini")  # 厂商:模型
 ```
 
-`"厂商:模型"` 这种写法让迁移成本很低：业务逻辑不动，换一个字符串就换了模型。 CareerLens 的自建 provider 解决的是同一类问题——把「用哪家模型」和「怎么用模型」分开。
+`getpass` 会在终端读取密钥，输入过程不回显。`"厂商:模型"` 让调用代码可以沿用 `invoke()` 等方法。换厂商时还要安装对应的集成包、设置该厂商的凭证，并确认模型支持后面用到的工具调用与结构化输出。CareerLens 也把「选哪家模型」和「如何使用模型」分开。 [LangChain 模型接入](https://docs.langchain.com/oss/python/langchain/models) · [CareerLens 模型配置](../01-agent-design/模型配置.md)
 
 ### 三种调用方式：invoke / stream / batch
 
@@ -91,12 +114,14 @@ model = init_chat_model("openai:gpt-4o-mini")          # 厂商:模型
 ```python
 # 选做
 answer = model.invoke("用一句话解释什么是 token")
+print(answer.text)
 for chunk in model.stream("讲一个关于检索的故事"):
     print(chunk.text, end="", flush=True)
+print()
 answers = model.batch(["问题一", "问题二", "问题三"])
 ```
 
-注意 `batch()` 是**客户端并行发多个请求**，和厂商自己提供的「批量 API」（更便宜但有延迟）不是一回事，别混用。
+聊天模型的 `batch()` 默认在客户端并发处理多条输入。厂商的批处理服务另有提交方式、计价和完成时间。
 
 ### 常用参数：小白也该懂的 temperature
 
@@ -113,13 +138,13 @@ model = init_chat_model(
 
 **token** 是模型读写文本的基本单位，可以粗略理解成「词或词片段」。它不是字也不是词：中文一字可能是一两个 token，英文一个长词可能拆成几个。模型按 token 计费，也有「一次最多能看多少 token」的上限，也就是**上下文窗口**。`max_tokens` 管的是输出长度，上下文窗口管的是输入加输出的总容量。
 
-**temperature** 控制选词的随机性。趋近 0 时，模型总选概率最高的词， answers 稳定、可复现；调高后会更愿意选次优词，更有创意但也更容易跑偏。CareerLens 这类「要核对证据、不能乱说」的应用，就该把它调低，甚至用确定性回退兜底。
+**temperature** 会调整模型如何从候选 token 中采样。调低时，模型通常更偏向概率高的选项，回答往往更稳定，同样的请求仍可能得到不同文字。对证据核对任务，分别观察「回答是否稳定」和「原文是否支持结论」。CareerLens 的 Demo 回退由规则和输入决定，与真实模型的采样参数分开。
 
 > 更多参数如 `model_provider`、`base_url`（接 OpenAI-compatible 接口）、`reasoning_effort`、`rate_limiter`，官方文档都列在模型页。用到时再查即可。 [模型官方文档](https://docs.langchain.com/oss/python/langchain/models)
 
 ## 第 2 块：消息 Messages —— 角色是给模型的「方向盘」
 
-模型看到的不是一段散文，而是**带角色的一组消息**。官方支持三类常用角色，也有对应对象：
+聊天模型的输入通常是一组带角色的消息。这里先认四种角色和对应对象。
 
 | 角色 | 对象 | 放什么 | 类比 |
 | --- | --- | --- | --- |
@@ -141,7 +166,7 @@ conversation = [
 model.invoke(conversation)
 ```
 
-为什么角色这么重要？回到 [00-2](00-2-提示词与证据.md) 那个坑：岗位描述里写「熟悉 Kubernetes」，那是**岗位要求**；候选人自述里写「收藏了 Kubernetes 教程」，那是**候选人经历**。如果两者都塞进 `user` 消息、不标身份，模型很容易把要求当成候选人已经会的东西。给原文标上 `tool`、给规则标上 `system`，就是给它方向盘。
+回到 Kubernetes 的例子，在同一条用户消息里也可以分开写「岗位要求」和「候选人原文」。应用自己的判断规则才放进 `system`。如果原文来自一次实际工具调用，可以交给 `ToolMessage`，用 `tool_call_id` 对应模型刚提出的那次调用。 [00-2 提示词与证据](00-2-提示词与证据.md) · [LangChain 消息文档](https://docs.langchain.com/oss/python/langchain/messages)
 
 CareerLens 在调用模型时，把规则写进 `system_prompt`，把问题、意图、画像、证据和历史打包成结构化的用户输入——用的是同一套角色思想。 [答复节点源码](../../backend/app/graph/career.py)
 
@@ -149,7 +174,7 @@ CareerLens 在调用模型时，把规则写进 `system_prompt`，把问题、�
 
 ### 为什么不用字符串硬拼
 
-如果你每次都写 `f"请判断：{question}，参考：{context}"`，很快会遇到三个麻烦：改一句话要改好几处；忘了给变量做转义；想加几个示例就得复制粘贴。**提示词模板**把这些变量抽成占位符，统一管理。
+如果每个调用点都用 `f"请判断：{question}，参考：{context}"` 重写一份提示词，改规则或加示例时就要逐处更新。**提示词模板**把常驻规则集中到一处，用占位符接收每次变化的问题和原文。模板只负责填值，应用仍须标清资料来源。
 
 ```python
 # 选做
@@ -166,7 +191,7 @@ chat_pt = ChatPromptTemplate.from_messages([
 ])
 ```
 
-`{context}`、`{question}` 就是占位符；调用 `format()` 或把变量交给模型时再填入。改成列表式消息（`(角色, 内容)` 元组），就是 `ChatPromptTemplate`——你在 00-2 见过的四部分请求，本质就是它填出来的。
+`{context}`、`{question}` 是占位符。`pt.format(...)` 返回一段填好的字符串。`ChatPromptTemplate` 用 `(角色, 内容)` 元组表达同一类填空，得到带角色的多条消息。试着 `print(filled)`，确认资料和问题出现在各自的标签后面。CareerLens 的实际请求里，规则与资料由 Provider 按角色打包。 [模型请求源码](../../backend/app/llm/provider.py)
 
 ### few-shot：给几个例子比讲一堆规则管用
 
@@ -178,7 +203,7 @@ chat_pt = ChatPromptTemplate.from_messages([
 资料：{新资料} → 结论：
 ```
 
-模型会从样例里学到「要保留原文的环境范围」。CareerLens 把这类规则直接写进 system 规则 + 三关校验，走的是「明确规则 + 程序校验」而非纯 few-shot，但你现在知道 few-shot 是另一种可用手段了。
+例子让模型看到要保留原文的环境范围。CareerLens 把规则写进 `system_prompt`，再在应用里检查输出格式和引用。学完这里，可以往第一条样例加上「只收藏、未参与部署」的原文，看看输出是否依旧保留动作的边界。
 
 > 官方文档把提示词模板列为 LangChain 的核心组件之一。 [LangChain 概览](https://docs.langchain.com/oss/python/langchain/overview)
 
@@ -197,27 +222,31 @@ class Answer(BaseModel):
     citation_ids: list[str] = Field(description="引用的证据编号")
 
 structured = model.with_structured_output(Answer)
-result = structured.invoke("他发布过吗？")
+result = structured.invoke(
+    "资料 D：林澈在练习集群发布了课程接口。"
+    "只依据这条资料回答：他在哪里发布过接口？请附资料编号。"
+)
 # result 是 Answer 对象，result.answer / result.citation_ids 可直接读
+print(result.answer, result.citation_ids)
 ```
 
 三点要记牢：
 
-1. **schema 可以用三种写法**：Pydantic `BaseModel`、`TypedDict`、JSON Schema。Pydantic 会自动校验类型，另两种要自己校验。
-2. **`method` 决定实现方式**：`json_schema`（厂商原生）、`function_calling`（伪装成工具调用）、`json_mode`（只保证合法 JSON，schema 写在提示词里）。不同模型支持的不一样。
+1. **schema 可以用三种写法**。Pydantic `BaseModel` 返回经 Pydantic 解析的对象。`TypedDict` 和 JSON Schema 通常返回字典，还可按业务规则再验证。
+2. **`method` 决定实现方式**。常见实现包括厂商原生 `json_schema`、借工具调用传回字段的 `function_calling`，以及只约束为合法 JSON 的 `json_mode`。具体支持看模型和集成包。
 3. **拒绝与原始消息**：模型可能拒绝输出；用 `include_raw=True` 能同时拿到原始消息和解析结果，便于排查。
 
-这和 CareerLens 的做法几乎一一对应：项目要求模型返回含 `answer` 与 `cited_evidence_ids` 的 JSON，解析后还要过 [00-2 的三关](00-2-提示词与证据.md)——格式、引用范围、原文支持。区别只在项目自己写了这层约束和校验，而没有用 `with_structured_output()`。概念是通的。 [模型官方文档 · 结构化输出](https://docs.langchain.com/oss/python/langchain/models)
+CareerLens 的 Provider 自己请求含 `answer` 与 `cited_evidence_ids` 的 JSON。应用解析回答，再检查引用是否来自本轮候选。比如上面的 `citation_ids` 即使确实是字符串列表，你仍要打开 D 看它能否证明「在哪个环境发布」。 [00-2 的三关](00-2-提示词与证据.md) · [LangChain 结构化输出](https://docs.langchain.com/oss/python/langchain/models#structured-output)
 
 ## 第 5 块：链与 LCEL —— 用管道把积木串成流水线
 
 前面每一块都能单独用。真正有用的是把它们**串起来**：提示词 → 模型 → 输出解析。LangChain 提供一套叫 **LCEL**（LangChain Expression Language）的组合方式，核心是两个东西：
 
-- **`Runnable`**：所有组件遵守的统一接口，都有 `invoke` / `stream` / `batch`。
+- **`Runnable`** 是可组合组件遵守的调用接口，例如本例的消息模板、聊天模型和输出解析器。它们都有 `invoke`、`stream` 和 `batch`。
 - **`|` 管道符**：把上一个组件的输出接到下一个的输入。
 
 ```python
-# 选做
+# 选做：需要已定义的 chat_pt 与 model
 from langchain_core.output_parsers import StrOutputParser
 
 chain = chat_pt | model | StrOutputParser()
@@ -234,25 +263,34 @@ chain.invoke({"context": "D：练习集群发布成功", "question": "他发布�
 工具就是一个函数，加上描述让模型知道「什么时候用它」。官方用 `@tool` 装饰器：
 
 ```python
-# 选做
-from langchain.tools import tool
+# 选做：这一段可以单独运行，不需要模型或 API 密钥
+from langchain_core.tools import tool
+
+CARDS = {"D": "林澈在练习集群把课程接口发布成功，保留了回滚截图。"}
 
 @tool
 def search_evidence(query: str, limit: int) -> str:
     """按关键词检索证据卡，返回编号与原文。limit 取 1 到 5。"""
-    ...   # 真正去查资料
+    keyword = query.strip()
+    if not keyword or not 1 <= limit <= 5:
+        return "请提供关键词，limit 取 1 到 5。"
+    matches = [f"{key}：{text}" for key, text in CARDS.items() if keyword in text]
+    return "\n".join(matches[:limit]) or "没有找到含这个关键词的证据。"
+
+print(search_evidence.invoke({"query": "发布", "limit": 1}))
+print(search_evidence.invoke({"query": "生产", "limit": 1}))
 ```
 
-**函数的名字、文档字符串、参数名都会进入模型的提示词。** 所以工具描述写得好不好，直接决定模型会不会用、会不会用对。这一点 CareerLens 和 LangChain 完全一致：工具说明要写清楚边界。
+第一行输出以 `D：` 开头，第二行找不到含「生产」的卡片。`@tool` 把普通函数包装成可绑定给模型的工具。模型能收到工具的名称、描述和参数 schema，例如 `query` 是字符串、`limit` 是整数。这里只写「1 到 5」的描述，还需要函数里的范围检查。
 
-更关键的一条：**模型提出调用 ≠ 应用立即执行**。LangChain 里模型返回的是「工具调用建议」，真正执行前应用要校验参数、`user_id` 必须来自登录状态而不是模型编的编号、读写权限要分开。这正是 [00-2 跟随一次工具调用](00-2-提示词与证据.md) 和 [01-B 工具调用](../01-agent-design/01-B-工具调用.md) 反复强调的边界。 CareerLens 当前基础对话图甚至不让模型自由提议工具，检索节点由程序直接调用，把自主性压到最低、可验收性提到最高。
+手动调用 `search_evidence.invoke(...)` 可以单独验证工具这一层。接上 Agent 后，模型可以返回一份调用请求，应用负责选择并执行已注册的函数。接真实资料时，需要校验参数和读写权限，用户范围从已校验的请求上下文取得。CareerLens 对话图的检索节点由程序按意图和资料模式直接调用。 [00-2 跟随一次工具调用](00-2-提示词与证据.md) · [01-B 检索节点](../01-agent-design/01-B-工具调用.md) · [01-B0 MCP 与 @tool](../01-agent-design/01-B0-注册与调用MCP工具.md)
 
 ## 第 7 块：Agent —— 把模型、工具、提示、记忆装到一起
 
 有了模型和工具，就可以组装一个真正会「自己决定下一步」的 Agent。官方现在的入口是：
 
 ```python
-# 选做
+# 选做：需要前面定义的 model 与 search_evidence
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 
@@ -263,12 +301,14 @@ agent = create_agent(
     checkpointer=InMemorySaver(),
 )
 result = agent.invoke(
-    {"messages": [{"role": "user", "content": "林澈发布过接口吗？"}]},
+    {"messages": [{"role": "user", "content": "请用关键词「发布」查卡片，再回答林澈发布过接口吗？"}]},
     config={"configurable": {"thread_id": "linche-01"}},
 )
+for message in result["messages"]:
+    print(message.type, getattr(message, "tool_calls", []), message.text)
 ```
 
-`create_agent` 把四样东西装进一个标准循环：**模型 + 工具 + 系统提示 + 记忆**。它内部大致是这样转的：
+这个 `create_agent` 示例把模型、工具、系统提示和可选的检查点接在一起。查看打印出来的消息，如果看到 `ai` 消息里有 `tool_calls`，再往下找 `tool` 消息和最终的 `ai` 答复。前一条记录请求，后一条记录函数回传的原文。工具搜不到时，可以查看模型选了哪个关键词，再手动试一次 `search_evidence.invoke(...)`。
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontFamily":"system-ui, sans-serif","fontSize":"13px","lineColor":"#55746c","edgeLabelBackground":"#f4f8f6"},"flowchart":{"nodeSpacing":20,"rankSpacing":26,"curve":"basis"}}}%%
@@ -284,26 +324,35 @@ flowchart TB
     style T fill:#fff4d9,stroke:#ba893b,color:#644117
 ```
 
-这里有一个必须建立的直觉：**Agent 的「自主」是有限的**。它在你给的工具和规则里挑下一步，不是想干什么就干什么。停止条件（最多几轮、什么时候必须交答案）也是你设计的。CareerLens 的对话图把这种「挑下一步」收敛成几条固定条件边——见 [00-5 LangGraph 与工作流](00-5-LangGraph与工作流.md)——本质仍然是「根据状态决定路径」。
+工具清单限定了这一轮有哪些动作。生产应用还要为循环设置停止条件，例如模型给出最终答复或流程达到预算。CareerLens 的对话图把下一步写成固定条件边，路由函数根据当前状态选其中一条。 [00-5 LangGraph 与工作流](00-5-LangGraph与工作流.md)
 
-官方还提供 `create_deep_agent`（`deepagents` 包），预置了计划、文件系统工具、子 Agent 等能力；需要精细控制用 `create_agent`，想要开箱即用的复杂能力用 deep agent。 [快速上手文档](https://docs.langchain.com/oss/python/langchain/quickstart)
+`deepagents` 包的 `create_deep_agent` 还预置了计划、文件系统工具和子 Agent。这里的单工具循环只需 `create_agent`。要对照 CareerLens 如何给子任务分派输入、限制预算，可以继续读 01-C。 [Deep Agents 概览](https://docs.langchain.com/oss/python/deepagents/overview) · [01-C Coordinator 与子 Agent](../01-agent-design/01-C-子Agent.md)
 
 ## 第 8 块：记忆 Memory —— checkpointer 与 thread_id
 
 单个 Agent 跑完就忘。要让它记住上一轮说过什么，靠两样东西：
 
 - **checkpointer**：负责把每一步的状态存下来。演示用 `InMemorySaver()`（进程重启就没了），正式用持久化的 saver（写到数据库）。
-- **`thread_id`**：给一段对话起个编号，Agent 据此找回对应的状态。不同编号互不干扰。
+- **`thread_id`** 给一段对话编号，Agent 据此找回对应的状态。示例里的两个编号对应两份检查点。真实应用还需要校验会话归属。
 
 ```python
-# 选做：同一个 thread_id 才接得上上文
-agent.invoke({"messages": [{"role": "user", "content": "我叫林澈"}]},
-             config={"configurable": {"thread_id": "session-1"}})
-agent.invoke({"messages": [{"role": "user", "content": "我叫什么？"}]},
-             config={"configurable": {"thread_id": "session-1"}})
+# 选做：复用 model，单独创建一个读会话历史的 Agent
+memory_agent = create_agent(
+    model=model,
+    tools=[],
+    system_prompt="根据当前会话回答我的名字；没有提过名字时回答未知。",
+    checkpointer=InMemorySaver(),
+)
+same = {"configurable": {"thread_id": "session-1"}}
+other = {"configurable": {"thread_id": "session-2"}}
+memory_agent.invoke({"messages": [{"role": "user", "content": "我叫林澈"}]}, config=same)
+question = {"messages": [{"role": "user", "content": "我叫什么？"}]}
+for config in (same, other):
+    result = memory_agent.invoke(question, config=config)
+    print(config["configurable"]["thread_id"], result["messages"][-1].text)
 ```
 
-把这段和 [00-5 的三样东西](00-5-LangGraph与工作流.md) 对照：checkpointer 存的是「图/ Agent 的执行状态快照」，消息表存的是「界面上看到的历史消息」，长期画像是「一个人跨会话的稳定信息」。它们不是同一份数据。CareerLens 默认用内存 saver，配置持久化后端后换成数据库 saver；真正改长期画像还要走「草案 → 确认」的独立接口。
+预期 `session-1` 的回答能提到「林澈」，`session-2` 的回答表示未知。这个实验请放在同一次脚本运行内。CareerLens 的 checkpointer 保留图的执行快照，消息表提供界面历史，长期画像用单独的草案与确认接口更新。项目默认用内存 saver，配置持久化后端后使用数据库 saver。 [00-5 的三份数据](00-5-LangGraph与工作流.md) · [检查点源码](../../backend/app/graph/checkpoint.py)
 
 ## 第 9 块：检索组件 —— 把外部资料变成上下文
 
@@ -329,7 +378,7 @@ Agent 跑起来后，「它为什么这么答」很难靠猜。LangChain 提供 
 | 练习 | 先写下你的答案 | 核对点 |
 | --- | --- | --- |
 | 「模型层」和「编排层」各管什么？ | | ChatModel 接 API；LCEL/图决定步骤 |
-| 为什么岗位要求要标 `system` 或单独标注来源，而不是混进用户问题？ | | 防止把要求当成候选人经历 |
+| 岗位要求、候选人自述、应用规则分别放在哪？ | | 前两项标注资料来源，应用规则用 `system` |
 | temperature 调高，对「核对证据」任务是好是坏？ | | 更随机 → 更容易跑偏 |
 | 模型返回了工具调用建议，应用下一步应先做什么？ | | 校验参数与 user_id 授权 |
 | checkpointer 和消息表是不是一回事？ | | 执行状态 vs 可见历史 |
@@ -338,20 +387,20 @@ Agent 跑起来后，「它为什么这么答」很难靠猜。LangChain 提供 
 <summary>核对要点</summary>
 
 1. 模型层只管生成内容，编排层决定先做什么后做什么、什么时候停。分清这两层，才知道错误该去哪一层找。
-2. 角色/来源标注是为了防止信息串味——把岗位要求误当候选人经历，正是 00-1 的起点错误。
-3. 对证据核对类任务，temperature 越低越稳；CareerLens 甚至用确定性回退兜底。
+2. 分开标注岗位要求和候选人原文，可以回查是哪份资料支撑了结论。`system` 用于应用自己设定的任务规则。
+3. 较低的 temperature 通常让措辞更稳定。某句话能否成立，仍要打开证据核对。
 4. 提议不等于执行；先校验参数、用户归属、读写权限，再真正调用工具。
 5. 不是。checkpointer 存图的执行状态（用于续跑），消息表存界面历史（用于组装上下文），长期画像另有一套。
 
 </details>
 
-**选做（需要 Python）。** 按官方快速上手，最小可运行只需四步：`init_chat_model` → `@tool` 定义函数 → `create_agent` 组装 → `agent.invoke(...)`。把你自己的一个查询函数包成工具，观察模型什么时候提议调用它。没有模型密钥时，用 CareerLens 的 Demo 思路——先写一个确定性回答兜底，理解「流程」比「模型多聪明」更重要。 [官方快速上手](https://docs.langchain.com/oss/python/langchain/quickstart)
+**选做（需要 Python）。** 先跑工具的离线例子，把查询依次改成「回滚」「生产」和空字符串，记录有结果、没召回和参数不合法三种返回。有模型密钥时，把第一块的模型配置、第六块的工具和第七块的 Agent 组装到一起，观察模型用了哪个查询词，工具结果能否支持最终答复。 [LangChain 快速上手](https://docs.langchain.com/oss/python/langchain/quickstart)
 
 ## 常见坑，提前绕开
 
 - **把 LangChain 和 LangGraph 当二选一。** 官方文档把它们分为 framework（框架）与 runtime（运行时）：一个偏「快速搭标准 Agent」，一个偏「有状态、可暂停的低层编排」。它们能一起用，不是敌人。 [产品分层说明](https://docs.langchain.com/oss/python/concepts/products)
 - **以为 `batch()` 是厂商批量 API。** 前者客户端并行，后者厂商折扣批处理，名字像但不是一回事。
-- **把字符串输出当成结构化输出。** 判断返回值类型：`str` 多半是旧式 LLM，`AIMessage` 才是聊天模型；要结构就用 `with_structured_output`。
+- **忘记输出经过了哪一层。** `AIMessage` 来自聊天模型，`StrOutputParser` 抽出字符串，`with_structured_output(Answer)` 把结果解析成 `Answer`。先看自己调用的是哪一层。
 - **相信模型编的 ID。** 任何 `user_id`、证据编号都要回到应用自己的授权范围和允许清单校验。
 - **把「记不住」都归咎于记忆模块。** 上下文窗口溢出、切块不当、检索没召回，都会表现为「它忘了」，先定位是哪一层。
 
@@ -363,9 +412,9 @@ Agent 跑起来后，「它为什么这么答」很难靠猜。LangChain 提供 
 | --- | --- | --- |
 | ChatModel / 模型层 | 自建 `LLMProvider`：`DemoProvider` 与 `OpenAICompatibleProvider` | Demo 无密钥、可复现；按角色绑定不同模型；记录延迟与成本 |
 | 消息与角色 | `system_prompt` + 结构化的用户输入 JSON | 明确规则、防止岗位要求与候选人经历串味 |
-| 结构化输出 | 要求 JSON（含 `answer` / `cited_evidence_ids`）+ 三关校验 | 自己做校验和回退，边界更可控 |
+| 结构化输出 | 要求 JSON（含 `answer` / `cited_evidence_ids`），应用检查格式和引用 | 校验失败有回退，读者沿证据查语义 |
 | LCEL 链 | LangGraph 的节点与条件边 | 需要分支、暂停、续跑，流程图比管道更合适 |
-| 工具 `@tool` | 应用内受控函数与 API；检索由程序调用 | 降低模型自主性，提高可验收性 |
+| 工具 `@tool` | MCP 跟做用 `langchain_core.tools.tool`，对话图调用应用内检索函数 | 对照客户端登记和后端检索的调用方式 |
 | Agent `create_agent` | 有限状态的对话图 + 后台角色子图 | 流程固定、结论要能核对 |
 | checkpointer / thread | `InMemorySaver` → `AsyncPostgresSaver`；`thread_id` | 与消息表、长期画像分层管理 |
 | Retriever / RAG | Qdrant 混合检索（Dense + Sparse + RRF）或本地回退 | 精确词与语义都要，且要能回查原文 |
@@ -374,4 +423,4 @@ Agent 跑起来后，「它为什么这么答」很难靠猜。LangChain 提供 
 
 ## 下一步
 
-概念部分到这里就齐了。想先动手跑一遍，去 [01 第一次跑起来](../01-第一次跑起来.md)；想继续深入检索，回到 [00-7 混合 RAG 与排名融合](00-7-混合RAG与排名融合.md)；想看整理过的知识页怎样参与检索，读 [00-8 Wiki 知识组织](00-8-Wiki知识组织.md)。术语不确定时随时查 [术语表](../术语表.md)。
+接着读 [00-7 混合 RAG 与排名融合](00-7-混合RAG与排名融合.md)，看检索器怎样选出给模型的资料；再到 [00-8 Wiki 知识组织](00-8-Wiki知识组织.md)追一次知识页的原文引用。想先打开工作台，走 [01 第一次跑起来](../01-第一次跑起来.md)。术语不确定时随时查 [术语表](../术语表.md)。
