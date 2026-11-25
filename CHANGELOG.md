@@ -14,6 +14,8 @@ HY4 · 画像与推荐增强（本地实现，尚未发布版本）：
 - HY4 补充轮：本地 HTML 另存为与用户导出 ZIP 解析（标准库实现，跳过 script/style、拒绝 ZIP 路径穿越）；连接器注册表按「用户导出 / 当前页采集 / 自备令牌 / 需授权」真实标注能力，OAuth 明确标为未实现；粘贴公开链接生成待确认证据卡，只保存用户所填文字、不访问链接。
 - HY4 补充轮：五种画像模式与模块开关（只改展示与软排序，不改事实/匹配分）、能力证据卡、证据锚定的面试故事库；浏览器当前页采集扩展到掘金/CSDN/知乎/小红书/GitHub，`authored/merged` 按用户自报处理、互动仍为兴趣线索；Run 事件渲染为带序号/耗时/代次/失败状态的步骤时间线。
 
+- 前端工程补齐：`app/error.tsx`、`app/loading.tsx`、`app/not-found.tsx` 与站点图标；接口不可用时不再是白屏，404 有明确出口。
+- 首页产品截图更新为新版工作台真实渲染。
 - Import Hub 结果卡：文件上传与媒体解析后显示可读条数、待 OCR 页数、重复跳过数、失败原因和可点击的证据定位；旧 `.doc` 返回转换提示；扫描页明确标注「任务成功不等于读出文字」。
 - 粘贴文本与浏览器互动采用同一证据类型判断：只描述收藏/点赞/关注的语句标为 `preference_signal`，不会被抽取为技能事实。
 - `GET /profiles/{id}/overview` 与 `GET /profiles/{id}/agent-manifest`：只读画像统计、证据覆盖度和机器可读的 Agent 能力清单；Agent 只能提案，不能静默写长期画像。
@@ -25,6 +27,11 @@ HY4 · 画像与推荐增强（本地实现，尚未发布版本）：
 
 ### Changed
 
+- 前端视觉统一为单一 SaaS 语言：新增 `app/styles/tokens.css` 作为唯一令牌层，删除重复的 `:root` 与荧光绿残留；中文标题字距由 `-.075em` 改为 0，容器宽度统一 1200px，圆角/阴影/边框收敛为三档。
+- CSS 拆为 `tokens / base / shell / landing / workspace` 五层，`globals.css` 只做 `@import`；不再存在"后一段覆盖前一段"的双设计系统。
+- 工作台从营销式 hero 改为工具头 + 五步流程条；section 间距从 100px 降到 40–56px；空状态合并为一块说明，不再堆四个占位框。
+- 画像分布改为 SVG 雷达图，类别少于三类时自动降级为条形；技能与覆盖度增加状态色与百分比，`pill` 状态标签中文化；新增/修正 `confirmed / supported / weak / pending` 四个状态样式。
+- 工作台状态与副作用抽到 `lib/use-workspace.ts`（32 个 state、26 个 handler），`app/workspace/page.tsx` 由 830 行降到 336 行，只保留渲染。
 - Run 事件序号改为数据库层 `UPDATE ... RETURNING` 原子自增，避免并行进度写入重复 seq；`delegate()` 失败时补发 `step.failed` 终态事件，并记录 `duration_ms`。
 - 所有 HY4 新表都纳入隐私导出与账号删除清单；测评与画像变更会把已有报告标为 stale。
 - 本地职业目录新增 `riasec` 字段，用于兴趣结果的方向线索匹配；线索只说明兴趣重合，不代表能力或市场结论。
@@ -32,6 +39,8 @@ HY4 · 画像与推荐增强（本地实现，尚未发布版本）：
 
 ### Fixed
 
+- 公开链接证据卡与 GitHub 导入的确认复选框被 `.link-card-form input { min-width:170px }` 拉成 170px 宽，与说明文字分离；改为 `min-width:0` 的 15px 复选框。
+- 刷新工作台时不恢复已保存画像，用户会误以为数据丢失；挂载时重新拉取 profile、overview 与 evidence。
 - 同一用户在 1 秒内连续提交同一量表会撞 `(user_id, instrument, version, taken_at)` 唯一键并返回 500：`taken_at` 改为 Python 侧微秒时间戳，SQLite 的秒级 `CURRENT_TIMESTAMP` 不再造成碰撞；补回归用例。
 - GitHub 仓库地址带 `?tab=readme` 或 `#install` 时被误判为非法 `owner/name`：规范化时先剥离 query 与 fragment。
 

@@ -249,11 +249,15 @@ HTTP/MCP 请求
 | `frontend/next.config.*` / `tsconfig.json` / `eslint.config.*` | 构建、类型与 lint 配置 |
 | `frontend/app/layout.tsx` | 根布局、全局样式与站点壳 |
 | `frontend/app/page.tsx` | 公开首页：居中大标题 + 真实产品截图主视觉；暖白编辑风的入口 |
-| `frontend/app/globals.css` | 全站设计令牌与组件样式：文件第 484 行后的 `:root` 块是当前权威，覆盖第 1 行旧块；暖白令牌为 `--paper #faf8f3`、`--ink #171816`、`--accent #a97432`、`--line #e6e1d6`、`--panel #ffffff`。写样式前先看后一个 `:root` |
+| `frontend/app/globals.css` | 只做 `@import` 入口，按层引入 `app/styles/` 下五个文件；不要再往这里加规则 |
+| `frontend/app/styles/tokens.css` | **唯一**设计令牌层：`--bg/--surface/--ink/--muted/--line/--brand(#4f46e5)`、字号阶、圆角、阴影、`--shell:1200px`。旧变量名（`--paper/--panel/--lime/--accent`）保留为别名，指向新值 |
+| `frontend/app/styles/base.css` / `shell.css` / `landing.css` / `workspace.css` | 基础排版与控件、站点外壳、营销页、工作台；新增样式按归属放进对应层 |
 | `frontend/app/start/page.tsx` | 新手开始页 |
 | `frontend/app/demo/page.tsx` | 演示页 |
 | `frontend/app/architecture/page.tsx` | 公开架构展示页 |
-| `frontend/app/workspace/page.tsx` | 工作台主页面：导入、画像、岗位、报告、Copilot、Wiki、任务中心入口；最大的页面文件 |
+| `frontend/app/workspace/page.tsx` | 工作台渲染层（约 340 行）：工具头、五步流程条、各区块 JSX；不再持有业务状态 |
+| `frontend/lib/use-workspace.ts` | 工作台全部状态与副作用（约 520 行）：32 个 state、26 个 handler、挂载时恢复已保存画像；改交互先看这里 |
+| `frontend/app/error.tsx` / `loading.tsx` / `not-found.tsx` | 路由级错误、加载与 404 状态页；样式在 `styles/shell.css` 的 `state-*` 段 |
 | `frontend/components/site-chrome.tsx` | 共享站点导航/外壳 |
 | `frontend/components/run-center.tsx` | 后台任务中心：进度、审批、取消、打开结果；消费 Run 事件；HY4-E 步名映射含 `profile_cartographer`/`role_scout`/`curriculum_planner` 与 `step.failed` |
 | `frontend/components/import-result-card.tsx` | HY4-A 导入结果卡：可读/待 OCR/重复数、告警、证据定位与删除 |
