@@ -1,6 +1,13 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ImportResultCard, type ImportResult } from "@/components/import-result-card";
+import { AssessmentCard } from "@/components/assessment-card";
+import { ImportHub } from "@/components/import-hub";
+import { CapabilityCards, ProfileModes } from "@/components/profile-enhancements";
+import { CourseCatalog, LearningBoard, RoleSuggestions } from "@/components/learning-board";
+import { CoverageCard, EvidenceTimeline, ProfileRadar, SkillMatrix } from "@/components/profile-insights";
+import { ReportOverview, ScoreBreakdown } from "@/components/score-breakdown";
 import { RunCenter } from "@/components/run-center";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { BrowserCaptureDraft, parseBrowserCaptureDraft } from "@/lib/browser-capture";
@@ -23,6 +30,7 @@ import {
   JobAnalysis,
   Profile,
   ProfileProposal,
+  EvidenceItem,
   EvaluationRun,
   ObservabilitySummary,
   AuditEvent,
@@ -34,6 +42,19 @@ import {
   exportUserData,
   getAuditLog,
   getProfile,
+  getProfileOverview,
+  getRoles,
+  getCourses,
+  recommendRoles,
+  saveJob,
+  listSavedJobs,
+  compareSavedJobs,
+  updateLearningProgress,
+  type Course,
+  type LearningPlanStep,
+  type RoleSuggestion,
+  type SavedJob,
+  listEvidence,
   getEvaluationRuns,
   getObservabilitySummary,
   proposeProfileUpdate,
@@ -53,10 +74,16 @@ export default function Home() {
   const [userId, setUserId] = useState("demo-user");
   const [evidenceText, setEvidenceText] = useState(demoEvidence);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [overview, setOverview] = useState<Awaited<ReturnType<typeof getProfileOverview>> | null>(null);
+  const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([]);
   const [jobTitle, setJobTitle] = useState("AI Agent 开发实习生");
   const [jdText, setJdText] = useState(demoJd);
   const [weeklyHours, setWeeklyHours] = useState(8);
   const [analysis, setAnalysis] = useState<JobAnalysis | null>(null);
+  const [roleSuggestions, setRoleSuggestions] = useState<RoleSuggestion[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [savedJobs, setSavedJobs] = useState<SavedJob[]>([]);
+  const [savedJobTitle, setSavedJobTitle] = useState("");
   const [report, setReport] = useState<CareerReport | null>(null);
   const [chatInput, setChatInput] = useState("为什么认为我适合 Agent 开发？");
   const [chat, setChat] = useState<ChatResult | null>(null);
@@ -84,6 +111,7 @@ export default function Home() {
   const [browserDraft, setBrowserDraft] = useState<{ capture: BrowserCaptureDraft; userId: string } | null>(null);
   const [selectedCaptureItems, setSelectedCaptureItems] = useState<number[]>([]);
   const [latestRun, setLatestRun] = useState<BackgroundRun | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [tasksVersion, setTasksVersion] = useState(0);
   const activeAction = useRef(false);
   const submittedKeys = useRef(new Map<string, string>());
@@ -100,7 +128,13 @@ export default function Home() {
         setTelemetry(summary);
       })
       .catch(() => undefined);
-  }, []);
+    void Promise.all([getRoles(), getCourses(), listSavedJobs(userId)])
+      .then(([, courseRows, jobs]) => {
+        setCourses(courseRows);
+        setSavedJobs(jobs);
+      })
+      .catch(() => undefined);
+  }, [userId]);
 
   async function run(label: string, action: () => Promise<void>) {
     if (activeAction.current) return;
@@ -132,7 +166,22 @@ export default function Home() {
     if (task.user_id !== userId || !task.result) return;
     const result = task.result;
     void run("run-result", async () => {
-      if (result.job_analysis_id) {
+      if (task.operation === "file_import" || task.operation === "media_import") {
+        const { items } = await listWikiEvidence(userId);
+        const wanted = new Set(result.evidence_ids ?? []);
+        setImportResult({
+          label: task.operation === "file_import" ? "文档导入" : "媒体解析",
+          count: result.count ?? 0,
+          parseStatus: result.parse_status,
+          readableCount: result.readable_count,
+          ocrPendingCount: result.ocr_pending_count,
+          duplicateCount: result.duplicate_count,
+          warnings: result.warnings,
+          evidenceIds: result.evidence_ids,
+          items: wanted.size ? items.filter((item) => wanted.has(item.id)) : [],
+        });
+        document.getElementById("profile")?.scrollIntoView({ block: "start" });
+      } else if (result.job_analysis_id) {
         setAnalysis(await getJobAnalysis(result.job_analysis_id));
         setReport(null);
         document.getElementById("matching")?.scrollIntoView();
@@ -153,6 +202,8 @@ export default function Home() {
       await importEvidence(userId, evidenceText);
       const result = await rebuildProfile(userId);
       setProfile(result);
+      setOverview(await getProfileOverview(userId));
+      setEvidenceList((await listEvidence(userId)).items);
       setAnalysis(null);
       setReport(null);
       setTelemetry(await getObservabilitySummary());
@@ -166,6 +217,40 @@ export default function Home() {
       const input = { title: jobTitle, jd_text: jdText, weekly_hours: weeklyHours };
       await submitTask(JSON.stringify([userId, "job", input]), (key) =>
         createRun(userId, { operation: "job_analysis", input }, key));
+    });
+  }
+
+  function handleSaveJob() {
+    void run("save-job", async () => {
+      const saved = await saveJob({
+        user_id: userId,
+        title: savedJobTitle.trim() || jobTitle,
+        jd_text: jdText,
+        notes: weeklyHours ? `每周可投入 ${weeklyHours} 小时` : "",
+      });
+      setSavedJobs((await listSavedJobs(userId)));
+      setSavedJobTitle("");
+      const comparison = await compareSavedJobs(userId);
+      setNotice({ kind: "ok", text: `已保存「${saved.title}」；当前可对比 ${comparison.count} 份 JD。${comparison.note}` });
+    });
+  }
+
+  function handleRecommendRoles() {
+    void run("roles", async () => {
+      const rows = await recommendRoles(userId, 5);
+      setRoleSuggestions(rows);
+      setNotice({ kind: "ok", text: rows.length ? `给出 ${rows.length} 个相邻方向，理由均可回查证据。` : "暂无可推荐方向，请先导入证据并生成画像。" });
+    });
+  }
+
+  function handleProgress(step: LearningPlanStep, status: string) {
+    void run("progress", async () => {
+      await updateLearningProgress(analysis?.id ?? "manual-plan", userId, {
+        skill: step.skill, stage: step.stage, status,
+        evidence_ids: step.source_evidence_ids ?? [],
+        actual_hours: step.estimated_hours ?? 0,
+      });
+      setNotice({ kind: "ok", text: `${step.skill} 进度已更新为「${status}」；完成状态不会自动新增能力事实。` });
     });
   }
 
@@ -246,6 +331,7 @@ export default function Home() {
       setProposal(result);
       if (approve) {
         setProfile(await getProfile(userId));
+        setOverview(await getProfileOverview(userId));
         setAnalysis(null);
         setReport(null);
       }
@@ -382,6 +468,9 @@ export default function Home() {
     void run("delete", async () => {
       const result = await deleteEvidence(deleteEvidenceId);
       setDeleteEvidenceId("");
+      setProfile(await getProfile(userId));
+      setOverview(await getProfileOverview(userId));
+      setEvidenceList((await listEvidence(userId)).items);
       setOpenedWiki(null);
       setChat(null);
       setAnalysis(null);
@@ -422,7 +511,7 @@ export default function Home() {
       <SiteHeader active="workspace" />
       <nav className="workspace-subnav" aria-label="工作台模块">
         <span>WORKSPACE / 真实业务接口 · 虚构预填内容</span>
-        <div><a href="#profile">职业画像</a><a href="#matching">岗位匹配</a><a href="#report">职业报告</a><a href="#copilot">Career Copilot</a><a href="#runs">后台任务</a><a href="#quality">质量评测</a><a href="#privacy">数据控制</a></div>
+        <div><a href="#profile">职业画像</a><a href="#matching">岗位匹配</a><a href="#report">职业报告</a><a href="#copilot">Career Copilot</a><a href="#runs">后台任务</a><a href="#assessment">自我探索</a><a href="#quality">质量评测</a><a href="#privacy">数据控制</a></div>
       </nav>
 
       <section className="hero" id="top">
@@ -439,6 +528,7 @@ export default function Home() {
       </section>
 
       {notice && <div className={`notice ${notice.kind}`} role="status">{notice.text}</div>}
+      {importResult && <ImportResultCard result={importResult} onDismiss={() => setImportResult(null)} onDeleteEvidence={(id) => setDeleteEvidenceId(id)} />}
 
       <section className="workspace" id="profile">
         <div className="section-heading">
@@ -474,13 +564,23 @@ export default function Home() {
             {skills.length > 0 && <p className="profile-score-note">百分比是抽取器的启发式可信程度，用于排序和展示；不是“具备该能力”的统计概率。请结合 Evidence 原文核对。</p>}
           </div>
         </div>
+        <div className="insight-grid">
+          <ProfileRadar profile={profile} />
+          <CoverageCard overview={overview} />
+          <SkillMatrix profile={profile} />
+          <EvidenceTimeline evidence={evidenceList} />
+        </div>
+        <CapabilityCards profile={profile} evidence={evidenceList} />
+        <ProfileModes userId={userId} onNotice={(text) => setNotice({ kind: "ok", text })} />
+        <ImportHub userId={userId} onNotice={(text) => setNotice({ kind: "ok", text })} />
         <div className="connector-strip">
-          <div><span>AUTHORIZED CONNECTORS</span><h3>从个人数据源继续补充证据</h3><p>可使用 browser-helper 在已登录页面本地采集并核对后导入；不读取或上传 Cookie。互动记录仅作兴趣线索。</p></div>
+          <div><span>IMPORT HUB / 用户主动提供</span><h3>从个人数据源继续补充证据</h3><p>只支持用户上传文件、平台导出文件与当前页手动采集；不读取 Cookie、不自动翻页、不后台爬取。点赞/收藏/关注只作兴趣线索，不会变成能力事实。</p></div>
           <label className="upload-card"><b>Bilibili Export</b><small>JSON · 视频标题 / 简介 / 字幕 / 标签</small><input type="file" accept="application/json,.json" onChange={handleBilibili} disabled={busy !== null} /><i>{busy === "bilibili" ? "导入中…" : "选择导出文件 ↗"}</i></label>
           <label className="upload-card"><b>Weibo Export</b><small>JSON / CSV · 正文 / 话题 / 转发 / 时间</small><input type="file" accept="application/json,text/csv,.json,.csv" onChange={handleWeibo} disabled={busy !== null} /><i>{busy === "weibo" ? "导入中…" : "选择导出文件 ↗"}</i></label>
-          <label className="upload-card"><b>Browser Capture</b><small>B站 / 微博 / 抖音 · 发布 / 点赞 / 收藏 / 关注 · JSON</small><input type="file" accept="application/json,.json" onChange={handleBrowserCapture} disabled={busy !== null} /><i>{busy === "browser-preview" ? "读取中…" : "选择采集文件并核对 ↗"}</i></label>
+          <label className="upload-card"><b>Browser Capture</b><small>B站 / 微博 / 抖音 / 掘金 / CSDN / 知乎 / 小红书 / GitHub · 发布/贡献=自报，互动=兴趣线索 · JSON</small><input type="file" accept="application/json,.json" onChange={handleBrowserCapture} disabled={busy !== null} /><i>{busy === "browser-preview" ? "读取中…" : "选择采集文件并核对 ↗"}</i></label>
           <label className="upload-card"><b>OCR / ASR</b><small>PNG / JPG / MP3 / WAV / MP4 / WEBM</small><input type="file" accept="image/*,audio/*,video/*" onChange={handleMedia} disabled={busy !== null} /><i>{busy === "media" ? "解析中…" : "选择媒体文件 ↗"}</i></label>
-          <label className="upload-card"><b>Documents</b><small>PDF / DOCX / XLSX / TXT / MD / CSV · 保留页码与表格</small><input type="file" accept=".pdf,.docx,.xlsx,.txt,.md,.markdown,.csv,.tsv" onChange={handleDocument} disabled={busy !== null} /><i>{busy === "document" ? "解析中…" : "选择文档 ↗"}</i></label>
+          <label className="upload-card"><b>文档 · PDF / Word .docx / 表格</b><small>PDF / DOCX / XLSX / TXT / MD / CSV · 保留页码与表格；扫描页需 OCR，旧 .doc 请另存为 .docx 或带文字层 PDF</small><input type="file" accept=".pdf,.docx,.xlsx,.txt,.md,.markdown,.csv,.tsv" onChange={handleDocument} disabled={busy !== null} /><i>{busy === "document" ? "解析中…" : "选择文档 ↗"}</i></label>
+          <label className="upload-card"><b>HTML / 导出 ZIP</b><small>网页另存为 HTML、个人数据下载 ZIP · 只本地解析，不联网、不登录平台</small><input type="file" accept=".html,.htm,.zip" onChange={handleDocument} disabled={busy !== null} /><i>{busy === "document" ? "解析中…" : "选择导出文件 ↗"}</i></label>
         </div>
         {browserDraft && <div className="capture-review" aria-label="页面采集审核">
           <div className="capture-review-head">
@@ -523,6 +623,17 @@ export default function Home() {
             </small>}
           </div>
         </form>
+        {analysis && <ScoreBreakdown analysis={analysis} />}
+        <div className="jd-save-row">
+          <label>保存当前 JD 用于对比<input value={savedJobTitle} placeholder={jobTitle || "岗位名称"} onChange={(event) => setSavedJobTitle(event.target.value)} /></label>
+          <button type="button" onClick={handleSaveJob} disabled={busy !== null}>保存 JD</button>
+          <span>已保存 {savedJobs.length} 份 · 最多对比 3 份</span>
+        </div>
+        <div className="role-actions">
+          <button type="button" onClick={handleRecommendRoles} disabled={busy !== null}>{busy === "roles" ? "生成中…" : "查看相邻职业方向"}</button>
+          <small>方向来自本地教学模板；理由必须回到真实技能与证据，不使用人格测评结果排序。</small>
+        </div>
+        <RoleSuggestions rows={roleSuggestions} />
         {analysis && <div className="match-grid">
           <div className="match-table">
             <div className="table-row head"><span>岗位要求</span><span>状态</span><span>证据</span></div>
@@ -534,6 +645,8 @@ export default function Home() {
           </div>
           <div className="path-card"><h3>Gap → Learning Path</h3><p className="path-disclaimer">按缺口、现有等级与每周时间排序的规则式计划；实践成果可作为下一轮 Evidence。</p>{analysis.learning_path.length ? analysis.learning_path.map((step) => <article key={step.skill}><b>0{step.stage}</b><div><strong>{step.skill}</strong><p>{step.goal}</p><small>{step.start_week ? `第 ${step.start_week} 周起 · ` : ""}预计 {step.weeks} 周{step.estimated_hours ? ` / ${step.estimated_hours} 小时` : ""}</small></div></article>) : <Empty text="当前没有识别到明确缺口。" />}</div>
         </div>}
+        {analysis && <LearningBoard steps={analysis.learning_path as LearningPlanStep[]} onProgress={handleProgress} />}
+        <CourseCatalog courses={courses} />
       </section>
 
       <section className="workspace report-section" id="report">
@@ -562,6 +675,7 @@ export default function Home() {
             </> : <Empty text="报告会保留版本号、Provider 诊断与 Evidence 引用。" />}
           </div>
         </div>
+        {report && <ReportOverview content={report.content as unknown as Record<string, unknown>} />}
       </section>
 
       <section className="workspace copilot" id="copilot">
@@ -635,6 +749,10 @@ export default function Home() {
 
       <RunCenter key={`${userId}:${latestRun?.id ?? ""}:${tasksVersion}`} userId={userId}
         latest={latestRun} refresh={tasksVersion} onOpen={openRunResult} />
+
+      <section className="workspace assessment-section" id="assessment">
+        <AssessmentCard userId={userId} onNotice={(text) => setNotice({ kind: "ok", text })} />
+      </section>
 
       <section className="workspace quality-section" id="quality">
         <div className="section-heading">

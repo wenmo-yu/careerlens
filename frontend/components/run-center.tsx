@@ -31,11 +31,14 @@ const reasons: Record<string, string> = {
 const steps: Record<string, string> = {
   parse: "来源解析", requirement_analyst: "岗位要求分析", wiki_curator: "Wiki 整理",
   evidence_verifier: "证据引用检查", report_writer: "报告撰写", persist: "保存结果",
+  profile_cartographer: "画像维度草稿", role_scout: "职业方向草稿",
+  curriculum_planner: "课程资源草稿",
 };
 const events: Record<string, string> = {
   "run.queued": "进入队列", "run.started": "开始执行", "run.succeeded": "提交成功",
   "run.failed": "任务失败", "run.cancelled": "任务取消", "run.interrupted": "记录中断并等待恢复",
   "run.waiting_confirmation": "等待用户确认", "run.approved": "已确认并排队",
+  "step.failed": "子步骤失败", "step.running": "子步骤执行中",
 };
 
 export function RunCenter({ userId, latest, refresh, onOpen }: {
@@ -167,13 +170,26 @@ export function RunCenter({ userId, latest, refresh, onOpen }: {
       </div>
       {current.result?.count !== undefined &&
         <p>{current.result.count} 条证据 · {current.result.parse_status === "partial" ? "含待 OCR 扫描页" : "解析完成"}</p>}
-      {visibleEvents.length > 0 && <ol aria-label="任务事件">
-        {visibleEvents.map((event) => <li key={event.seq}>
-          {event.data.step
-            ? `${steps[event.data.step] ?? event.data.step} · ${event.event_type === "step.running" ? "开始" : "完成"}`
-            : events[event.event_type] ?? event.event_type}
-          {event.data.citation_count !== undefined && `（${event.data.citation_count} 条引用）`}
-        </li>)}
+      {visibleEvents.length > 0 && <ol className="run-timeline" aria-label="任务步骤时间线">
+        {visibleEvents.map((event) => {
+          const state = event.event_type.split(".")[1] ?? "info";
+          const label = event.data.step
+            ? `${steps[event.data.step] ?? event.data.step} · ${state === "running" ? "开始" : state === "failed" ? "失败" : "完成"}`
+            : events[event.event_type] ?? event.event_type;
+          return <li key={event.seq} className={`timeline-${state}`}>
+            <span className="run-seq">#{event.seq}</span>
+            <div>
+              <strong>{label}</strong>
+              <small>
+                {event.event_type}
+                {event.data.citation_count !== undefined && ` · ${event.data.citation_count} 条引用`}
+                {event.data.duration_ms !== undefined && ` · ${event.data.duration_ms} ms`}
+                {event.data.error_type && ` · ${event.data.error_type}`}
+                {` · 代次 ${event.generation}`}
+              </small>
+            </div>
+          </li>;
+        })}
       </ol>}
     </article>}
   </section>;
