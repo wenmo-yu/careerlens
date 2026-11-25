@@ -4,6 +4,37 @@ All notable changes to CareerLens are documented here.
 
 ## Unreleased
 
+HY4 · 画像与推荐增强（本地实现，尚未发布版本）：
+
+### Added
+
+- HY4 补充轮：三份带许可说明的本地量表（四维工作偏好 32 题、RIASEC 48 题、大五 20 题），题库为项目自写或仅参照公有领域构念，JSON 内记录未采用的 MBTI®/OEJTS/O*NET 等来源；确定性计分（80% 作答门槛、双极接近中点提示、RIASEC 代码一致性与分化度、大五反向题与分档），结果页给出方法说明与免责声明。
+- HY4 补充轮：`GET /assessments/instruments`、`GET /assessments/instruments/{id}`、`POST /assessments/instruments/{id}/submit`；画像概览新增 `assessments` 回显最近一次自陈结果，仍不进入事实画像与匹配分。
+- HY4 补充轮：GitHub 自备只读令牌导入（`POST /connectors/github/import`）：读仓库元数据与 README，令牌只在本次请求使用、不落库；注册表新增「自备只读令牌」等级并附最小权限创建教程。
+- HY4 补充轮：本地 HTML 另存为与用户导出 ZIP 解析（标准库实现，跳过 script/style、拒绝 ZIP 路径穿越）；连接器注册表按「用户导出 / 当前页采集 / 自备令牌 / 需授权」真实标注能力，OAuth 明确标为未实现；粘贴公开链接生成待确认证据卡，只保存用户所填文字、不访问链接。
+- HY4 补充轮：五种画像模式与模块开关（只改展示与软排序，不改事实/匹配分）、能力证据卡、证据锚定的面试故事库；浏览器当前页采集扩展到掘金/CSDN/知乎/小红书/GitHub，`authored/merged` 按用户自报处理、互动仍为兴趣线索；Run 事件渲染为带序号/耗时/代次/失败状态的步骤时间线。
+
+- Import Hub 结果卡：文件上传与媒体解析后显示可读条数、待 OCR 页数、重复跳过数、失败原因和可点击的证据定位；旧 `.doc` 返回转换提示；扫描页明确标注「任务成功不等于读出文字」。
+- 粘贴文本与浏览器互动采用同一证据类型判断：只描述收藏/点赞/关注的语句标为 `preference_signal`，不会被抽取为技能事实。
+- `GET /profiles/{id}/overview` 与 `GET /profiles/{id}/agent-manifest`：只读画像统计、证据覆盖度和机器可读的 Agent 能力清单；Agent 只能提案，不能静默写长期画像。
+- 工作台画像可视化：五类分布、技能矩阵、证据时间线、覆盖度、报告八章全览和匹配分数拆解，全部提供文字表格降级，不引入图表库。
+- 本地职业目录 `roles.json` 与课程目录 `courses.json`，配套只读 API 与确定性推荐；课程优先链接项目自己的教程，不使用外部付费数据源。
+- 保存与对比 2–3 份 JD（`saved_jobs`）、学习看板与进度记录（`learning_progress`）；进度只能关联已存在的 Evidence，不产生新能力事实。
+- 自陈测评：工作方式偏好、可选活动兴趣、自填人格标签；另有约束条件与自定义画像维度。结果单独存储、可跳过/重做/删除，不写入事实画像、不改变匹配分。
+- 运行时新增 `profile_cartographer`、`role_scout`、`curriculum_planner` 三个只读 specialist；`Coordinator` 预算参数化，新增 `delegate_many` 用于无依赖角色的有限并行。
+
+### Changed
+
+- Run 事件序号改为数据库层 `UPDATE ... RETURNING` 原子自增，避免并行进度写入重复 seq；`delegate()` 失败时补发 `step.failed` 终态事件，并记录 `duration_ms`。
+- 所有 HY4 新表都纳入隐私导出与账号删除清单；测评与画像变更会把已有报告标为 stale。
+- 本地职业目录新增 `riasec` 字段，用于兴趣结果的方向线索匹配；线索只说明兴趣重合，不代表能力或市场结论。
+- 测评代码按领域拆分：`api/routes/assessment.py` 只保留测评结果（快测 + 三份量表 + 历史），约束/维度/画像模式/面试故事移到 `profile_extensions.py`；请求模型移到 `schemas/assessment.py`；旧快测与量表统一走 `services/assessment.py` 的 `record_assessment`，不再各写一套落库与 stale 逻辑。前端 `assessment-card.tsx` 拆为编排 + 快测 + 答题器 + 结果视图 + 约束维度五个文件。
+
+### Fixed
+
+- 同一用户在 1 秒内连续提交同一量表会撞 `(user_id, instrument, version, taken_at)` 唯一键并返回 500：`taken_at` 改为 Python 侧微秒时间戳，SQLite 的秒级 `CURRENT_TIMESTAMP` 不再造成碰撞；补回归用例。
+- GitHub 仓库地址带 `?tab=readme` 或 `#install` 时被误判为非法 `owner/name`：规范化时先剥离 query 与 fragment。
+
 ## 0.4.0 - 2026-11-19
 
 Runtime release: long-running work moves off the request thread into a durable,

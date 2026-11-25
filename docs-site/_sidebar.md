@@ -48,6 +48,7 @@
 - **进阶与作品**
   - [08-1 真实模型](tutorials/08-advanced/08-1-真实模型.md)
   - [08-2 评测](tutorials/08-advanced/08-2-评测.md)
+  - [09 画像、自陈测评与 GitHub 导入](tutorials/09-画像与自陈测评.md)
   - [08-3 贡献与结课](tutorials/08-advanced/08-3-贡献与结课.md)
   - [结课模板](tutorials/结课模板.md)
 
@@ -62,4 +63,6 @@
 - **项目文档**
   - [技术文档首页](docs/README.md)
   - [系统架构](docs/architecture.md)
+  - [测评题库与许可](docs/assessments.md)
+  - [GitHub 仓库导入](docs/github-token-import.md)
   - [API 与配置](docs/api-and-configuration.md)

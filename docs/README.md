@@ -10,6 +10,9 @@
 | [两期验收与 Wiki 使用](phase-1-2-validation.md) | A–D 验收、工作台操作、迁移与配置 |
 | [第三期后台任务与恢复](phase-3-runtime.md) | Worker、Run/Step/Event、审批、取消、重放、索引补偿与多 Agent |
 | [评分与学习路线](job-matching-and-planning.md) | 权重、算例、排期和历史分析失效机制 |
+| [画像、推荐与自陈探索](profile-and-recommendations.md) | 导入结果卡、画像概览、Agent 清单、职业/课程目录、多 JD 对比、测评边界与多 Agent 并发 |
+| [测评题库与许可](assessments.md) | 三份自写量表的题目来源、许可比对、计分规则、结果边界与新增量表流程 |
+| [GitHub 仓库导入](github-token-import.md) | 自备只读令牌的做法、读取范围、令牌不落库的约束与故障排查 |
 | [Agent、检索与模型](agent-and-retrieval.md) | LangGraph 工作流、混合检索、模型切换与降级 |
 | [接入、MCP 与安全](integrations-and-security.md) | 数据导入、MCP 接口、用户隔离与权限 |
 | [评测与运维](evaluation-and-operations.md) | 评测口径、本地验收和故障定位 |
@@ -24,7 +27,7 @@
 ## 运行与验证范围
 
 - 基础 Compose 已完成 Web → FastAPI → PostgreSQL/Qdrant → 画像 → JD 分析 → 报告 → 对话闭环验证；CI 的 `docker-smoke` 以双 Worker 覆盖后台 run 幂等、SSE 续看、Wiki 审批与取消、模式切换。
-- 自动化测试当前 **158 项后端用例全绿**，前端通过 ESLint、TypeScript 类型检查与生产构建；验收口径见[第三期说明](phase-3-runtime.md)与 [Quality Gate](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml)。
+- 自动化测试当前 **239 项后端用例全绿**，前端通过 ESLint、TypeScript 类型检查、Node 单测与生产构建；验收口径见[第三期说明](phase-3-runtime.md)与 [Quality Gate](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml)。
 - 数据接入支持 PDF / DOCX / XLSX / TXT / Markdown；XLSX 由标准库解析，无需 openpyxl。扫描 PDF 页标记为待 OCR，不伪造文本。
 - DeepSeek/OpenAI-compatible、本地 Qwen、PaddleOCR/Faster-Whisper 与可观测性属于可配置集成；真实模型质量需按[路线图](../ROADMAP.md)在授权或合成样本上单独验收，不把开发集分数当成真实准确率。
 - 公网部署与本地运行具有不同的安全边界，详见[安全说明](integrations-and-security.md)。

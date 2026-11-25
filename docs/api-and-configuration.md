@@ -276,6 +276,16 @@ Bilibili Connector 只接收用户主动提供的 UTF-8 JSON，不读取 Cookie�
 
 可选的 [`browser-helper/`](../browser-helper/README.md) 是 Chrome/Edge 本地页面采集工具：用户在 Bilibili、微博或抖音自己的页面登录、滚动加载，多次点击扩展汇总当前已加载的发布或互动条目，移除误采项并导出 JSON。工作台可逐条勾选，只有确认后才会写入 Evidence。扩展不读取 Cookie，也不提供后台同步。它不保证完整账号历史；点赞、收藏、关注仅作为兴趣线索，不直接推断技能。页面结构变化时可能漏项，详见[使用说明与限制](../browser-helper/README.md)。
 
+GitHub 走「用户自备只读令牌」，不需要注册 OAuth 应用：
+
+```bash
+curl -X POST http://localhost:8000/api/v1/connectors/github/import \
+  -H 'Content-Type: application/json' \
+  -d '{"user_id":"u1","token":"github_pat_xxx","repos":["owner/name"]}'
+```
+
+`repos` 为空时取最近推送的 10 个自有仓库；只读元数据与 README（单个仓库最多 6000 字符）；令牌只在本次请求内存中使用，不落库、不写日志。创建最小权限令牌的步骤见 [GitHub 仓库导入](github-token-import.md)。
+
 启用 OCR / ASR：
 
 ```powershell
@@ -293,6 +303,25 @@ docker compose -f docker-compose.yml -f docker-compose.multimodal.yml up --build
 ```
 
 图片支持 PNG、JPG、WEBP、BMP；音视频支持 MP3、WAV、M4A、MP4、MOV、WEBM、MKV。首次使用会下载 OCR / Whisper 模型，因此建议为模型缓存保留持久卷。
+
+## 自陈测评
+
+三份本地量表（`work_style_4d` 32 题、`riasec_interest` 48 题、`big_five_20` 20 题）都由项目自写并固定版本，接口会返回许可与免责声明：
+
+```bash
+# 清单
+curl http://localhost:8000/api/v1/assessments/instruments
+
+# 题目（不含计分键与反向标记）
+curl http://localhost:8000/api/v1/assessments/instruments/work_style_4d
+
+# 提交；至少回答 80%，且每个维度至少一半
+curl -X POST http://localhost:8000/api/v1/assessments/instruments/work_style_4d/submit \
+  -H 'Content-Type: application/json' \
+  -d '{"user_id":"u1","consent":true,"answers":{"ws-ei-01":5,"ws-ei-05":4}}'
+```
+
+不足题量返回 422 并说明还差多少；未答项不插补。结果写入 `assessment_results`，`source=self_report`，不进入事实画像、不改岗位匹配分；画像概览的 `assessments` 只回显每个量表最近一次。计分公式、许可比对与结果边界见 [测评题库与许可](assessments.md)。
 
 ## 评测与模型观测
 
