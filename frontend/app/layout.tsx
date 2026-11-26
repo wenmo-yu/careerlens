@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope, Noto_Sans_SC, Noto_Serif_SC } from "next/font/google";
+import { SiteSidebar } from "@/components/site-sidebar";
 import "./globals.css";
 
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope" });
@@ -20,7 +21,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="zh-CN">
-      <body className={`${manrope.variable} ${noto.variable} ${serif.variable}`}>{children}</body>
+      <body className={`${manrope.variable} ${noto.variable} ${serif.variable}`}>
+        <SiteSidebar />
+        <div className="site-main">{children}</div>
+      </body>
     </html>
   );
 }

@@ -249,7 +249,7 @@ HTTP/MCP 请求
 | `frontend/package.json` | Next.js 16 / React 19 / TypeScript 依赖与脚本 |
 | `frontend/next.config.*` / `tsconfig.json` / `eslint.config.*` | 构建、类型与 lint 配置 |
 | `frontend/app/layout.tsx` | 根布局、全局样式与站点壳 |
-| `frontend/app/page.tsx` | 公开首页：居中大标题 + 真实产品截图主视觉；暖白编辑风的入口 |
+| `frontend/app/page.tsx` | 公开首页：左侧文案 + 右侧证据链卡片的两栏 Hero + 真实产品截图主视觉；暖白编辑风的入口 |
 | `frontend/app/globals.css` | 只做 `@import` 入口，按层引入 `app/styles/` 下五个文件；不要再往这里加规则 |
 | `frontend/app/styles/tokens.css` | **唯一**设计令牌层：暖纸 `--bg #f1ede1`、墨 `--ink #1b1912`、赤陶 `--brand #a3441d`、深青 `--pine #1d4f45`、字号阶、圆角（4–13px）、阴影、`--shell:1200px`。`--sans/--serif` 在 `base.css` 的 `body` 上重新声明，因为 next/font 把 `--font-*` 挂在 body，`:root` 里引用会解析成空值 |
 | `frontend/app/styles/base.css` / `shell.css` / `landing.css` / `workspace.css` | 基础排版与控件、站点外壳、营销页、工作台；新增样式按归属放进对应层 |
@@ -260,7 +260,8 @@ HTTP/MCP 请求
 | `frontend/e2e/happy-path.spec.ts` | Playwright 端到端：导入证据 → 画像 → 岗位匹配（真实确认 + worker）→ 报告；另有首页跳转与 404。`PW_CHANNEL=msedge` 可复用本机浏览器 |
 | `frontend/lib/use-workspace.ts` | 工作台全部状态与副作用（约 520 行）：32 个 state、26 个 handler、挂载时恢复已保存画像；改交互先看这里 |
 | `frontend/app/error.tsx` / `loading.tsx` / `not-found.tsx` | 路由级错误、加载与 404 状态页；样式在 `styles/shell.css` 的 `state-*` 段 |
-| `frontend/components/site-chrome.tsx` | 共享站点导航/外壳 |
+| `frontend/components/site-sidebar.tsx` | 全站左侧固定导航（概览 / 工作台分区 / 资源），按路径高亮；窄屏折叠为顶部条 |
+| `frontend/components/site-chrome.tsx` | 共享顶部面包屑条与页脚 |
 | `frontend/components/run-center.tsx` | 后台任务中心：进度、审批、取消、打开结果；消费 Run 事件；HY4-E 步名映射含 `profile_cartographer`/`role_scout`/`curriculum_planner` 与 `step.failed` |
 | `frontend/components/import-result-card.tsx` | HY4-A 导入结果卡：可读/待 OCR/重复数、告警、证据定位与删除 |
 | `frontend/components/profile-insights.tsx` | HY4-B 画像分布、技能矩阵、证据时间线、覆盖度，均带文字表格降级 |
@@ -283,7 +284,7 @@ HTTP/MCP 请求
 | `frontend/public/images/workspace-preview.jpg` | 首页真实产品截图主视觉（新版界面） |
 | `frontend/AGENTS.md` | Next.js 生成的框架规则；不要删除，提交它可保持工作树干净 |
 
-**视觉现状**：公开页与工作台都是暖白编辑风（象牙白底、墨黑字、黄铜强调色、克制动画），不再是深色改版。9 张产品截图已按新界面重拍，位于 `docs/assets/*.jpg`。
+**视觉现状**：公开页与工作台都是暖白编辑风（象牙白底、墨黑字、黄铜强调色、克制动画），不再是深色改版。23 张产品截图已按新界面重拍，位于 `docs/assets/*.jpg`。
 
 ---
 
@@ -321,7 +322,7 @@ HTTP/MCP 请求
 | `docs/evaluation-and-operations.md` | 评测口径、本地验收、故障定位 |
 | `docs/api-and-configuration.md` | 完整接口、非 Docker 启动、迁移、真实模型与生产配置 |
 | `docs/showcase.md` | 页面截图展示 |
-| `docs/assets/*.jpg` | 9 张新版截图：overview、start、workspace、profile、job-match、report、copilot、architecture、demo |
+| `docs/assets/*.jpg` | 23 张新版截图：页面总览、工作台各分区（导入/画像/匹配/报告/Copilot/测评/质量/数据）与公开页 |
 
 ---
 
@@ -426,7 +427,7 @@ HTTP/MCP 请求
 | 第四章 | 8–11KB | 6 课 + README，17–22KB/课，按真实源码讲解析、去重、检索、Wiki |
 | 第五至八章 | 部分 3.5–11KB | 按同深度加厚到 8.6–16KB；07 已够厚未改 |
 | 首页视觉 | 深色改版被否定 | 暖白编辑风：象牙白、墨黑、黄铜、真实产品截图主视觉 |
-| 截图 | 旧界面截图 | 9 张 `docs/assets/*.jpg` 按新界面重拍（1425×891），首页另有 `workspace-preview.jpg` |
+| 截图 | 旧界面截图 | 23 张 `docs/assets/*.jpg` 按新界面重拍（1425×891），首页另有 `workspace-preview.jpg` |
 | 文件名/链接 | 英文/混合命名、旧双目录地址、锚点未实校 | 中文文件名为主；兼容旧地址；build 校验 0 坏链/坏锚点 |
 | 推送方式 | git HTTPS 502 / schannel 失败；本地 `git hash-object` 受 CRLF 影响产生假阴性 | 通过 Git Data API（blob→tree→commit→ref）推送，校验用原始字节算 SHA；本地 git 指针可能滞后，远端权威 |
 
@@ -461,7 +462,7 @@ HTTP/MCP 请求
 | 前端页面/样式 | `frontend/app/page.tsx` 或 `workspace/page.tsx` → `globals.css` → `components/` → `lib/api.ts` | `frontend/AGENTS.md`、Next 本地 docs |
 | 教程站发布 | `docs-site/index.html` → `_sidebar.md` → `build.py` → `test_build.py` | `.github/workflows/docs-pages.yml` |
 | 改教程正文 | `tutorials/README.md` → 对应篇章 → `tutorials/更新记录.md` → `docs-site/build.py` | `../CareerLens教学项目台账/06-教程写作与验收规范.md` |
-| 找配合教程的思考题 | `../CareerLens教程思考题集.md`（47 题，按篇章组织） | 对应篇章正文与源码 |
+| 找配合教程的思考题 | `../CareerLens教程思考题集.md`（62 题：47 技术题 + 15 道写进简历的表达题） | 对应篇章正文与源码 |
 | 判断当前状态 | 本文件 §0 → `CHANGELOG.md` → `../CareerLens文档导航.md` | 台账 01/02/03、验收报告（仅历史数据） |
 
 ---

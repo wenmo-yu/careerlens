@@ -15,15 +15,26 @@ export default function Home() {
       <SiteHeader active="home" />
 
       <section className="landing-hero">
-        <div className="landing-hero-copy">
-          <span className="site-kicker"><i /> EVIDENCE-GROUNDED CAREER INTELLIGENCE</span>
-          <h1>职业选择，<br /><em>不靠猜。</em></h1>
-          <p>把零散经历整理成可验证的职业画像，让每一次岗位匹配、能力判断和下一步建议，都有证据可循。</p>
-          <div className="landing-actions">
-            <Link className="site-button site-button-dark" href="/workspace">进入工作台 <span>↗</span></Link>
-            <Link className="site-button site-button-outline" href="/demo">先看完整案例 <span>→</span></Link>
+        <div className="landing-hero-grid">
+          <div className="landing-hero-copy">
+            <span className="site-kicker"><i /> EVIDENCE-GROUNDED CAREER INTELLIGENCE</span>
+            <h1>职业选择，<br /><em>不靠猜。</em></h1>
+            <p>把零散经历整理成可验证的职业画像，让每一次岗位匹配、能力判断和下一步建议，都有证据可循。</p>
+            <div className="landing-actions">
+              <Link className="site-button site-button-dark" href="/workspace">进入工作台 <span>↗</span></Link>
+              <Link className="site-button site-button-outline" href="/demo">先看完整案例 <span>→</span></Link>
+            </div>
           </div>
-          <div className="landing-hero-foot"><span>01 / PERSONAL DATA</span><span>02 / EVIDENCE</span><span>03 / DECISION</span></div>
+          <div className="hero-proof" aria-label="从证据到决策的四个环节">
+            <div className="hero-proof-head"><span>HOW A CLAIM IS MADE</span><span>01 → 04</span></div>
+            <ol className="hero-proof-steps">
+              <li><span>01</span><div><strong>授权材料</strong><small>自述 · 简历 · 授权导出</small></div></li>
+              <li><span>02</span><div><strong>带 ID 的 Evidence</strong><small>每条结论都能回到原文</small></div></li>
+              <li><span>03</span><div><strong>画像与岗位逐项对照</strong><small>证据不足就标为缺口</small></div></li>
+              <li><span>04</span><div><strong>报告与可追问的回答</strong><small>保留版本与引用诊断</small></div></li>
+            </ol>
+            <div className="hero-proof-note">结论可以流畅，依据必须清楚。</div>
+          </div>
         </div>
         <div className="landing-shot" aria-label="CareerLens 工作台界面预览">
           <div className="landing-shot-image" role="img" aria-label="工作台中的职业画像与证据引用面板" />

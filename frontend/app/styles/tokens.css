@@ -60,6 +60,7 @@
   /* layout */
   --shell: 1200px;
   --gutter: 32px;
+  --rail: 248px;
 
   /* type scale */
   --t-2xs: 10px;

@@ -76,21 +76,6 @@ docker compose up -d --build
 
 ## 工作流
 
-```mermaid
-flowchart LR
-  A[授权材料<br/>自述 · 文件 · 导出] --> B[导入与画像<br/>Run + Worker]
-  B --> C[Evidence<br/>来源 + ID]
-  C --> D[职业画像<br/>条目 + 引用]
-  C --> E[Copilot 检索<br/>带诊断的引用]
-  D --> F[岗位对照<br/>JD / 已存 JD]
-  F --> G[缺口 + 学习计划]
-  G --> H[版本化报告]
-  G --> I[新作品证据]
-  I --> B
-  D -. 草案 → 确认 .-> D
-```
-
-图下的主线是：API 写入 Run，Worker 执行，工作台经 SSE 看进度；画像修正必须确认后写回。
 1. **导入经历**：粘贴自述、上传简历或平台导出 → 带来源与 ID 的 Evidence
 2. **构建画像**：结构化条目 + 置信度 + 证据引用
 3. **分析岗位**：逐条匹配判断、缺口与学习路线
@@ -98,7 +83,7 @@ flowchart LR
 5. **追问结论**：Career Copilot 多轮对话，可展开原始证据
 6. **修正记忆**：草案 → 确认后写入长期画像
 
-其中第 1、3、4 步与 Wiki 编译会进入后台任务，支持实时进度与断线续看；短对话仍走同步会话。
+第 1、3、4 步与 Wiki 编译进入后台 Run，由 Worker 执行，工作台经 SSE 看进度并可在断线后续看；短对话仍走同步会话。完整的数据流与时序见[架构文档](docs/architecture.md#一次完整请求如何流转)。
 
 ## 设计取舍
 
@@ -113,40 +98,15 @@ flowchart LR
 
 ## 系统架构
 
-```mermaid
-flowchart LR
-  subgraph Clients[客户端]
-    W[Next.js 工作台]
-    MC[MCP 客户端]
-  end
-  subgraph Services[服务层]
-    A[FastAPI]
-    M[MCP 服务]
-    S[共享业务服务]
-    WK[Worker + Coordinator]
-    G[LangGraph Copilot]
-  end
-  subgraph Data[数据层]
-    P[(PostgreSQL<br/>业务 + Run/Event)]
-    Q[(Qdrant<br/>可重建索引)]
-  end
-  W -->|HTTP| A
-  A -->|SSE 进度| W
-  W -->|聊天| G
-  MC -->|Bearer + Scope| M
-  A --> S
-  M --> S
-  S --> G
-  S --> P
-  S --> Q
-  A -->|写入 Run| P
-  P -->|领取任务| WK
-  WK --> S
-  WK --> P
-  WK -->|outbox| Q
-```
+CareerLens 分三层，职责清楚、可逐层替换：
 
-PostgreSQL 保存业务记录、Run/Event 与 checkpoint；Qdrant 只存可由 Evidence 重建的索引。API 与 MCP 共用业务服务与权限规则。详见[架构文档](docs/architecture.md)。
+| 层 | 组成 | 职责 |
+| --- | --- | --- |
+| 客户端 | Next.js 工作台、MCP 客户端 | 导入、画像、匹配、报告、对话等交互；MCP 客户端用 Bearer + Scope 访问工具 |
+| 服务层 | FastAPI、MCP 服务、共享业务服务、Worker / Coordinator、LangGraph Copilot | HTTP 与 MCP 复用同一套业务规则和权限校验；长任务写入 Run，由 Worker 领取执行 |
+| 数据层 | PostgreSQL、Qdrant | PostgreSQL 是业务与 Run/Event/checkpoint 的真相源；Qdrant 只存可由 Evidence 重建的检索索引 |
+
+工作台经 HTTP 调用 API、经 SSE 接收后台进度，聊天走 Copilot 路由；API 写 Run、Worker 领取并回写结果，索引更新经 outbox 进入 Qdrant。PostgreSQL 与 Qdrant 各有明确边界，API 与 MCP 共用业务服务。分层图、两条请求链与状态边界见[架构文档](docs/architecture.md)。
 
 ## 技术栈
 

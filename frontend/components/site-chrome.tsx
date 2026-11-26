@@ -9,9 +9,18 @@ const links: { href: string; label: string; page: Page }[] = [
   { href: "/start", label: "快速开始", page: "start" },
 ];
 
+const crumbs: Record<Page, string> = {
+  home: "首页",
+  demo: "虚构案例",
+  architecture: "系统设计",
+  start: "快速开始",
+  workspace: "工作台",
+};
+
 export function SiteHeader({ active }: { active: Page }) {
   return (
     <header className="site-header">
+      <span className="site-crumb">CareerLens <b>/ {crumbs[active]}</b></span>
       <Link className="site-brand" href="/" aria-label="CareerLens 首页">
         <span className="site-brand-mark">C<span>·</span></span>
         <span className="site-brand-word">CareerLens<small>EVIDENCE → DECISION</small></span>
