@@ -249,7 +249,7 @@ RAG 的后端诊断中可以看到 `fusion=weighted_score`——那是 04-A 本�
 
 在新建的教学账号中另导入一条合成证据，并只用它创建一张临时 Wiki 页。用 `DELETE /api/v1/evidence/{evidence_id}` 删除这条合成证据。响应的 `removed_wiki_pages` 应为 1。再查那张页应得到 404。用原账号的 `kb-study` 继续读主线案例。
 
-打开 `backend/app/services/privacy.py` 的 `delete_evidence_record`。它清理当前仍引用该资料的页面和相关快照，还会处理旧历史中单独引用该材料的版本。索引更新则提交一条删除待办。`test_wiki_revisions_restore_citations_and_delete_obsolete_sources` 检查当前页还可用或需要移除的两种情况。 [删除后清理来源](../../backend/app/services/privacy.py#L290-L395) · [历史引用清理测试](../../backend/tests/test_knowledge_mode.py#L165-L202)
+打开 `backend/app/services/privacy.py` 的 `delete_evidence_record`。它清理当前仍引用该资料的页面和相关快照，还会处理旧历史中单独引用该材料的版本。索引更新则提交一条删除待办。`test_wiki_revisions_restore_citations_and_delete_obsolete_sources` 检查当前页还可用或需要移除的两种情况。 [删除后清理来源](../../backend/app/services/privacy.py#L290-L395) · [历史引用清理测试](../../backend/tests/test_knowledge_mode.py#L165-L200)
 
 这个选做和 05-C 的回滚校验是同一条原则的两面：**页面不能引用不存在的证据**。回滚时检查旧快照的引用还在不在，删除证据时清理引用它的页面——都在守护「每条结论都能回到真实原文」这条底线。
 

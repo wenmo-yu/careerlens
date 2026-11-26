@@ -50,18 +50,19 @@ export default function Home() {
       </div>
 
       {notice && <div className={`notice ${notice.kind}`} role="status">{notice.text}</div>}
-      {importResult && <ImportResultCard result={importResult} onDismiss={() => setImportResult(null)} onDeleteEvidence={(id) => setDeleteEvidenceId(id)} />}
-
       <section className="workspace" id="profile">
         <div className="section-heading">
           <div><span>01</span><h2>构建职业画像</h2></div>
           <p>先从简历、自述或导出内容建立 Evidence。</p>
         </div>
+        {importResult && <ImportResultCard result={importResult} onDismiss={() => setImportResult(null)} onDeleteEvidence={(id) => setDeleteEvidenceId(id)} />}
+
         <div className="two-column">
           <form id="import-form" className="panel input-panel" onSubmit={handleBuildProfile}>
             <label>用户标识<input value={userId} disabled={busy !== null} onChange={(event) => {
               setUserId(event.target.value);
               setLatestRun(null);
+              setImportResult(null);
               setProfile(null);
               setChat(null);
               setAnalysis(null);

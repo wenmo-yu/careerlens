@@ -79,6 +79,27 @@ test.describe("workbench happy path", () => {
     await expect(page.locator(".report-preview")).toContainText("个人职业画像");
   });
 
+  test("opens the result of a completed document upload", async ({ page }) => {
+    await page.goto("/workspace");
+    await page.getByLabel("用户标识").fill("e2e-upload-" + Date.now());
+    await page.locator('input[accept=".html,.htm,.zip"]').setInputFiles({
+      name: "hy4-upload.html",
+      mimeType: "text/html",
+      buffer: Buffer.from("<p>林澈用 Python 完成课程接口。</p><script>const marker = 'Kubernetes';</script>"),
+    });
+
+    await completeRun(page, "文档导入");
+
+    const result = page.locator("#profile .import-result");
+    await expect(result.getByRole("heading", { name: "文档导入 · 已读出文字" })).toBeVisible();
+    await expect(result).toContainText("可读证据");
+    await result.getByText("展开证据定位（1 条）").click();
+    await result.getByRole("button", { name: "hy4-upload.html" }).click();
+    await expect(result.getByText("林澈用 Python 完成课程接口。", { exact: true })).toBeVisible();
+    await page.getByLabel("用户标识").fill("e2e-next-" + Date.now());
+    await expect(result).toHaveCount(0);
+  });
+
   test("empty states tell the user what to do next", async ({ page }) => {
     await page.goto("/workspace");
     const copilotEmpty = page.locator("#copilot .empty").first();

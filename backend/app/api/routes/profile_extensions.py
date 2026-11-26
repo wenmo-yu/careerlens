@@ -7,6 +7,7 @@ layout, and interview stories must point at the user's own Evidence.
 
 import json
 from typing import Annotated
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import delete, select
@@ -283,9 +284,11 @@ async def create_interview_story(
             raise HTTPException(
                 status_code=422, detail="故事只能引用你自己的 Evidence"
             )
+    story_id = str(uuid4())
     record = ProfileExtension(
+        id=story_id,
         user_id=user_id,
-        dimension_key=f"story:{payload.title.strip()[:80]}",
+        dimension_key=f"story:{story_id}",
         value_json={
             "title": payload.title,
             "situation": payload.situation,

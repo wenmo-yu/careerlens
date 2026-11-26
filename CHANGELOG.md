@@ -47,6 +47,8 @@ HY4 · 画像与推荐增强（本地实现，尚未发布版本）：
 
 ### Fixed
 
+- 后台上传完成后可在任务中心打开导入结果，查看可读证据、待 OCR 页数与原文。浏览器回归覆盖 HTML 上传。
+- 面试故事使用独立编号，同一账号可保存多条同名故事。新增回归覆盖相同长标题。
 - 公开链接证据卡与 GitHub 导入的确认复选框被 `.link-card-form input { min-width:170px }` 拉成 170px 宽，与说明文字分离；改为 `min-width:0` 的 15px 复选框。
 - 刷新工作台时不恢复已保存画像，用户会误以为数据丢失；挂载时重新拉取 profile、overview 与 evidence。
 - 同一用户在 1 秒内连续提交同一量表会撞 `(user_id, instrument, version, taken_at)` 唯一键并返回 500：`taken_at` 改为 Python 侧微秒时间戳，SQLite 的秒级 `CURRENT_TIMESTAMP` 不再造成碰撞；补回归用例。

@@ -92,7 +92,7 @@ flowchart LR
 
 `source_refs` 记录提交给编译器的证据。`chunk_refs` 记录生成结果的 `citations` 中能翻译回原文的 ID。Demo 两条都收下。模型漏掉一条时，`chunk_refs` 可能变短。`unknown_handles` 只记录查不到的句柄，单看它无法判断模型为何漏引。打开原文后，再核对具体句子。
 
-再用 `GET /api/v1/wiki/{slug}`，路径格填刚用的 slug，另一个格填实际 `user_id`。它会返回当前页面。再展开 `GET /api/v1/evidence/{evidence_id}`，填 E 和实际 `user_id`，抄下 `content` 的原句和 `source_metadata.sources` 中的两个文件名。新页面还没有覆盖过任何版本，在 `GET /api/v1/wiki/{slug}/revisions` 填同样两个字段，预期得到空数组。第 05-C 课会动手建立版本记录。 [页面详情和历史接口](../backend/app/api/routes/wiki.py#L94-L168)
+再用 `GET /api/v1/wiki/{slug}`，路径格填刚用的 slug，另一个格填实际 `user_id`。它会返回当前页面。再展开 `GET /api/v1/evidence/{evidence_id}`，填 E 和实际 `user_id`，抄下 `content` 的原句和 `source_metadata.sources` 中的两个文件名。新页面还没有覆盖过任何版本，在 `GET /api/v1/wiki/{slug}/revisions` 填同样两个字段，预期得到空数组。第 05-C 课会动手建立版本记录。 [页面详情和历史接口](../backend/app/api/routes/wiki.py#L95-L162)
 
 ## 顺着这一次编译看原代码
 
@@ -139,7 +139,7 @@ flowchart LR
 
 ## 工作台做的也是这件事
 
-在工作台展开「从证据编译 Wiki 专题」。打开 `frontend/lib/use-workspace.ts` 的 `handleWikiCompile`，它读取选中的证据编号，调用 `createRun` 提交 `wiki_compile`。Worker 调用 `wiki_curator` 生成候选，再核验引用和保存，当前版本写入时的作者标记为 `agent`。这条路线可以看到任务 Run 与步骤。刚才的同步路线可以直接观察 201 响应和页面字段。 [工作台编译入口](../frontend/lib/use-workspace.ts#L279-L291) · [后台 Wiki 操作](../backend/app/runtime/operations.py#L132-L165)
+在工作台展开「从证据编译 Wiki 专题」。打开 `frontend/lib/use-workspace.ts` 的 `handleWikiCompile`，它读取选中的证据编号，调用 `createRun` 提交 `wiki_compile`。Worker 调用 `wiki_curator` 生成候选，再核验引用和保存，当前版本写入时的作者标记为 `agent`。这条路线可以看到任务 Run 与步骤。刚才的同步路线可以直接观察 201 响应和页面字段。 [工作台编译入口](../frontend/lib/use-workspace.ts#L288-L300) · [后台 Wiki 操作](../backend/app/runtime/operations.py#L132-L165)
 
 **两个入口，一套产物。** 同步 `POST /api/v1/wiki/compile` 当场返回 201 和页面；工作台走 `POST /api/v1/runs` 提交后台任务，等 Run 成功后在任务中心点「打开结果」。两者最终创建的都是 `wiki_pages` 表里的同一类页面，共用 `prepare_page` → `persist_page` 的校验和写入逻辑。后台还会记录子 Agent 的步骤、重新核验所选材料、检查提交资格。两种入口复用同一套候选编译与页面写入代码。这条原则在第 07 课还会再遇到（岗位分析也是同步/后台两个入口、同一种产物）。
 

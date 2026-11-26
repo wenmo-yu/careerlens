@@ -172,9 +172,9 @@ FUNCTION_HINTS = {
         "通过时返回不重复的引用数量和诊断。",
     ),
     "Coordinator.delegate": (
-        "先检查并扣减本次角色预算，然后记录 running。",
-        "从 SPECIALISTS 取投影函数和子图。先缩小输入，再执行小图。",
-        "把诊断摘要交给进度，最后把角色结果交还任务。",
+        "先检查剩余预算，再检查角色是否登记在 SPECIALISTS。",
+        "通过检查后扣减一次预算。",
+        "等待已有的 _run_role 执行子图，返回它给出的结果。",
     ),
     "Coordinator.verify": (
         "把允许的 ID 和候选 ID 交给 evidence_verifier。",

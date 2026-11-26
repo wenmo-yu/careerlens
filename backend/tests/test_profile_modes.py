@@ -116,3 +116,17 @@ async def test_story_without_evidence_is_marked_pending(client):
 def test_view_preferences_are_serialisable():
     payload = json.dumps(default_modules(), ensure_ascii=False)
     assert json.loads(payload)["skill_matrix"] is True
+
+
+async def test_stories_with_the_same_long_title_have_independent_ids(client):
+    route = "/api/v1/profiles/story-author/interview-stories"
+    payload = {"user_id": "story-author", "title": "课程项目" * 30}
+    first = await client.post(route, json={**payload, "action": "编写接口"})
+    second = await client.post(route, json={**payload, "action": "补充测试"})
+    assert first.status_code == second.status_code == 200
+    for result in (first.json(), second.json()):
+        assert result["key"] == f"story:{result['id']}"
+    assert first.json()["id"] != second.json()["id"]
+
+    stories = (await client.get(route)).json()["stories"]
+    assert {item["action"] for item in stories} == {"编写接口", "补充测试"}
