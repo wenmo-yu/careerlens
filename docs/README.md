@@ -23,6 +23,7 @@
 - **想理解设计**：按"[架构](architecture.md) → [数据与证据](data-and-evidence.md) → [Agent 与检索](agent-and-retrieval.md) → [后台任务](phase-3-runtime.md) → [评测](evaluation-and-operations.md)"阅读。
 - **想动手复刻**：走[实现教程](../tutorials/README.md)，按依赖顺序逐层实现。查词用[术语表](../tutorials/术语表.md)，卡住看[常见问题](../tutorials/常见问题.md)。
 - **集成外部客户端**：参阅[接入、MCP 与安全](integrations-and-security.md)；接口入口见[API 与配置参考](api-and-configuration.md)，完整参数以 Swagger 为准。
+- **想看新增功能**：自陈测评与 MBTI 边界见[测评题库与许可](assessments.md)；GitHub 只读令牌见[GitHub 仓库导入](github-token-import.md)；画像模式、课程目录、多 JD 对比与学习看板见[画像、推荐与自陈探索](profile-and-recommendations.md)；所有页面截图见[界面展示](showcase.md)。
 
 ## 运行与验证范围
 

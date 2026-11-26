@@ -9,10 +9,11 @@
  * the built app on :3000. PW_CHANNEL=msedge reuses an installed browser.
  */
 import { chromium } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000";
+const API = process.env.E2E_API_URL ?? "http://127.0.0.1:8000";
 const OUT = fileURLToPath(new URL("../../docs/assets", import.meta.url));
 const W = 1425;
 const H = 891;
@@ -127,6 +128,26 @@ await shot("workspace");
 // Capture the grid itself. A viewport shot kept landing mid-card because the
 // grid sits below the fold of a tall section.
 await elementShot(".insight-grid", "profile");
+await elementShot(".capability-grid", "capability-cards");
+await elementShot(".profile-modes", "profile-modes");
+
+// HY4-A: real HTML upload → background run → import result → expanded original.
+const fixture = readFileSync(
+  new URL("../../examples/tutorials/fixtures/hy4-lin-api.html", import.meta.url),
+);
+await page.locator('input[accept=".html,.htm,.zip"]').setInputFiles({
+  name: "hy4-lin-api.html",
+  mimeType: "text/html",
+  buffer: fixture,
+});
+await finishRun("文档导入");
+const importResult = page.locator("#profile .import-result");
+await importResult.waitFor();
+await elementShot(".import-result", "import-result");
+await importResult.locator("summary").click();
+await importResult.getByRole("button", { name: /hy4-lin-api\.html/ }).click();
+await page.waitForTimeout(400);
+await elementShot(".import-result", "evidence-card");
 
 await page.getByLabel("岗位名称").fill("AI Agent 开发实习生");
 await page.getByLabel("岗位描述").fill(JD);
@@ -135,12 +156,21 @@ await finishRun("岗位分析");
 await at("#matching");
 // The per-requirement table with its gap list is the point of this image; a
 // full viewport here would only show the form and the score.
+await elementShot(".score-card", "score-card");
 await elementShot(".match-grid", "job-match");
+await elementShot(".learning-board", "learning-board");
+await elementShot(".course-catalog", "course-catalog");
+
+await page.getByRole("button", { name: /查看相邻职业方向/ }).click();
+await page.locator(".role-grid article").first().waitFor({ timeout: 60_000 });
+await elementShot(".role-grid", "role-suggestions");
 
 await page.getByRole("button", { name: /生成职业报告|生成新版本/ }).click();
 await finishRun("职业报告");
 await at("#report");
 await shot("report");
+await page.locator(".report-overview details").filter({ hasText: "证据目录" }).locator("summary").click();
+await elementShot(".report-overview", "report-evidence");
 
 await at("#copilot");
 await page.getByPlaceholder("询问你的职业画像…").fill("为什么认为我适合 Agent 开发？");
@@ -150,6 +180,45 @@ await page.waitForTimeout(1200);
 // Copilot is the last section, so the viewport cannot scroll far enough to put
 // its heading at the top; capture the chat panel itself instead.
 await elementShot(".chat-shell", "copilot");
+await page.locator(".evidence-stack details summary").first().click();
+await page.waitForTimeout(400);
+await elementShot(".chat-shell", "copilot-evidence");
+
+// HY4-D: submit one synthetic self-report instrument, then show the saved result.
+const instruments = await (await page.request.get(`${API}/api/v1/assessments/instruments`)).json();
+const chosen = instruments.instruments.find((row) => row.instrument_id === "big_five_20")
+  ?? instruments.instruments[0];
+const detail = await (await page.request.get(
+  `${API}/api/v1/assessments/instruments/${chosen.instrument_id}`,
+)).json();
+const answers = Object.fromEntries(detail.items.map((item) => [item.id, 4]));
+const submitted = await page.request.post(
+  `${API}/api/v1/assessments/instruments/${chosen.instrument_id}/submit`,
+  { data: { user_id: USER, answers, consent: true } },
+);
+if (!submitted.ok()) throw new Error(`assessment submit failed: ${submitted.status()}`);
+await page.reload();
+// Workspace state resets to demo-user on reload; restore the capture account.
+await page.getByLabel("用户标识").fill(USER);
+await page.locator(".assessment-results summary").waitFor({ timeout: 30_000 });
+await at("#assessment");
+await page.locator(".assessment-results summary").click();
+await page.locator(".assessment-results").getByRole("button", { name: "查看" }).last().click();
+await page.waitForTimeout(700);
+await elementShot(".assessment-panel", "assessment");
+
+await at("#quality");
+await page.getByRole("button", { name: "运行质量门禁" }).click();
+await page.locator(".gate-strip").waitFor({ timeout: 90_000 });
+await elementShot(".quality-grid", "quality-observability");
+
+await at("#privacy");
+// Demo mode records audit events for privacy operations; make one before the shot.
+const exported = await page.request.get(`${API}/api/v1/privacy/${USER}/export`);
+if (!exported.ok()) throw new Error(`privacy export failed: ${exported.status()}`);
+await page.getByRole("button", { name: "刷新审计日志" }).click();
+await page.locator(".audit-card div p").first().waitFor({ timeout: 30_000 });
+await elementShot(".privacy-grid", "data-control");
 
 await browser.close();
 console.log("done");

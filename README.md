@@ -29,7 +29,22 @@ CareerLens 是一个**证据驱动的职业决策 Agent**。它把你授权的�
 - **检索与知识双模态** — 默认 `auto + hash`；Qdrant 路径提供 Dense + Sparse 与 RRF 融合，不可用时自动降级到本地混合检索；二阶段重排按需启用，实际 backend / fusion / reranker / fallback 写在检索诊断里。编译带引用的 Wiki 主题页，提问期可在 `rag / wiki / hybrid` 间切换，**零重建**。
 - **引用锚定到稳定证据** — Wiki 编译用 `c000` 短句柄让模型引用，落库前解析回稳定 evidence_id；未知句柄丢弃，表格行丢失会被写入守卫拒绝。
 - **长任务后台化** — 导入、Wiki 编译、岗位分析、报告生成走持久化 Run + 独立 Worker；支持实时进度、断线续看、审批、取消、幂等与租约恢复。
+- **自陈测评可选** — 工作偏好、RIASEC 兴趣和大五 20 题均为项目自写；自填 MBTI 标签只作线索，不复制官方题库、不进入事实画像、不改匹配分。见[测评题库与许可](docs/assessments.md)。
+- **来源边界清晰** — 八平台当前页采集、用户导出文件、HTML/ZIP、公开链接证据卡和 GitHub 只读令牌按真实能力标注；互动只作兴趣线索，OAuth 未实现。见[接入、MCP 与安全](docs/integrations-and-security.md)。
 - **个人数据可控** — Scope Token、数据导出、单条删除、整账号清理，敏感操作只留不含原文的审计记录。
+
+## 功能地图
+
+| 你想看什么 | 先看 |
+| --- | --- |
+| 所有页面与真实截图：导入结果、画像、岗位、报告、Copilot、测评、质量、数据控制 | [界面展示](docs/showcase.md) |
+| 系统怎么跑：架构、数据、Agent、运行时、接口、配置 | [技术文档](docs/README.md) |
+| 自陈测评、MBTI 边界、三份自写量表与计分 | [测评题库与许可](docs/assessments.md) |
+| 用自备只读令牌导入 GitHub 仓库元数据与 README | [GitHub 仓库导入](docs/github-token-import.md) |
+| 八平台当前页采集、公开链接卡、XLSX/HTML/ZIP 等来源边界 | [接入、MCP 与安全](docs/integrations-and-security.md) |
+| 从零跟做：概念课、源码课、第 10/11 篇 HY4 实战 | [教程学习路径](tutorials/README.md) |
+
+工作台分区：`#profile` 导入与画像、`#matching` 岗位与学习看板、`#report` 版本报告、`#copilot` 证据问答、`#assessment` 自我探索、`#quality` 质量门禁、`#privacy` 数据控制。
 
 ## 快速开始
 
