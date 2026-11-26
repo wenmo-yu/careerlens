@@ -4,7 +4,7 @@
 
 **把经历变成证据，再用证据回答"我适合什么岗位、还缺什么、下一步怎么做"。**
 
-**[开始学习](tutorials/从这里开始.md)** · [在线教程站](https://wenmo-yu.github.io/careerlens/) · **[本机启动](#快速开始)** · **[技术文档](docs/README.md)** · [界面展示](docs/showcase.md) · [系统架构](docs/architecture.md) · [API 与配置](docs/api-and-configuration.md) · [路线图](ROADMAP.md)
+**[📘 在线教程站（免费跟做）](https://wenmo-yu.github.io/careerlens/)** · **[开始学习](tutorials/从这里开始.md)** · **[本机启动](#快速开始)** · **[技术文档](docs/README.md)** · [界面展示](docs/showcase.md) · [系统架构](docs/architecture.md) · [API 与配置](docs/api-and-configuration.md) · [路线图](ROADMAP.md)
 
 [![Quality Gate](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml)
 [![Release](https://img.shields.io/github/v/release/wenmo-yu/careerlens)](https://github.com/wenmo-yu/careerlens/releases)
@@ -14,12 +14,24 @@
 
 </div>
 
-CareerLens 是一个**证据驱动的职业决策 Agent**。它把你授权的简历、自述与平台导出内容整理成带来源和 ID 的 **Evidence**，构建持续更新的结构化画像；输入岗位 JD 后，逐条比对要求与证据，给出匹配判断、能力缺口、学习路线和职业报告。岗位表显示证据条数，你可以从证据列表、导入结果或 Copilot 的引用卡追回原文。
+CareerLens 是一个**证据驱动的职业决策 Agent**：把简历、自述与平台导出整理成可追溯的 **Evidence**，构建结构化画像；输入岗位 JD 后逐条比对，给出匹配判断、能力缺口、学习路线和职业报告——**每个结论都能点开看到原始证据**。
 
-绝大多数求职建议的问题不是"不够流畅"，而是**没有依据**。CareerLens 把"证据是否足以支持结论"写进了整条输出链路。
+多数求职建议的问题不是"不够流畅"，而是**没有依据**。CareerLens 把"证据是否足以支持结论"写进整条链路：证据不足就标缺口，不把推测写成经历。
 
-> **说明**：
-> 开源版本可在本机跑通完整业务闭环，**无需任何 API Key**：默认使用确定性 Demo 模型与轻量检索 Provider。真实模型（DeepSeek / OpenAI-compatible / 本地 Qwen、OCR/ASR）提供可选接入，效果取决于所用模型与运行环境。
+> **零密钥即可跑通**：默认 Demo 模型 + 轻量检索，一条 Docker 命令体验完整流程。真实模型（DeepSeek / OpenAI-compatible / 本地 Qwen、OCR/ASR）是可选接入。
+
+## 为什么用 CareerLens
+
+| 你关心的 | CareerLens 的做法 |
+| --- | --- |
+| **结论可信吗** | 画像与岗位匹配都带 Evidence ID 和证据条数；从证据列表、导入结果或 Copilot 引用卡都能追回原文 |
+| **会被一句话改掉长期资料吗** | 偏好修正先生成草案，确认后才写入，不静默改变画像 |
+| **缺口怎么变成行动** | 每项要求判 `strong / partial / gap`，按每周投入排学习路线，进度可回写为作品证据 |
+| **长任务会中断吗** | 导入、分析、报告走持久化 Run + Worker，SSE 实时进度、断线续看、取消与幂等恢复 |
+| **数据能带走吗** | Scope Token、JSON 导出、单条删除、整账号清理，审计不含原文 |
+| **只是个演示吗** | 零基础教程站从概念到源码跟做，246 项后端测试 + 4 项 CI 门禁全绿 |
+
+**技术亮点**：LangGraph 条件路由 · Qdrant Dense+Sparse 混合检索与 RRF · 带引用的 Wiki 版本页 · MCP 工具接口 · 可切换生成模型 · Prometheus 指标。详见[架构文档](docs/architecture.md)。
 
 ## 核心能力
 
@@ -42,7 +54,7 @@ CareerLens 是一个**证据驱动的职业决策 Agent**。它把你授权的�
 | 自陈测评、MBTI 边界、三份自写量表与计分 | [测评题库与许可](docs/assessments.md) |
 | 用自备只读令牌导入 GitHub 仓库元数据与 README | [GitHub 仓库导入](docs/github-token-import.md) |
 | 八平台当前页采集、公开链接卡、XLSX/HTML/ZIP 等来源边界 | [接入、MCP 与安全](docs/integrations-and-security.md) |
-| 从零跟做：概念课、源码课、第 10/11 篇 HY4 实战 | [教程学习路径](tutorials/README.md) |
+| 从零跟做：概念课、源码课、第 10/11 篇画像与岗位实战 | [教程学习路径](tutorials/README.md) |
 
 工作台分区：`#profile` 导入与画像、`#matching` 岗位与学习看板、`#report` 版本报告、`#copilot` 证据问答、`#assessment` 自我探索、`#quality` 质量门禁、`#privacy` 数据控制。
 
@@ -85,17 +97,6 @@ docker compose up -d --build
 
 第 1、3、4 步与 Wiki 编译进入后台 Run，由 Worker 执行，工作台经 SSE 看进度并可在断线后续看；短对话仍走同步会话。完整的数据流与时序见[架构文档](docs/architecture.md#一次完整请求如何流转)。
 
-## 设计取舍
-
-普通助手追求"说得顺"，CareerLens 追求"说得有据"：
-
-- **检索与生成解耦**：生成模型可切换 API 或本地服务；检索后端从 Qdrant 自动降级到本地混合检索，并在响应中报告实际使用的 backend、fusion、reranker。
-- **知识组织有版本**：Wiki 页版本只在用户可见内容变化时递增，乐观并发防止过期写入覆盖，回滚是一次普通编辑而非删除历史。
-- **运行时以数据库为队列**：不引入 Redis，用租约、fencing 代次与提交边界保证"提交即终态"，取消与过期都能恢复。
-- **隐私默认收敛**：审计不含原文，向量删除有补偿，账号删除返回匿名回执。
-
-这些取舍的背景见[与 WeKnora 和 WorkBuddy 的实现对照](docs/agent-and-retrieval.md#与-weknora-和-workbuddy-的实现对照)。
-
 ## 系统架构
 
 CareerLens 分三层，职责清楚、可逐层替换：
@@ -124,9 +125,14 @@ CareerLens 分三层，职责清楚、可逐层替换：
 
 完整代码导航见[技术文档](docs/README.md)。
 
-## 零基础入门与教程
+## 零基础入门与在线教程
 
-先用 3 分钟判断林澈的一条经历。接着读八篇概念课（00-1～00-8），也可先运行工作台；进入源码前写一个最小证据助手，再跟到真实的 Agent、检索、Wiki、后台运行与 MCP。第 09 篇看自陈测评，第 10/11 篇用同一份合成材料练习导入回查、岗位对比与学习进度。 [GitHub 学习路径](tutorials/README.md#学习路径) · [在线教程站](https://wenmo-yu.github.io/careerlens/)
+> **📘 在线教程站：https://wenmo-yu.github.io/careerlens/** — 无需装环境即可在浏览器里阅读，从第一道题一路跟到源码实现。
+
+这是一套**边学边做**的完整课程，不只是使用说明：先用 3 分钟判断林澈的一条经历，再读八篇概念课；接着跑产品、写一个最小证据助手，然后跟到真实的 Agent、检索、Wiki、后台运行与 MCP 源码。第 09 篇看自陈测评，第 10/11 篇用同一份合成材料练习导入回查、岗位对比与学习进度。
+
+- [在线教程站（Docsify）](https://wenmo-yu.github.io/careerlens/) · [GitHub 学习路径](tutorials/README.md#学习路径)
+- 每篇都带可运行的练习与"先想想 → 参考思路 → 去哪核对"的闭环，见[常见问题](tutorials/常见问题.md)与[术语表](tutorials/术语表.md)
 
 ## 验证
 
