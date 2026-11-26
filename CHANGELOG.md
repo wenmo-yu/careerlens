@@ -4,7 +4,7 @@ All notable changes to CareerLens are documented here.
 
 ## Unreleased
 
-画像与推荐增强（开发阶段代号 HY4，已进入主分支，待正式 Release）：
+画像与推荐增强（已进入主分支，待正式 Release）：
 
 ### Added
 

@@ -13,13 +13,13 @@
 | 产品版本 | v0.4.0；三期产品交付完成，`CHANGELOG.md` 已回填 |
 | 仓库 | https://github.com/wenmo-yu/careerlens |
 | 公开教程站 | https://wenmo-yu.github.io/careerlens/ |
-| 最新公开提交 | `ce5bb08`（PR #59，教程同步 HY4 工作台）；本轮文档/截图提交 `34680ab` → `aee4487` → `9953471` |
-| 验证基线 | 后端 246 项测试（覆盖率门槛 78%，实测约 82%）、20 个冻结合成场景、Playwright 端到端 5 项、Quality Gate 四项与依赖审计两项全绿（backend / frontend / e2e / docker-smoke / pip-audit / pnpm audit）；Docsify build 111 文件 0 坏链，Pages 部署成功；HY4 后新增导入结果、画像概览、目录推荐、学习进度、测评、运行时、HTML/ZIP、画像模式、来源注册表与 Prometheus 指标专项测试 |
+| 最新公开提交 | `ce5bb08`（PR #59，教程同步画像与岗位工作台）；本轮文档/截图提交 `34680ab` → `aee4487` → `9953471` |
+| 验证基线 | 后端 246 项测试（覆盖率门槛 78%，实测约 82%）、20 个冻结合成场景、Playwright 端到端 5 项、Quality Gate 四项与依赖审计两项全绿（backend / frontend / e2e / docker-smoke / pip-audit / pnpm audit）；Docsify build 111 文件 0 坏链，Pages 部署成功；画像推荐轮后新增导入结果、画像概览、目录推荐、学习进度、测评、运行时、HTML/ZIP、画像模式、来源注册表与 Prometheus 指标专项测试 |
 | 默认可运行方式 | Docker Compose；无需 API Key，使用确定性 Demo 模型与本地检索 |
 | 仍未完成 | 真人独立试学、真机初装/剪贴板/跨端点检、真实模型与旧库迁移；这些是验证缺口，不是源码缺口 |
 | 本地 git 状态 | 本地 `HEAD` 和 `ahead` 可能滞后（远端 fetch 502），**远端 main + Actions + Pages 才是权威** |
 
-**一句话**：产品代码已到 v0.4.0，HY4 A–G 已推送，教程已全章加厚并补上第 10/11 篇 HY4 实战；AI 查代码时优先相信本文件、`CHANGELOG.md`、`docs/README.md` 和源码，不要相信早期草案或本地 git 指针。
+**一句话**：产品代码已到 v0.4.0，画像与推荐增强批次已推送，教程已全章加厚并补上第 10/11 篇画像与岗位实战；AI 查代码时优先相信本文件、`CHANGELOG.md`、`docs/README.md` 和源码，不要相信早期草案或本地 git 指针。
 
 ---
 
@@ -116,14 +116,14 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `reports.py` | 报告生成、版本列表与下载 |
 | `runs.py` | 后台 Run 提交、审批、取消、详情、事件/SSE 进度流 |
 | `wiki.py` | Wiki 编译、页面读取、回滚、版本操作 |
-| `connectors.py` | B站/微博导出与浏览器采集接入；HY4 补充轮新增 `/connectors/registry`（来源清单）、`/connectors/public-link/import`（用户粘贴的证据卡，后端不访问 URL）与 `/connectors/github/import`（自备只读令牌，令牌不落库） |
+| `connectors.py` | B站/微博导出与浏览器采集接入；画像推荐补充轮新增 `/connectors/registry`（来源清单）、`/connectors/public-link/import`（用户粘贴的证据卡，后端不访问 URL）与 `/connectors/github/import`（自备只读令牌，令牌不落库） |
 | `privacy.py` | 导出、单条删除、账号清理 |
 | `evaluation.py` | 评测运行与结果读取（受 `manage` scope 控制） |
 | `observability.py` | 指标/追踪只读接口（受 `manage` scope 控制） |
-| `catalog.py` | HY4 只读目录：`/catalog/roles`、`/catalog/courses` |
+| `catalog.py` | 画像推荐只读目录：`/catalog/roles`、`/catalog/courses` |
 | `profile_extensions.py` | 自陈扩展入口：`/constraints/me`、`/profiles/{id}/dimensions`、`/profiles/{id}/view-preferences`（画像模式与模块开关）、`/profiles/{id}/interview-stories`（证据锚定故事库）。只改展示/过滤/软排序，不碰事实与匹配分 |
-| `recommendations.py` | HY4 确定性推荐：`/recommendations/roles`、`/recommendations/learning-plan` |
-| `learning.py` | HY4：`/saved-jobs`（保存/对比 JD）、`/learning/plans/{id}/progress` |
+| `recommendations.py` | 画像推荐确定性推荐：`/recommendations/roles`、`/recommendations/learning-plan` |
+| `learning.py` | 画像推荐：`/saved-jobs`（保存/对比 JD）、`/learning/plans/{id}/progress` |
 | `assessment.py` | 自陈测评结果入口：旧版快测题与提交、三份量化表的清单/题目/提交、结果列表与删除。路由只做鉴权、参数校验和响应拼装，落库与 stale 标记统一走 `services/assessment.py` |
 
 ### 4.3 数据模型与契约
@@ -142,11 +142,11 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/models/run.py` | `AgentRun` / `RunStep` / `RunEvent` / `RunScope`：后台运行、代次、租约、fencing、事件序号 |
 | `backend/app/models/wiki.py` | `WikiPage` / `WikiRevision`：页面、版本、引用、链接关系 |
 | `backend/app/models/access_token.py` / `audit.py` / `evaluation.py` / `account_deletion.py` | 令牌、不含原文的审计、评测记录、账号删除回执 |
-| `backend/app/models/learning.py` | HY4 `SavedJob` / `LearningProgress`：用户保存的 JD 与学习计划进度 |
-| `backend/app/models/assessment.py` | HY4 `AssessmentResult` / `UserConstraint`：自陈测评与约束，独立于事实画像 |
-| `backend/app/models/profile_extension.py` | HY4 `DimensionDefinition` / `ProfileExtension`：用户可选画像维度 |
-| `backend/app/schemas/*.py` | Pydantic 请求/响应契约：auth、chat、evidence、job、profile、report、run、wiki、evaluation、privacy；HY4 新增 catalog、profile_overview、assessment（快测/量表/约束/维度/画像模式/故事） |
-| `backend/migrations/versions/*.py` | Alembic 迁移：初始表、会话、SourceDocument/ParsedBlock、content_hash、report version 唯一、suppression、Wiki、Run、血缘保留；HY4 head `d0e1f2a3b4c5` 建 saved_jobs/learning_progress/assessment_results/user_constraints/dimension_definitions/profile_extensions |
+| `backend/app/models/learning.py` | 画像推荐 `SavedJob` / `LearningProgress`：用户保存的 JD 与学习计划进度 |
+| `backend/app/models/assessment.py` | 画像推荐 `AssessmentResult` / `UserConstraint`：自陈测评与约束，独立于事实画像 |
+| `backend/app/models/profile_extension.py` | 画像推荐 `DimensionDefinition` / `ProfileExtension`：用户可选画像维度 |
+| `backend/app/schemas/*.py` | Pydantic 请求/响应契约：auth、chat、evidence、job、profile、report、run、wiki、evaluation、privacy；画像推荐新增 catalog、profile_overview、assessment（快测/量表/约束/维度/画像模式/故事） |
+| `backend/migrations/versions/*.py` | Alembic 迁移：初始表、会话、SourceDocument/ParsedBlock、content_hash、report version 唯一、suppression、Wiki、Run、血缘保留；画像推荐 head `d0e1f2a3b4c5` 建 saved_jobs/learning_progress/assessment_results/user_constraints/dimension_definitions/profile_extensions |
 
 ### 4.4 业务服务（`backend/app/services/`）
 
@@ -163,11 +163,11 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `citations.py` | 回答/页面的引用允许集与 ID 规整 |
 | `privacy.py` | 导出、删除、账号清理、向量补偿 |
 | `audit.py` / `connectors.py` / `evaluation.py` | 审计记录、连接器服务、评测服务封装 |
-| `profile_overview.py` | HY4 只读画像聚合与 agent-manifest；覆盖度按有效 Evidence 计算，不用 `ProfileItem.id` 做锚点 |
-| `profile_view_preferences.py` | HY4 补充轮：五种画像模式与模块开关的常量；只改展示/软排序，不碰事实与匹配分 |
-| `recommendation.py` | HY4 确定性方向/课程推荐与 learning_path v2；不联网、不接人格测评 |
-| `assessment.py` | HY4 自陈结果的唯一落库路径：`mark_reports_stale` 标记依赖报告、`record_assessment` 原子写入并提交、`delete_assessment_result` 删除后同步标 stale；旧快测与量表共用，避免两套逻辑漂移 |
-| `backend/app/catalog/loader.py` + `roles.json` / `courses.json` | HY4 本地教学目录与校验（重复 ID、悬空先修、URL 白名单、日期）；坏数据直接报错 |
+| `profile_overview.py` | 画像推荐只读画像聚合与 agent-manifest；覆盖度按有效 Evidence 计算，不用 `ProfileItem.id` 做锚点 |
+| `profile_view_preferences.py` | 画像推荐补充轮：五种画像模式与模块开关的常量；只改展示/软排序，不碰事实与匹配分 |
+| `recommendation.py` | 画像推荐确定性方向/课程推荐与 learning_path v2；不联网、不接人格测评 |
+| `assessment.py` | 画像推荐自陈结果的唯一落库路径：`mark_reports_stale` 标记依赖报告、`record_assessment` 原子写入并提交、`delete_assessment_result` 删除后同步标 stale；旧快测与量表共用，避免两套逻辑漂移 |
+| `backend/app/catalog/loader.py` + `roles.json` / `courses.json` | 画像推荐本地教学目录与校验（重复 ID、悬空先修、URL 白名单、日期）；坏数据直接报错 |
 
 ### 4.5 Agent、模型、检索、Wiki
 
@@ -195,16 +195,16 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/ingestion/files.py` | PDF/DOCX/XLSX/TXT/MD/CSV 解析；扫描页标记待 OCR，不伪造文本 |
 | `backend/app/ingestion/media.py` | 图片/音视频处理，OCR/ASR 可选接入 |
 | `backend/app/ingestion/chunking.py` | 分块策略 |
-| `backend/app/ingestion/html_export.py` | HY4 补充轮：用户另存 HTML 与导出 ZIP 的本地解析；标准库 HTMLParser，跳过 script/style，ZIP 拒绝路径穿越/超大成员；不联网、无 bs4/lxml 依赖 |
-| `backend/app/connectors/bilibili.py` / `weibo.py` / `browser_capture.py` / `base.py` | 平台导出解析与浏览器采集连接器；HY4 补充轮：采集平台扩到掘金/CSDN/知乎/小红书/GitHub，新增 `authored`/`merged` kind（按 `self_reported_published`），互动仍是 `preference_signal` |
-| `backend/app/connectors/registry.py` | HY4 补充轮：来源注册表，按 A 用户导出 / B 当前页采集 / T 自备只读令牌 / C 需授权标注；OAuth 标为 `available: false`，不假装可用 |
-| `backend/app/connectors/github.py` | HY4 补充轮：GitHub 自备只读令牌导入；`httpx` 直连 `api.github.com`，只读仓库元数据与 README（截断 6000 字符），令牌不写库/日志/证据，`external_id` 带 `pushed_at` 以便新推送才产生新证据 |
-| `backend/app/assessment/` | HY4 补充轮：本地量表模块。`data/*.json` 放三份题库（32/48/20 题）与许可、免责声明；`loader.py` 校验 ID/维度/双极平衡/反向题并输出去掉计分键的公开视图；`scoring.py` 确定性计分（80% 门槛、接近中点、RIASEC 代码与一致性、大五反向题与分档），不引入第三方量表库 |
-| `backend/app/connectors/public_link.py` | HY4 补充轮：用户粘贴公开链接生成待确认证据卡；**从不请求 URL**，清掉 query token，按自报处理 |
-| `backend/app/runtime/store.py` | Run 存储核心：`submit/get_run/claim/decide/cancel/end/dispatch/event/step`；提交幂等、pending 配额、三代 scope（input/deletion/target）、租约、fencing token、终态清 payload/upload。HY4-E：`event()` 与 `end()` 改为 async，事件序号用 `UPDATE ... RETURNING` 在数据库层原子自增，避免并行 progress 丢号 |
+| `backend/app/ingestion/html_export.py` | 画像推荐补充轮：用户另存 HTML 与导出 ZIP 的本地解析；标准库 HTMLParser，跳过 script/style，ZIP 拒绝路径穿越/超大成员；不联网、无 bs4/lxml 依赖 |
+| `backend/app/connectors/bilibili.py` / `weibo.py` / `browser_capture.py` / `base.py` | 平台导出解析与浏览器采集连接器；画像推荐补充轮：采集平台扩到掘金/CSDN/知乎/小红书/GitHub，新增 `authored`/`merged` kind（按 `self_reported_published`），互动仍是 `preference_signal` |
+| `backend/app/connectors/registry.py` | 画像推荐补充轮：来源注册表，按 A 用户导出 / B 当前页采集 / T 自备只读令牌 / C 需授权标注；OAuth 标为 `available: false`，不假装可用 |
+| `backend/app/connectors/github.py` | 画像推荐补充轮：GitHub 自备只读令牌导入；`httpx` 直连 `api.github.com`，只读仓库元数据与 README（截断 6000 字符），令牌不写库/日志/证据，`external_id` 带 `pushed_at` 以便新推送才产生新证据 |
+| `backend/app/assessment/` | 画像推荐补充轮：本地量表模块。`data/*.json` 放三份题库（32/48/20 题）与许可、免责声明；`loader.py` 校验 ID/维度/双极平衡/反向题并输出去掉计分键的公开视图；`scoring.py` 确定性计分（80% 门槛、接近中点、RIASEC 代码与一致性、大五反向题与分档），不引入第三方量表库 |
+| `backend/app/connectors/public_link.py` | 画像推荐补充轮：用户粘贴公开链接生成待确认证据卡；**从不请求 URL**，清掉 query token，按自报处理 |
+| `backend/app/runtime/store.py` | Run 存储核心：`submit/get_run/claim/decide/cancel/end/dispatch/event/step`；提交幂等、pending 配额、三代 scope（input/deletion/target）、租约、fencing token、终态清 payload/upload。运行时补充轮：`event()` 与 `end()` 改为 async，事件序号用 `UPDATE ... RETURNING` 在数据库层原子自增，避免并行 progress 丢号 |
 | `backend/app/runtime/worker.py` | Worker 主循环：claim、执行、心跳、恢复、失败重试 |
 | `backend/app/runtime/operations.py` | 长任务操作分发：导入、Wiki 编译、岗位分析、报告 |
-| `backend/app/runtime/agents.py` | 结构化 specialist 工作流，把复杂任务拆成可恢复步骤。HY4-E：`Coordinator` 预算参数化（默认仍为 2）、失败补发 `step.failed`、记录 `duration_ms`；新增只读 `profile_cartographer`/`role_scout`/`curriculum_planner`，`delegate_many()` 仅用于 `PARALLEL_SAFE_ROLES` 的无依赖并行 |
+| `backend/app/runtime/agents.py` | 结构化 specialist 工作流，把复杂任务拆成可恢复步骤。运行时补充轮：`Coordinator` 预算参数化（默认仍为 2）、失败补发 `step.failed`、记录 `duration_ms`；新增只读 `profile_cartographer`/`role_scout`/`curriculum_planner`，`delegate_many()` 仅用于 `PARALLEL_SAFE_ROLES` 的无依赖并行 |
 | `backend/app/runtime/parse_input.py` | Run payload / upload 输入解析 |
 | `backend/app/runtime/index_outbox.py` | 事务性索引补偿：PG 用 `pg_advisory_xact_lock('carerlens')`，SQLite 用进程内锁；数据库提交后再重试 Qdrant upsert/delete |
 | `backend/app/mcp/server.py` | MCP 工具与资源；`create_server()` 支持 stdio 与 Streamable HTTP；工具 list_generate_career_report/generate_career_report/list_profile/list_reports/get_report/list_jobs/analyze_job/get_job_analysis（共享 services），另有 `search_evidence` / `upsert_profile` 两个 local-only 便利工具；资源 careerlens://profile/reports/jobs/evidence；和 API 共用 scope 审计，不另起业务实现 |
@@ -220,7 +220,7 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/evaluation/regression.py` | 回归门禁 |
 | `backend/app/evaluation/cli.py` | 评测命令行 |
 | `backend/app/evaluation/dev_benchmark*.json` / `sample_*.json` | 开发集与基线快照，不代表真实准确率 |
-| `backend/tests/` | 30+ 个测试文件；按主题命名，`test_run_runtime.py`、`test_wiki_compile.py`、`test_knowledge_mode.py`、`test_source_dedup.py` 是核心回归；HY4 新增 `test_import_result_contract.py`、`test_profile_overview.py`、`test_catalog.py`、`test_recommendation.py`、`test_learning_progress.py`、`test_assessment.py`、`test_runtime_specialists.py`；补充轮新增 `test_assessment_instruments.py`（许可字段、计分、API）与 `test_github_connector.py`（MockTransport，无真实网络） |
+| `backend/tests/` | 30+ 个测试文件；按主题命名，`test_run_runtime.py`、`test_wiki_compile.py`、`test_knowledge_mode.py`、`test_source_dedup.py` 是核心回归；画像推荐新增 `test_import_result_contract.py`、`test_profile_overview.py`、`test_catalog.py`、`test_recommendation.py`、`test_learning_progress.py`、`test_assessment.py`、`test_runtime_specialists.py`；补充轮新增 `test_assessment_instruments.py`（许可字段、计分、API）与 `test_github_connector.py`（MockTransport，无真实网络） |
 
 ### 4.8 后端数据流
 
@@ -262,22 +262,22 @@ HTTP/MCP 请求
 | `frontend/app/error.tsx` / `loading.tsx` / `not-found.tsx` | 路由级错误、加载与 404 状态页；样式在 `styles/shell.css` 的 `state-*` 段 |
 | `frontend/components/site-sidebar.tsx` | 全站左侧固定导航（概览 / 工作台分区 / 资源），按路径高亮；窄屏折叠为顶部条 |
 | `frontend/components/site-chrome.tsx` | 共享顶部面包屑条与页脚 |
-| `frontend/components/run-center.tsx` | 后台任务中心：进度、审批、取消、打开结果；消费 Run 事件；HY4-E 步名映射含 `profile_cartographer`/`role_scout`/`curriculum_planner` 与 `step.failed` |
-| `frontend/components/import-result-card.tsx` | HY4-A 导入结果卡：可读/待 OCR/重复数、告警、证据定位与删除 |
-| `frontend/components/profile-insights.tsx` | HY4-B 画像分布、技能矩阵、证据时间线、覆盖度，均带文字表格降级 |
-| `frontend/components/score-breakdown.tsx` | HY4-B 分数构成与报告八章全览 |
-| `frontend/components/learning-board.tsx` | HY4-C 职业方向卡、课程目录、按周学习看板与进度 |
+| `frontend/components/run-center.tsx` | 后台任务中心：进度、审批、取消、打开结果；消费 Run 事件；运行时补充轮 步名映射含 `profile_cartographer`/`role_scout`/`curriculum_planner` 与 `step.failed` |
+| `frontend/components/import-result-card.tsx` | 导入结果卡 导入结果卡：可读/待 OCR/重复数、告警、证据定位与删除 |
+| `frontend/components/profile-insights.tsx` | 画像概览 画像分布、技能矩阵、证据时间线、覆盖度，均带文字表格降级 |
+| `frontend/components/score-breakdown.tsx` | 画像概览 分数构成与报告八章全览 |
+| `frontend/components/learning-board.tsx` | 学习看板 职业方向卡、课程目录、按周学习看板与进度 |
 | `frontend/components/assessment-card.tsx` | 测评区编排：加载量表清单与历史结果、切换量表、提交后回显、历史查看/删除；具体答题、结果渲染、约束与维度分别下沉到下面四个组件 |
 | `frontend/components/assessment-quick-form.tsx` | 5 题工作方式快测（旧接口），自带题目加载与同意勾选 |
 | `frontend/components/assessment-instrument-runner.tsx` | 单份量表分页答题：8 题/页、进度、80% 门槛、清空重答、许可说明；父级用 `key` 切换量表时重置 |
 | `frontend/components/assessment-result-view.tsx` | 只读结果渲染：四维双极条、RIASEC 条形与方向线索、大五分档、方法/许可/免责声明 |
 | `frontend/components/assessment-profile-tools.tsx` | 约束条件与自定义维度：只影响过滤与展示，不参与匹配分 |
-| `frontend/components/profile-enhancements.tsx` | HY4 补充轮：画像模式选择、模块开关、能力证据卡、面试故事库 |
-| `frontend/components/import-hub.tsx` | HY4 补充轮：来源注册表展示、公开链接证据卡表单、GitHub 自备令牌表单与最小权限创建教程 |
-| `frontend/lib/assessment-format.ts` | HY4 补充轮：测评纯函数（分页、作答统计、80% 门槛、结果标题、分数裁剪、双极强侧、分档色调），Node 单测直接导入 |
-| `frontend/lib/api.ts` | 后端 API 客户端、SSE 手动 `TextDecoder` 解码、请求封装；HY4 新增 `EvidenceItem` 完整类型、`getProfileOverview`/`getAgentManifest`、目录/推荐/保存 JD/学习进度/测评/维度的类型与函数 |
+| `frontend/components/profile-enhancements.tsx` | 画像推荐补充轮：画像模式选择、模块开关、能力证据卡、面试故事库 |
+| `frontend/components/import-hub.tsx` | 画像推荐补充轮：来源注册表展示、公开链接证据卡表单、GitHub 自备令牌表单与最小权限创建教程 |
+| `frontend/lib/assessment-format.ts` | 画像推荐补充轮：测评纯函数（分页、作答统计、80% 门槛、结果标题、分数裁剪、双极强侧、分档色调），Node 单测直接导入 |
+| `frontend/lib/api.ts` | 后端 API 客户端、SSE 手动 `TextDecoder` 解码、请求封装；画像推荐新增 `EvidenceItem` 完整类型、`getProfileOverview`/`getAgentManifest`、目录/推荐/保存 JD/学习进度/测评/维度的类型与函数 |
 | `frontend/lib/run-events.ts` | Run 事件解析与状态归并 |
-| `frontend/lib/profile-views.ts` | HY4-B 纯函数：技能矩阵、能力卡、证据时间线、分数拆解、类别分布聚合 |
+| `frontend/lib/profile-views.ts` | 画像概览 纯函数：技能矩阵、能力卡、证据时间线、分数拆解、类别分布聚合 |
 | `frontend/lib/browser-capture.ts` | 浏览器采集页通信 |
 | `frontend/lib/demo-story.ts` | 工作台预填的虚构案例数据 |
 | `frontend/lib/*.test.mjs` | 浏览器采集与 Run 事件的小范围回归 |
@@ -316,7 +316,7 @@ HTTP/MCP 请求
 | `docs/phase-1-2-validation.md` | 第一/二期 A–D 验收、工作台操作、迁移配置 |
 | `docs/phase-3-runtime.md` | 第三期 Worker、Run/Step/Event、审批、取消、重放、索引补偿 |
 | `docs/job-matching-and-planning.md` | 评分权重、算例、排期、历史分析失效 |
-| `docs/profile-and-recommendations.md` | HY4 导入结果卡、证据类型统一、画像概览、Agent 清单、目录推荐、多 JD 对比、测评边界、多 Agent 并发边界 |
+| `docs/profile-and-recommendations.md` | 画像推荐导入结果卡、证据类型统一、画像概览、Agent 清单、目录推荐、多 JD 对比、测评边界、多 Agent 并发边界 |
 | `docs/agent-and-retrieval.md` | LangGraph、混合检索、模型切换与降级、与 WeKnora/WorkBuddy 的实现对照 |
 | `docs/integrations-and-security.md` | 导入、MCP、用户隔离、权限、公网边界 |
 | `docs/evaluation-and-operations.md` | 评测口径、本地验收、故障定位 |

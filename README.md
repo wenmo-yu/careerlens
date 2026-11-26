@@ -4,7 +4,7 @@
 
 **把经历变成证据，再用证据回答"我适合什么岗位、还缺什么、下一步怎么做"。**
 
-**[📘 在线教程站（免费跟做）](https://wenmo-yu.github.io/careerlens/)** · **[开始学习](tutorials/从这里开始.md)** · **[本机启动](#快速开始)** · **[技术文档](docs/README.md)** · [界面展示](docs/showcase.md) · [系统架构](docs/architecture.md) · [API 与配置](docs/api-and-configuration.md) · [路线图](ROADMAP.md)
+**[在线教程站](https://wenmo-yu.github.io/careerlens/)** · **[教程目录](#教程目录)** · **[本机启动](#快速开始)** · **[技术文档](docs/README.md)** · [界面展示](docs/showcase.md) · [系统架构](docs/architecture.md) · [API 与配置](docs/api-and-configuration.md) · [路线图](ROADMAP.md)
 
 [![Quality Gate](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/wenmo-yu/careerlens/actions/workflows/quality.yml)
 [![Release](https://img.shields.io/github/v/release/wenmo-yu/careerlens)](https://github.com/wenmo-yu/careerlens/releases)
@@ -18,7 +18,7 @@ CareerLens 是一个**证据驱动的职业决策 Agent**：把简历、自述�
 
 多数求职建议的问题不是"不够流畅"，而是**没有依据**。CareerLens 把"证据是否足以支持结论"写进整条链路：证据不足就标缺口，不把推测写成经历。
 
-> **零密钥即可跑通**：默认 Demo 模型 + 轻量检索，一条 Docker 命令体验完整流程。真实模型（DeepSeek / OpenAI-compatible / 本地 Qwen、OCR/ASR）是可选接入。
+> 本机运行默认使用确定性 Demo 模型与轻量检索，不需要配置模型密钥；真实模型（DeepSeek / OpenAI-compatible / 本地 Qwen、OCR/ASR）为可选接入。
 
 ## 为什么用 CareerLens
 
@@ -29,7 +29,7 @@ CareerLens 是一个**证据驱动的职业决策 Agent**：把简历、自述�
 | **缺口怎么变成行动** | 每项要求判 `strong / partial / gap`，按每周投入排学习路线，进度可回写为作品证据 |
 | **长任务会中断吗** | 导入、分析、报告走持久化 Run + Worker，SSE 实时进度、断线续看、取消与幂等恢复 |
 | **数据能带走吗** | Scope Token、JSON 导出、单条删除、整账号清理，审计不含原文 |
-| **只是个演示吗** | 零基础教程站从概念到源码跟做，246 项后端测试 + 4 项 CI 门禁全绿 |
+| **只是个演示吗** | 配套教程覆盖从概念到源码，246 项后端测试 + 4 项 CI 门禁全绿 |
 
 **技术亮点**：LangGraph 条件路由 · Qdrant Dense+Sparse 混合检索与 RRF · 带引用的 Wiki 版本页 · MCP 工具接口 · 可切换生成模型 · Prometheus 指标。详见[架构文档](docs/architecture.md)。
 
@@ -54,7 +54,7 @@ CareerLens 是一个**证据驱动的职业决策 Agent**：把简历、自述�
 | 自陈测评、MBTI 边界、三份自写量表与计分 | [测评题库与许可](docs/assessments.md) |
 | 用自备只读令牌导入 GitHub 仓库元数据与 README | [GitHub 仓库导入](docs/github-token-import.md) |
 | 八平台当前页采集、公开链接卡、XLSX/HTML/ZIP 等来源边界 | [接入、MCP 与安全](docs/integrations-and-security.md) |
-| 从零跟做：概念课、源码课、第 10/11 篇画像与岗位实战 | [教程学习路径](tutorials/README.md) |
+| 从零跟做：概念课、源码课、画像与岗位实战 | [教程目录](#教程目录) · [在线教程站](https://wenmo-yu.github.io/careerlens/) |
 
 工作台分区：`#profile` 导入与画像、`#matching` 岗位与学习看板、`#report` 版本报告、`#copilot` 证据问答、`#assessment` 自我探索、`#quality` 质量门禁、`#privacy` 数据控制。
 
@@ -78,7 +78,7 @@ docker compose up -d --build
 | MCP | `http://localhost:8001/mcp` |
 | Qdrant | `http://localhost:16333/dashboard` |
 
-工作台已预填**虚构**经历与 JD，无需 API Key 即可体验完整流程。更多启动方式（非 Docker、生产配置、真实模型）见[完整启动与配置指南](docs/api-and-configuration.md)。
+工作台已预填**虚构**经历与 JD，使用默认 Demo 模式即可走完整流程。更多启动方式（非 Docker、生产配置、真实模型）见[完整启动与配置指南](docs/api-and-configuration.md)。
 
 ## 界面预览
 
@@ -125,14 +125,22 @@ CareerLens 分三层，职责清楚、可逐层替换：
 
 完整代码导航见[技术文档](docs/README.md)。
 
-## 零基础入门与在线教程
+## 教程目录
 
-> **📘 在线教程站：https://wenmo-yu.github.io/careerlens/** — 无需装环境即可在浏览器里阅读，从第一道题一路跟到源码实现。
+项目带一套**从零基础到源码实现**的完整教程。在线阅读请到[在线教程站](https://wenmo-yu.github.io/careerlens/)，仓库内的 Markdown 是同一套内容的源文件。
 
-这是一套**边学边做**的完整课程，不只是使用说明：先用 3 分钟判断林澈的一条经历，再读八篇概念课；接着跑产品、写一个最小证据助手，然后跟到真实的 Agent、检索、Wiki、后台运行与 MCP 源码。第 09 篇看自陈测评，第 10/11 篇用同一份合成材料练习导入回查、岗位对比与学习进度。
+| 阶段 | 内容 | 在线阅读 |
+| --- | --- | --- |
+| 入门 | 3 分钟证据判断题、八篇概念课（Agent、提示词与证据、RAG、数据模型、LangGraph、LangChain、混合检索、Wiki） | [从这里开始](https://wenmo-yu.github.io/careerlens/#/tutorials/从这里开始.md) · [概念课目录](https://wenmo-yu.github.io/careerlens/#/tutorials/00-foundations/00-1-Agent是什么.md) |
+| 跑产品 | 本机第一次运行，接上真实工作台 | [第一次跑起来](https://wenmo-yu.github.io/careerlens/#/tutorials/01-第一次跑起来.md) |
+| Agent 源码 | 从空目录写证据助手，再逐节读请求状态、路由、工具、MCP、会话、子 Agent 与综合跟做 | [入门练习](https://wenmo-yu.github.io/careerlens/#/tutorials/01-agent-design/入门练习-从零写证据助手.md) · [源码课目录](https://wenmo-yu.github.io/careerlens/#/tutorials/01-agent-design/README.md) |
+| 数据与知识库 | 数据模型、文件解析、证据去重、检索引用、Wiki 编译/版本/回滚 | [第四章目录](https://wenmo-yu.github.io/careerlens/#/tutorials/04-knowledge-base/README.md) |
+| 任务与接入 | 后台运行时、匹配排期、MCP 服务 | [后台运行时](https://wenmo-yu.github.io/careerlens/#/tutorials/06-后台运行时.md) · [MCP](https://wenmo-yu.github.io/careerlens/#/tutorials/07-A-MCP服务与ACP对照.md) |
+| 画像实战 | 用同一份合成材料做导入回查、岗位对比与学习进度 | [导入与可回查画像](https://wenmo-yu.github.io/careerlens/#/tutorials/10-导入与可回查画像.md) · [岗位对比与学习计划](https://wenmo-yu.github.io/careerlens/#/tutorials/11-岗位对比与学习计划.md) |
+| 进阶 | 真实模型配置、评测、自陈测评与 GitHub 导入、贡献与结课 | [真实模型](https://wenmo-yu.github.io/careerlens/#/tutorials/08-advanced/08-1-真实模型.md) · [自陈测评](https://wenmo-yu.github.io/careerlens/#/tutorials/09-画像与自陈测评.md) |
+| 查阅 | 术语表、常见问题、静态观察路线、更新记录 | [术语表](https://wenmo-yu.github.io/careerlens/#/tutorials/术语表.md) · [常见问题](https://wenmo-yu.github.io/careerlens/#/tutorials/常见问题.md) |
 
-- [在线教程站（Docsify）](https://wenmo-yu.github.io/careerlens/) · [GitHub 学习路径](tutorials/README.md#学习路径)
-- 每篇都带可运行的练习与"先想想 → 参考思路 → 去哪核对"的闭环，见[常见问题](tutorials/常见问题.md)与[术语表](tutorials/术语表.md)
+完整顺序与每篇的练习成果见[学习路径](https://wenmo-yu.github.io/careerlens/#/tutorials/README.md)。每篇都带可运行的练习与"先想想 → 参考思路 → 去哪核对"的闭环。
 
 ## 验证
 
