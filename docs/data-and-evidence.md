@@ -6,17 +6,18 @@
 
 ```mermaid
 flowchart LR
-    U[User] --> E[Evidence：分块与来源]
-    U --> P[ProfileItem：结构化画像]
-    U --> J[JobAnalysis：JD 要求/匹配/缺口]
-    U --> R[CareerReport：版本化报告]
-    U --> T[ConversationThread]
-    U --> PP[ProfileUpdateProposal]
-    E -. evidence_ids .-> P
-    P --> J
-    J --> R
-    T --> C[LangGraph checkpoint]
-    E --> Q[Qdrant 索引]
+  U[User] --> S[SourceDocument<br/>文件 / 链接 / 令牌]
+  S --> B[ParsedBlock<br/>页码 / 段落]
+  B --> E[Evidence<br/>去重正文 + ID]
+  E -. 多来源定位 .-> S
+  E -. evidence_ids .-> P[ProfileItem]
+  P --> J[JobAnalysis]
+  J --> R[CareerReport]
+  E --> W[WikiPage 引用]
+  E --> Q[Qdrant 索引]
+  U --> T[ConversationThread]
+  T --> C[LangGraph checkpoint]
+  U --> PP[ProfileUpdateProposal]
 ```
 
 这张图表达业务引用关系，不表示所有关联都由数据库外键直接约束。`evidence_ids` 和分析明细中存在 JSON 数据，因此调用方仍须校验引用是否属于当前用户、是否仍存在。
@@ -32,11 +33,21 @@ flowchart LR
 | `ConversationMessage` | 每条对话的 role、正文、intent、thread_id、微秒级时间 | 持久化的多轮对话事实，供上下文装配与界面渲染；与可重建的 checkpoint 状态不同 |
 | `AccessToken` / `AuditEvent` | Token 哈希/Scope、操作审计 | 权限与隐私操作追踪；不存明文 Token |
 
+除核心对象外，隐私导出与账号删除还统一覆盖下列扩展数据；引用字段与数据库关系以 [`backend/app/models/`](../backend/app/models/) 为准，导出范围见 [`services/privacy.py`](../backend/app/services/privacy.py)：
+
+| 对象 | 职责 | 边界 |
+| --- | --- | --- |
+| `SavedJob` | 用户保存的 JD 原句、优先级与备注 | 对比接口返回最近三份；规则分仍需逐份分析 |
+| `LearningProgress` / `LearningPlan` | 周计划、状态、作品与验收方式 | 进度只能关联当前用户已存在的 Evidence，不新增能力事实 |
+| `UserConstraint` | 约束条件与画像展示偏好 | 不改事实画像与岗位匹配分 |
+| `DimensionDefinition` / `ProfileExtension` | 用户自定义维度与扩展画像字段 | 与内置画像条目分开存储 |
+| `AssessmentResult` | 自陈量表结果与元数据 | `source=self_report`，单独保存，不进入事实画像或匹配分 |
+
 画像条目的 `confidence` 是内部启发式分数：默认规则抽取器根据证据数量和来源数计算，启用模型时还可能合并模型返回值。它没有用真实标签做概率校准，**不能解读成“某项能力真实存在的概率”**；判断依据仍是可回看的 Evidence。
 
 ## 写入与派生
 
-1. 文本、文件、平台导出或多模态转录先在 [`ingestion/`](../backend/app/ingestion/) 中解析，再由 [`services/evidence.py`](../backend/app/services/evidence.py) 标准化、分块并写入 Evidence。只有用户主动提供或授权导出的内容才应进入系统。
+1. 文本、文件、平台导出或多模态转录先在 [`ingestion/`](../backend/app/ingestion/) 中解析，再由 [`services/evidence.py`](../backend/app/services/evidence.py) 标准化、分块并写入 Evidence。相同正文可共用一条 Evidence，同时保留多个 SourceDocument / ParsedBlock 定位；只有用户主动提供或授权导出的内容才应进入系统。
 2. Evidence 数据库提交后建立 Qdrant 索引。两者不是分布式事务；若向量写入失败，数据库记录仍可能存在，可检查导入诊断并调用 reindex 修复。
 3. [`services/profile.py`](../backend/app/services/profile.py) 读取用户 Evidence 构建画像。默认规则提取适合可复现演示，配置真实生成模型后可抽取更丰富的类别；模型输出仍会过滤无效 Evidence ID。
 4. [`services/jobs.py`](../backend/app/services/jobs.py) 从 JD 提取技能要求，并与当前画像对照。`strong / partial / gap` 是规则分级，不是统计意义的招聘成功概率；学习路径根据缺口、已有等级、目标岗位和每周时间给出有边界的估算。

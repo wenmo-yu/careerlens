@@ -4,12 +4,14 @@ CareerLens 只应处理用户主动提交或明确授权导出的个人内容。
 
 ## 接入渠道
 
+以 `GET /api/v1/connectors/registry` 为统一入口，注册表按真实能力标注来源，不把“需要平台授权”写成已实现：
+
 | 渠道 | 已支持的输入 | 处理方式与限制 |
 | --- | --- | --- |
-| 文本与文件 | 自述、TXT、Markdown、PDF、DOCX | 解析后分块成 Evidence，保留来源信息 |
-| Bilibili | 用户提供的 JSON 导出 | 识别视频 ID、标题、简介、字幕、标签等；重复外部 ID 跳过 |
-| 微博 | 用户提供的 JSON/CSV 导出 | 映射中英文字段、清理简单 HTML、按 ID/稳定指纹去重 |
-| 浏览器页面采集 | Bilibili / 微博 / 抖音当前页面导出的 JSON | 发布、点赞、收藏、关注条目的可见文字与链接；每次最多 100 条，不保证完整历史。互动仅作兴趣线索，不直接证明技能 |
+| 文本与文件 | 自述、TXT / Markdown、PDF / DOCX、XLSX、CSV / TSV、用户另存 HTML、导出 ZIP | 解析后分块成 Evidence 并保留来源定位；旧 `.doc` 需转换，扫描页标为待 OCR；XLSX 由标准库解析 |
+| 平台导出文件 | Bilibili JSON；微博 JSON / CSV | 识别外部 ID、清理简单 HTML、按 ID 或稳定指纹去重；用户主动提供 |
+| 浏览器当前页采集 | Bilibili、微博、抖音、掘金、CSDN、知乎、小红书、GitHub 的可见发布与互动 | 单次读取最多 100 条、分组最多 200 条，后端单文件最多 200 条且 2 MB；不保证完整历史，互动仅作兴趣线索 |
+| 公开链接证据卡 | 用户手填 URL、标题和说明 | 后端不访问链接、不证明账号归属；带 query token 的链接会被清理 |
 | GitHub 仓库 | 用户自备的 fine-grained 只读令牌 | 只读仓库元数据与 README（最多 10 个仓库、单个 6000 字符）；令牌只在单次请求内存中使用，不写数据库/日志/证据；不读 issues、PR、提交。步骤见 [GitHub 仓库导入](github-token-import.md) |
 | 多模态 | 图片 OCR、音视频 ASR | PaddleOCR / Faster-Whisper 为可选依赖；模型下载、格式兼容与效果需独立验收 |
 

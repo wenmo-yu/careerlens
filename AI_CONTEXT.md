@@ -13,13 +13,13 @@
 | 产品版本 | v0.4.0；三期产品交付完成，`CHANGELOG.md` 已回填 |
 | 仓库 | https://github.com/wenmo-yu/careerlens |
 | 公开教程站 | https://wenmo-yu.github.io/careerlens/ |
-| 最新公开提交 | `f275504`（视觉换向 + 质量门禁）；教程侧最新为 `4974e43`（PR #47，同步工作台重构后的源码链接） |
-| 验证基线 | 后端 245 项测试（覆盖率门槛 78%，实测 82.5%）、20 个冻结合成场景、Playwright 端到端 4 项、Quality Gate 六项全绿（backend / frontend / e2e / docker-smoke / pip-audit / pnpm audit）；Docsify build 96 文件 0 坏链；HY4 后新增导入结果、画像概览、目录推荐、学习进度、测评、运行时、HTML/ZIP、画像模式、来源注册表与 Prometheus 指标专项测试 |
+| 最新公开提交 | `ce5bb08`（PR #59，教程同步 HY4 工作台）；本轮文档/截图提交 `34680ab` → `aee4487` → `9953471` |
+| 验证基线 | 后端 246 项测试（覆盖率门槛 78%，实测约 82%）、20 个冻结合成场景、Playwright 端到端 5 项、Quality Gate 四项与依赖审计两项全绿（backend / frontend / e2e / docker-smoke / pip-audit / pnpm audit）；Docsify build 98 文件 0 坏链，Pages 部署成功；HY4 后新增导入结果、画像概览、目录推荐、学习进度、测评、运行时、HTML/ZIP、画像模式、来源注册表与 Prometheus 指标专项测试 |
 | 默认可运行方式 | Docker Compose；无需 API Key，使用确定性 Demo 模型与本地检索 |
 | 仍未完成 | 真人独立试学、真机初装/剪贴板/跨端点检、真实模型与旧库迁移；这些是验证缺口，不是源码缺口 |
 | 本地 git 状态 | 本地 `HEAD` 和 `ahead` 可能滞后（远端 fetch 502），**远端 main + Actions + Pages 才是权威** |
 
-**一句话**：产品代码已到 v0.4.0，教程已全章加厚并上线；AI 查代码时优先相信本文件、`CHANGELOG.md`、`docs/README.md` 和源码，不要相信早期草案或本地 git 指针。
+**一句话**：产品代码已到 v0.4.0，HY4 A–G 已推送，教程已全章加厚并补上第 10/11 篇 HY4 实战；AI 查代码时优先相信本文件、`CHANGELOG.md`、`docs/README.md` 和源码，不要相信早期草案或本地 git 指针。
 
 ---
 
@@ -55,7 +55,7 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 ├── CareerLens文档导航.md           管理文档真相源（当前状态、有效/归档分层）
 ├── AI查阅导航.md                   工作区级 AI 入口（本文件的上级）
 ├── CareerLens教学项目台账/          本地执行台账，不上传、不发布
-├── 历史归档/                       早期草案，理解来龙去脉时才读
+├── 历史归档/                       早期草案与已完成方案，理解来龙去脉时才读
 ├── CareerLens三阶段迭代方案.md      产品三期蓝图与验收结论
 ├── CareerLens零基础教程体系方案.md  教程设计原理与写作方法
 ├── CareerLens面试问答_清理重写版.md

@@ -1,6 +1,6 @@
 # CareerLens 本地页面采集
 
-这个 Chrome/Edge MV3 扩展让用户在自己的浏览器中登录 Bilibili、微博或抖音，然后**主动**从当前已加载页面导出发布、点赞、收藏或关注条目的可见文字与链接。扩展不读取 Cookie、Local Storage、密码或网络请求，也不会自动向 CareerLens 或第三方发送数据。它不是官方 OAuth，也不是可保证完整覆盖的账号历史导出。
+这个 Chrome/Edge MV3 扩展让用户在自己的浏览器中登录 Bilibili、微博、抖音、掘金、CSDN、知乎、小红书或 GitHub，然后**主动**从当前已加载页面导出发布、点赞、收藏或关注条目的可见文字与链接。扩展不读取 Cookie、Local Storage、密码或网络请求，也不会自动向 CareerLens 或第三方发送数据。它不是官方 OAuth，也不是可保证完整覆盖的账号历史导出。
 
 ## 使用
 

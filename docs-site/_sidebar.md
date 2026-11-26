@@ -69,7 +69,16 @@
 
 - **项目文档**
   - [技术文档首页](docs/README.md)
+  - [界面展示](docs/showcase.md)
   - [系统架构](docs/architecture.md)
+  - [数据与证据生命周期](docs/data-and-evidence.md)
+  - [画像、推荐与自陈探索](docs/profile-and-recommendations.md)
+  - [评分与学习路线](docs/job-matching-and-planning.md)
+  - [Agent、检索与模型](docs/agent-and-retrieval.md)
+  - [后台任务与恢复（第三期）](docs/phase-3-runtime.md)
+  - [接入、MCP 与安全](docs/integrations-and-security.md)
+  - [Wiki 与早期验收](docs/phase-1-2-validation.md)
   - [测评题库与许可](docs/assessments.md)
   - [GitHub 仓库导入](docs/github-token-import.md)
-  - [API 与配置](docs/api-and-configuration.md)
+  - [评测与运维](docs/evaluation-and-operations.md)
+  - [API 与配置参考](docs/api-and-configuration.md)

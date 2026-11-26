@@ -1,19 +1,19 @@
 # 第三期：后台运行、恢复与多 Agent
 
-第三期依赖已经打通的来源块、Wiki 版本、岗位匹配和报告服务。沿用原方案的 SaaS 形态：PostgreSQL 管队列，独立容器运行 Worker；不引入桌面进程模型或 ACP。以下四组可分别验收。
+第三期依赖已经打通的来源块、Wiki 版本、岗位匹配和报告服务。基础 Compose 以 PostgreSQL 管队列、独立 Worker 容器执行任务；不引入桌面进程模型或 ACP。以下四组可分别验收。
 
 | 范围 | 实现与验收 |
 | --- | --- |
 | Run / Step / Event | 7 种状态，持久化步骤与有序事件；HTTP 查询、SSE 重放、工作台任务列表和结果入口。 |
 | Worker 与幂等 | 同用户串行、不同用户有界并行，数据库领取；相同键同输入复用，冲突返回 409；提交前检查租约代次、来源/画像代次和页面版本。 |
-| 多 Agent | Coordinator 按类型顺序调用岗位要求分析、Wiki 整理或报告撰写，以及只读引用核验。基于独立 LangGraph 子图；程序投影数据范围，角色不能自由调用外部工具或直接写库。 |
+| 多 Agent | Coordinator 按依赖顺序调用岗位要求分析、Wiki 整理或报告撰写，以及只读引用核验；`RunEvent.seq` 由数据库原子分配。默认调用预算 2，`role_scout` 与 `curriculum_planner` 是无依赖只读角色的受控并行白名单；任一分支失败整次 Run 失败/重试。角色基于独立 LangGraph 子图，程序投影数据范围，不能自由调用外部工具或直接写库。详见[画像与推荐](profile-and-recommendations.md)。 |
 | 恢复和隐私 | 租约超时后重新领取，计算可以重跑，提交与终态/事件同事务。支持用户确认、主动取消、账号清理；向量写入有持久化补偿。 |
 
 ## 使用与 API
 
 1. 启动 Compose；等待数据库迁移、API 和 Worker。工作台上传文档/媒体、提交岗位分析、编译 Wiki 或生成报告后，会跳到「后台任务」。Wiki 可勾选先确认再执行。
 2. 在任务中心选择一条记录。运行期间可取消，等待确认时可拒绝；成功后可打开岗位分析、报告或 Wiki。关闭页面不会取消，重新进入可回放记录。
-3. API 可用 `POST /api/v1/runs` 提交 JSON，并建议带 `Idempotency-Key`（1–128 字符，同一逻辑动作重试时复用）。JSON 使用 `user_id`、`operation` 和 `input`：`job_analysis` 传 `title/jd_text/weekly_hours`，`wiki_compile` 传 `slug/title/evidence_ids` 和更新时的 `base_version`，`report` 传 `job_analysis_id`。需要审批时加 `requires_confirmation: true`。
+3. API 可用 `POST /api/v1/runs` 提交 JSON，并建议带 `Idempotency-Key`（1–128 字符，同一逻辑动作重试时复用）。JSON 使用 `user_id`、`operation` 和 `input`：`job_analysis` 传 `title/jd_text/weekly_hours`，`wiki_compile` 传 `slug/title/evidence_ids`，`report` 传 `job_analysis_id`。工作台只新建 `topic-${key}` 主题页且不传 `base_version`；带 `base_version` 的乐观并发更新是 API 路径。需要审批时加 `requires_confirmation: true`。
 4. `POST /api/v1/runs/uploads` 接受 multipart `upload`、`user_id`、可选 `media` 和 `requires_confirmation`。GET `/runs`、`/runs/{id}`、`/steps`、`/events`、`/stream` 按用户查询；向单个 run 的 `/decision` POST `{"approve":true}` 或向 `/cancel` POST 可修改状态。启用鉴权时分别使用 `read`、`write` 权限和 Bearer Header。
 5. SSE 可携带最后收到的整数序号 `Last-Event-ID`（或 `after_seq`），服务器只发送后续事件。用 `(run_id, seq)` 去重。连接终止时可通过 GET 获取最新状态；游标高于当前记录返回 409。
 

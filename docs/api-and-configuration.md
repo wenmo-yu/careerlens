@@ -1,6 +1,6 @@
 # API 与配置参考
 
-> 本文收纳完整的接口清单与配置示例，README 保留精炼入口。日常使用优先看[交互工作台](../frontend/app/workspace/page.tsx)与[快速开始](../README.md#快速开始)。
+> 本文按任务给出接口速查与配置示例；完整参数、请求体和响应模型以 Swagger 为准。README 保留精炼入口，日常使用优先看[交互工作台](../frontend/app/workspace/page.tsx)与[快速开始](../README.md#快速开始)。
 
 ## 服务地址速查
 
@@ -9,79 +9,115 @@
 - MCP Streamable HTTP：`http://localhost:8001/mcp`
 - Qdrant Dashboard：`http://localhost:16333/dashboard`（`QDRANT_HTTP_PORT` 可改宿主机端口，容器内仍为 6333）
 
-## 非 Docker 本地启动
+## 本地启动
 
-需要 Python 3.11+ 与 Node.js 20.9+。Compose 会先跑一次 `migrate` 服务，再启动 API 与 MCP；手动启动时顺序由你负责：
+需要 Python 3.11+；CI 固定 Node.js 22，本地建议使用同一版本。不要执行裸 `docker compose up -d`：基础 Compose 会同时启动 `migrate / api / worker / mcp / web / postgres / qdrant`，再在本机启 API 或前端会撞 8000、3000 端口，并可能造成两个 Worker 重复消费。按下面两条路径二选一。
+
+### 路径 A：轻量模式（零容器，SQLite + local 检索 + memory checkpoint）
+
+与 CI 的端到端环境一致，无需 Docker、PostgreSQL 或 Qdrant：
 
 ```powershell
-Copy-Item .env.example .env
-docker compose up -d          # 只起 PostgreSQL 与 Qdrant
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".\backend[dev]"
+
+$env:DATABASE_URL       = "sqlite+aiosqlite:///./careerlens.db"
+$env:RETRIEVAL_BACKEND  = "local"
+$env:CHECKPOINT_BACKEND = "memory"
+$env:AI_PROVIDER        = "demo"
+$env:AUTO_CREATE_SCHEMA = "true"
+
 uvicorn app.main:app --app-dir backend --reload
-# 另开终端：python -m app.runtime.worker   （后台任务需要 Worker 消费）
-```
-
-迁移必须显式执行：
-
-```powershell
-Set-Location backend
-$env:DATABASE_URL = "postgresql+asyncpg://career:career@localhost:5432/career"
-python -m app.migration_runner
-$env:AUTO_CREATE_SCHEMA = "false"
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-`migration_runner` 对全新数据库执行 `alembic upgrade head`；若检测到旧版通过 `create_all()` 建立的完整表结构，会先补齐新表并写入 Alembic revision，之后按迁移版本演进。开发环境默认 `AUTO_CREATE_SCHEMA=true` 方便临时 SQLite，**生产必须设为 `false`**。
-
-前端：
-
-```powershell
-Set-Location frontend
+# 另开终端，设置同样的环境变量后启动后台 Worker：
+python -m app.runtime.worker
+# 前端另开终端：
+cd frontend
 pnpm install
 pnpm dev
 ```
 
+用 `GET /health/live` 核对 API 是否启动。`GET /health/ready` 会无条件探测 `QDRANT_URL` 的 `/readyz`，在轻量模式下返回 503 是预期，不代表 API 不可用。
+
+### 路径 B：容器只提供依赖，本机跑 API / Worker / Web
+
+```powershell
+docker compose up -d postgres qdrant   # 必须显式限定服务
+
+$env:DATABASE_URL       = "postgresql+asyncpg://career:career@localhost:5432/career"
+$env:QDRANT_URL         = "http://localhost:16333"   # 注意不是 .env.example 的 6333
+$env:RETRIEVAL_BACKEND  = "auto"                     # Qdrant 不可用时降级 local
+$env:CHECKPOINT_BACKEND = "auto"
+$env:AUTO_CREATE_SCHEMA = "false"
+
+cd backend
+python -m app.migration_runner
+cd ..
+uvicorn app.main:app --app-dir backend --reload
+# 另开终端，设置同样的环境变量后：
+python -m app.runtime.worker
+# 前端另开终端：cd frontend; pnpm install; pnpm dev
+```
+
+完整容器方式仍用 `docker compose up -d --build`，由 `migrate` 服务先迁移，再启动 API、Worker、MCP 与 Web。
+
+`migration_runner` 对全新数据库执行 `alembic upgrade head`；若检测到旧版通过 `create_all()` 建立的完整表结构，会补齐新表后调用 `command.stamp(head)` 标记版本，之后按迁移版本演进；无法识别的无版本库会直接报错。开发环境可用 `AUTO_CREATE_SCHEMA=true` 建临时 SQLite 表，**生产必须设为 `false`**。
+
 ---
 
-打开 `http://localhost:8000/docs`。可用接口：
+打开 `http://localhost:8000/docs` 可看全部方法与模型。下面按任务列常用入口；代码声明的方法/路径组合远多于此，完整参数以 Swagger 为准。
 
-- `GET /health/live`：进程存活检查
-- `GET /health/ready`：PostgreSQL 与 Qdrant 就绪检查；依赖不可用时返回 HTTP 503 与 `status: degraded`，健康实例返回 200
-- `POST /api/v1/evidence/text`：导入用户自述或导出的平台文本
-- `POST /api/v1/evidence/file`：导入 PDF、DOCX、TXT 或 Markdown
-- `POST /api/v1/evidence/media`：对图片 OCR 或音视频 ASR 后写入 Evidence
-- `POST /api/v1/connectors/bilibili/import`：导入用户授权的 Bilibili JSON 导出
-- `POST /api/v1/connectors/weibo/import`：导入用户授权的微博 JSON 或 CSV 导出
-- `POST /api/v1/connectors/browser/import`：导入用户从 Bilibili、微博或抖音当前页面本地采集的 JSON；互动记录仅作兴趣线索
-- `POST /api/v1/evaluation/run`：运行自定义人工标注评测集
-- `POST /api/v1/evaluation/sample`：运行内置链路冒烟基准
-- `POST /api/v1/evaluation/regression`：运行自定义数据集与阈值门禁
-- `POST /api/v1/evaluation/regression/sample`：运行内置冻结回归门禁
-- `POST /api/v1/evaluation/regression/benchmark`：运行多场景合成开发基准
-- `GET /api/v1/evaluation/runs`：读取历史评测结果
-- `GET /api/v1/observability/summary`：读取模型调用聚合指标
-- `GET /api/v1/observability/calls`：读取最近模型调用明细
-- `POST /api/v1/auth/register`：初始化用户 Owner Token（明文仅返回一次）
-- `POST /api/v1/auth/tokens`：创建细粒度 Scope Token
-- `GET /api/v1/privacy/{user_id}/export`：导出用户完整数据副本
-- `GET /api/v1/privacy/{user_id}/audit`：读取隐私操作审计日志
-- `DELETE /api/v1/privacy/{user_id}`：永久删除账号数据并返回匿名删除回执
-- `DELETE /api/v1/evidence/{evidence_id}`：删除 Evidence、向量与画像引用
-- `GET /api/v1/evidence`：按用户列出 Evidence
-- `GET /api/v1/evidence/{evidence_id}`：查看单条 Evidence
-- `POST /api/v1/profiles/{user_id}/rebuild`：重建结构化画像
-- `GET /api/v1/profiles/{user_id}`：读取画像和证据引用
-- `POST /api/v1/profiles/{user_id}/proposals`：生成画像变更草案（不直接写入）
-- `POST /api/v1/profiles/proposals/{proposal_id}/decision`：确认或拒绝变更
-- `POST /api/v1/jobs/analyze`：生成岗位匹配、缺口、学习路线和报告
-- `POST /api/v1/reports`：基于画像和指定 JD 分析生成版本化职业报告
-- `GET /api/v1/reports?user_id=...`：读取用户的职业报告版本
-- `GET /api/v1/reports/{report_id}/markdown`：下载 Markdown 职业报告
-- `POST /api/v1/chat`：通过 LangGraph 查询职业画像和证据。传入上次响应的 `thread_id` 可连续追问；响应中的 `messages` 返回该会话的完整历史消息，前端据此渲染多轮对话
-- `GET /api/v1/evidence/search`：查看混合检索结果和诊断信息
-- `POST /api/v1/evidence/reindex/{user_id}`：将用户 Evidence 重建到 Qdrant
+**健康与观测**
+- `GET /health/live`：进程存活检查，不探测依赖。
+- `GET /health/ready`：检查 `DATABASE_URL` 指向的数据库与 `QDRANT_URL` 的 `/readyz`；任一失败返回 503 与 `status: degraded`。它始终探测 Qdrant，与 `RETRIEVAL_BACKEND` 无关。
+- `GET /metrics`：Prometheus 文本格式，可用 `METRICS_ENABLED=false` 关闭。
+
+**导入与来源**
+- `POST /api/v1/evidence/text|file|media`：文本、文件、图片 OCR / 音视频 ASR 同步导入。
+- `POST /api/v1/runs/uploads`：文档/媒体走后台上传，返回 Run ID。
+- `GET /api/v1/connectors/registry`：查看全部可用来源及可信等级。
+- `POST /api/v1/connectors/browser/import`：导入当前页采集 JSON（扩展现支持八个平台）；互动只作兴趣线索。
+- `POST /api/v1/connectors/public-link/import`、`POST /api/v1/connectors/github/import`：手填公开链接证据卡、自备只读令牌导入仓库元数据与 README。
+- `POST /api/v1/connectors/bilibili/import`、`POST /api/v1/connectors/weibo/import`：用户导出的平台 JSON / CSV。
+- `GET /api/v1/evidence`、`GET /api/v1/evidence/{id}`、`DELETE /api/v1/evidence/{id}`：列出、查看、删除证据。
+- `GET /api/v1/evidence/search`、`POST /api/v1/evidence/reindex/{user_id}`：检索诊断与重建索引。
+
+**画像与偏好**
+- `GET /api/v1/profiles/{user_id}`、`POST /api/v1/profiles/{user_id}/rebuild`：读取与重建画像。
+- `GET /api/v1/profiles/{user_id}/overview`、`GET /api/v1/profiles/{user_id}/agent-manifest`：画像统计与 Agent 能力清单。
+- `POST /api/v1/profiles/{user_id}/proposals`、`POST /api/v1/profiles/proposals/{id}/decision`：草案 → 确认，不静默改长期画像。
+- `GET/PUT /api/v1/profiles/{user_id}/dimensions`、`/view-preferences`、`/interview-stories`、`GET/PUT /api/v1/constraints/me`：自定义维度、展示模式、面试故事与约束。
+
+**岗位、推荐与学习**
+- `POST /api/v1/jobs/analyze`：同步岗位分析，返回 JobAnalysis ID。
+- `GET /api/v1/catalog/roles`、`GET /api/v1/catalog/courses`：本地职业/课程目录。
+- `POST /api/v1/recommendations/roles`、`POST /api/v1/recommendations/learning-plan`：确定性方向与课程推荐。
+- `POST/GET /api/v1/saved-jobs`、`POST /api/v1/saved-jobs/compare`、`DELETE /api/v1/saved-jobs/{id}`：保存与对比最多 3 份 JD。
+- `GET /api/v1/learning/plans/{plan_id}`、`POST /api/v1/learning/plans/{plan_id}/progress`：读取计划与写入看板进度。
+
+**报告与对话**
+- `POST /api/v1/reports`、`GET /api/v1/reports?user_id=...`、`GET /api/v1/reports/{id}/markdown`：生成、列出、下载版本化报告。
+- `POST /api/v1/chat`：LangGraph 多轮对话；传上次响应的 `thread_id`，响应 `messages` 为完整历史。
+
+**后台任务（Run / Worker）**
+- `POST /api/v1/runs`、`POST /api/v1/runs/uploads`：提交 JSON 或文件上传任务。
+- `GET /api/v1/runs`、`GET /api/v1/runs/{run_id}`、`/steps`、`/events`、`/stream`：列表、详情、步骤、事件与 SSE 续看。
+- `POST /api/v1/runs/{run_id}/decision`、`POST /api/v1/runs/{run_id}/cancel`：确认与取消。
+
+**Wiki、测评与评测**
+- `POST /api/v1/wiki/compile`、`GET /api/v1/wiki`、`GET /api/v1/wiki/{slug}`、`/{slug}/revert`、`/{slug}/revisions`：编译、读取、回滚与版本。
+- `GET /api/v1/assessments/instruments`、`GET /{id}`、`POST /{id}/submit`、`GET /api/v1/assessments/results`：自陈量表与结果。
+- `POST /api/v1/evaluation/*`、`GET /api/v1/evaluation/runs`、`GET /api/v1/observability/summary|calls`：实例级评测与模型调用观测；`required` 模式需 `manage` Scope。
+
+**鉴权与隐私**
+- `POST /api/v1/auth/register`、`POST /api/v1/auth/tokens`：Owner Token 与细粒度 Scope Token。
+- `GET /api/v1/privacy/{user_id}/export|audit`、`DELETE /api/v1/privacy/{user_id}`：导出、审计、账号清理。
+
+**几个容易混的 ID**
+- `Run ID`：由 `POST /api/v1/runs` 或 `/runs/uploads` 返回，用于所有 `/runs/{run_id}/*` 与 SSE。
+- `JobAnalysis ID`：由 `POST /api/v1/jobs/analyze` 返回；传给报告/对话时字段名为 `job_analysis_id`。
+- `report_id`：由 `POST /api/v1/reports` 返回，也可从后台 Run 的 `result.report_id` 取得。
+- `plan_id`：**服务端不生成**，由调用方自选不透明字符串（如 UUID 或复用分析 ID），作为 `/learning/plans/{plan_id}` 的路径参数。
 
 评测与观测接口是实例级能力，不归属某个用户：在 `AUTH_MODE=required` 下调用 `/api/v1/evaluation/*` 与 `/api/v1/observability/*` 需要携带具备 `manage` Scope 的 Bearer Token；`disabled` 模式（默认）与无 Token 的 `optional` 模式放行，便于本机演示。
 
@@ -200,14 +236,19 @@ $env:AI_MODEL = "deepseek-flash" # 按所用服务实际支持的模型 ID 调�
 uvicorn app.main:app --app-dir backend --reload
 ```
 
-Docker Compose 会把同名环境变量同时传入 API 和 MCP。建议把配置写入不会提交的 `.env`，然后重建服务：
+Docker Compose 的 `processing-environment` 锚点把 `AI_*` 与 `MODEL_ROLE_BINDINGS` 同时传给 **API、Worker 和 MCP**。改完 `.env` 必须重建这三者；只重建 API 会让 Copilot 用新模型，而后台报告仍被旧 Worker 处理：
 
 ```powershell
 Copy-Item .env.example .env
-# 编辑 .env：设置 AI_PROVIDER、AI_API_KEY 和 AI_MODEL
-docker compose up -d --build api mcp web
+# 编辑 .env：设置 AI_PROVIDER、AI_BASE_URL、AI_API_KEY、AI_MODEL、MODEL_ROLE_BINDINGS
+docker compose up -d --build --force-recreate api mcp worker web
 .\scripts\docker-smoke.ps1
 ```
+
+验收两条链路时不要混用观测来源：
+
+1. **Copilot（API 进程，role=`answer`）**：`POST /api/v1/chat` 的响应 `model` 字段应显示新 provider/model；同进程的 `GET /api/v1/observability/calls` 可看到该调用。
+2. **后台报告（Worker 进程，role=`analysis`）**：`POST /api/v1/runs` 提交 `operation="report"`，拿 Run ID 轮询到 `succeeded`，从 `result.report_id` 读取报告，再看报告里的 `model_diagnostics`。`MetricsStore` 是进程内存储，Worker 的调用**不会**出现在 API 的 `/observability/calls`；同时检查 `fallback` 标志，避免把降级误判成模型已生效。
 
 使用本地 Qwen（先用 vLLM、Ollama 等在 `8010` 端口暴露 OpenAI-compatible `/chat/completions` 接口，避开项目 MCP 的 `8001` 端口）：
 
@@ -250,7 +291,18 @@ Docker Compose 默认启用 PostgreSQL LangGraph checkpoint；本地 SQLite 测�
 $env:CHECKPOINT_BACKEND = "memory"
 ```
 
-## 个人数据 Connector 与多模态导入
+## 个人数据来源与多模态导入
+
+以 `GET /api/v1/connectors/registry` 为统一入口；注册表按真实能力标注来源，不把“需要用户授权”写成已实现：
+
+| 渠道 | 当前支持 | 边界 |
+| --- | --- | --- |
+| 文本与文件 | 自述粘贴，PDF / DOCX / XLSX / CSV / TSV / TXT / Markdown，用户另存 HTML 与导出 ZIP | 旧 `.doc` 需另存为 `.docx` 或带文字层 PDF；扫描 PDF 页标为待 OCR；XLSX 由标准库解析 |
+| 媒体 | 图片 OCR、音视频 ASR | 可选依赖，模型与效果需单独验收 |
+| 浏览器当前页采集 | Bilibili、微博、抖音、掘金、CSDN、知乎、小红书、GitHub 的已加载可见内容 | 用户自己登录并手动采集；互动只作兴趣线索 |
+| 平台导出文件 | Bilibili JSON、微博 JSON/CSV | 用户主动提供，重复外部 ID 跳过 |
+| 公开链接证据卡 | 用户手填 URL、标题和说明 | 后端不访问链接，不证明账号归属 |
+| GitHub 仓库 | 自备 fine-grained 只读令牌 | 只读元数据与 README；令牌不落库、不读 issues/PR |
 
 Bilibili Connector 只接收用户主动提供的 UTF-8 JSON，不读取 Cookie、不模拟登录，也不绕过平台权限。支持根数组，或 `items`、`videos`、`archives` 数组：
 
@@ -274,7 +326,7 @@ Bilibili Connector 只接收用户主动提供的 UTF-8 JSON，不读取 Cookie�
 
 微博 Connector 支持 UTF-8 JSON 和 CSV。JSON 可使用根数组，或 `statuses`、`posts`、`weibo`、`items` 数组；CSV 支持 `微博正文` / `text`、`发布时间` / `created_at`、`话题` / `topics`、`微博链接` / `url` 等中英文列名。正文中的简单 HTML 会被清洗，话题和转发内容会进入 Evidence；缺少微博 ID 时使用发布时间与正文生成稳定内容指纹，因此重新排序后重复导入仍能正确跳过。示例见 [`examples/weibo-export.example.json`](../examples/weibo-export.example.json)。
 
-可选的 [`browser-helper/`](../browser-helper/README.md) 是 Chrome/Edge 本地页面采集工具：用户在 Bilibili、微博或抖音自己的页面登录、滚动加载，多次点击扩展汇总当前已加载的发布或互动条目，移除误采项并导出 JSON。工作台可逐条勾选，只有确认后才会写入 Evidence。扩展不读取 Cookie，也不提供后台同步。它不保证完整账号历史；点赞、收藏、关注仅作为兴趣线索，不直接推断技能。页面结构变化时可能漏项，详见[使用说明与限制](../browser-helper/README.md)。
+可选的 [`browser-helper/`](../browser-helper/README.md) 是 Chrome/Edge 本地页面采集工具：用户在 Bilibili、微博、抖音、掘金、CSDN、知乎、小红书或 GitHub 自己的页面登录、滚动加载，多次点击扩展汇总当前已加载的发布或互动条目，移除误采项并导出 JSON。工作台可逐条勾选，只有确认后才会写入 Evidence。扩展不读取 Cookie，也不提供后台同步；单次读取最多 100 条、一个分组最多保留 200 条，后端单文件最多 200 条且 2 MB。它不保证完整账号历史；点赞、收藏、关注仅作为兴趣线索，不直接推断技能。页面结构变化时可能漏项，详见[使用说明与限制](../browser-helper/README.md)。
 
 GitHub 走「用户自备只读令牌」，不需要注册 OAuth 应用：
 
@@ -367,7 +419,7 @@ python -m app.evaluation.cli `
   --baseline ../eval/baselines/careerlens-dev-benchmark-v3.json
 ```
 
-仓库中的 [GitHub Actions 工作流](../.github/workflows/quality.yml) 配置了后端 lint、测试与回归门禁、前端 lint/build，以及 Docker 全栈 Smoke Test。
+仓库中的 [Quality Gate](../.github/workflows/quality.yml) 配置后端 lint、测试与覆盖率/回归门禁，前端 lint、Node 单测与生产构建，Playwright 端到端，以及 Docker 全栈 Smoke Test；浏览器采集扩展另有捕获/合并检查。依赖审计在独立的 [Dependency Audit](../.github/workflows/security.yml) 中运行，Pages 构建部署在 [Docsify Pages](../.github/workflows/docs-pages.yml) 中运行。
 
 启用 OpenTelemetry OTLP/HTTP 追踪：
 

@@ -4,7 +4,7 @@ All notable changes to CareerLens are documented here.
 
 ## Unreleased
 
-HY4 · 画像与推荐增强（本地实现，尚未发布版本）：
+HY4 · 画像与推荐增强（已进入主分支，待正式 Release）：
 
 ### Added
 

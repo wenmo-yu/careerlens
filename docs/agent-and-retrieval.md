@@ -39,6 +39,8 @@ flowchart LR
 
 `RETRIEVAL_BACKEND=auto` 优先走 Qdrant；异常或已有记录但 Qdrant 为空时，转到基于数据库记录的本地混合检索。强制 `qdrant` 模式会将故障暴露出来。**降级检索与 Qdrant RRF 的打分机制不同**，不能把本地回退结果写成相同的线上检索效果。索引缺失应调用 `POST /api/v1/evidence/reindex/{user_id}` 修复，而非长期依赖 fallback。
 
+默认配置是 `auto + hash`：Dense 为确定性 Hash Embedding，二阶段重排默认是词法相似度；Qwen Embedding / CrossEncoder 都要显式配置，不是默认路径。每次响应的 `retrieval` 诊断会给出本次实际 backend、fusion、reranker 与 fallback 状态，排障时以它为准。
+
 ## 与其他 AI/规则链路的区别
 
 - **画像**：从用户 Evidence 提取 `ProfileItem`。Demo 模式使用别名目录等规则；真实模型路径可产出更多类别，但会校验引用 ID。人工修正另走“草案 → 确认”流程。
