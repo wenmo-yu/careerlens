@@ -121,6 +121,15 @@ export function useWorkspace() {
     [profile],
   );
 
+  // Notices used to stay until the next action replaced them, so a single
+  // toast could sit over the navigation indefinitely. Clear them on a timer;
+  // the duration is long enough to read a two-line message.
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
   useEffect(() => {
     void Promise.all([getEvaluationRuns(), getObservabilitySummary()])
       .then(([runs, summary]) => {
