@@ -24,6 +24,17 @@ docker compose up -d --build
 
 Web 默认在 `http://localhost:3000`，API 文档在 `http://localhost:8000/docs`，MCP 在 `http://localhost:8001/mcp`，Qdrant Dashboard 在 `http://localhost:16333/dashboard`。smoke 成功应输出 `status : passed`，默认还会删除测试账号；用 `-KeepData` 才保留排查数据。Docker 命名卷在 `docker compose down` 后仍保留，`down -v` 会删除卷，不应用于需要保留数据的场景。
 
+运行时指标在 `http://localhost:8000/metrics`（Prometheus 文本格式）：请求计数、延迟直方图、并发请求数。标签用路由模板而不是原始 URL，所以用户变多不会撑爆序列；`METRICS_ENABLED=false` 可关闭。
+
+依赖与供应链检查（在 `backend/` 与 `frontend/` 分别执行）：
+
+```text
+python -m pip_audit --desc --skip-editable
+pnpm audit --prod --audit-level high
+```
+
+CI 里这两条在独立的 `Dependency Audit` 工作流中运行，每周与依赖变更时触发，不与质量门禁混在一起——新披露的 CVE 应该让审计立刻变红，而不是卡住无关的 PR。
+
 后端镜像使用 uv 两阶段构建并消费 `backend/uv.lock`（`uv sync --frozen`），依赖版本可复现。`INSTALL_ML`、`INSTALL_MULTIMODAL`、`INSTALL_OBSERVABILITY` 构建参数分别启用对应 extra；默认镜像只装核心依赖。修改 `pyproject.toml` 后须同步更新 `uv.lock`，否则 `--frozen` 构建会失败。
 
 ## 常见排查路径

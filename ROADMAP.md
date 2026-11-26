@@ -12,3 +12,5 @@
 | 6 | 平台授权与真实模型 | 🔄 部分完成 | GitHub 已用「用户自备只读令牌」跑通，无需注册应用；OAuth 授权码流程、其他平台的凭证表与只读同步仍未实现。真实 OCR/ASR 与模型质量、知乎/掘金/CSDN/小红书专用解析器仍需真实脱敏样本后再排期。 |
 
 前两项已合并入 `main` 并发布；补丁级依赖更新已随 CI 合并，major 升级需专项评估。合并前检查迁移、升级和文档，验收通过后单独发布。
+
+质量门禁现状（2026-11-26）：`Quality Gate` 四项作业（backend 含覆盖率门槛 78%、frontend、Playwright 端到端、Docker 全栈冒烟）与 `Dependency Audit` 两项审计全绿；`GET /metrics` 提供 Prometheus 抓取面。

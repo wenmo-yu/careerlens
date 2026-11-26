@@ -18,6 +18,7 @@ flowchart LR
     Graph --> Q
     Graph --> Provider
     Graph --> CP[(PostgreSQL Checkpoint)]
+    Scraper[Prometheus / Grafana] -.->|GET /metrics| API
 ```
 
 | 层 | 职责 | 代码入口 |
@@ -29,6 +30,7 @@ flowchart LR
 | Retrieval | 用户范围内的 Dense + Sparse 检索与本地降级 | [`backend/app/retrieval/`](../backend/app/retrieval/) |
 | Persistence | SQLAlchemy 模型、Alembic 迁移、Qdrant 索引 | [`backend/app/models/`](../backend/app/models/)、[`backend/migrations/`](../backend/migrations/) |
 | MCP | 共享业务服务的工具、资源和提示模板 | [`backend/app/mcp/server.py`](../backend/app/mcp/server.py) |
+| Observability | `GET /metrics` 的请求计数、延迟直方图与并发数；OpenTelemetry 追踪按需启用 | [`backend/app/observability/prometheus.py`](../backend/app/observability/prometheus.py)、[`backend/app/observability/tracing.py`](../backend/app/observability/tracing.py) |
 
 ## 一次完整请求如何流转
 

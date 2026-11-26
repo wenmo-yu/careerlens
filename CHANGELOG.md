@@ -50,6 +50,10 @@ HY4 · 画像与推荐增强（本地实现，尚未发布版本）：
 - 公开链接证据卡与 GitHub 导入的确认复选框被 `.link-card-form input { min-width:170px }` 拉成 170px 宽，与说明文字分离；改为 `min-width:0` 的 15px 复选框。
 - 刷新工作台时不恢复已保存画像，用户会误以为数据丢失；挂载时重新拉取 profile、overview 与 evidence。
 - 同一用户在 1 秒内连续提交同一量表会撞 `(user_id, instrument, version, taken_at)` 唯一键并返回 500：`taken_at` 改为 Python 侧微秒时间戳，SQLite 的秒级 `CURRENT_TIMESTAMP` 不再造成碰撞；补回归用例。
+- 镜像启动即崩：Dockerfile 用 `uv sync --frozen` 读 `backend/uv.lock`，而 `pyproject.toml` 新增了 `prometheus-client` 却未重新 lock，容器报 `ModuleNotFoundError`。已重新生成锁文件（仅新增 coverage / prometheus-client / pytest-cov）。
+- `pip-audit` 同时使用 `--strict` 与 `--skip-editable` 会把这个项目自己当成错误并以退出码 1 结束，扫描根本没开始；去掉 `--strict`。
+- pytest 8.4.2 命中 PYSEC-2026-1845（UNIX 上 `/tmp/pytest-of-{user}` 全局可写，本地 DoS 与可能的提权）；dev 依赖升到 `pytest>=9.0.3,<10` 与 `pytest-asyncio>=1.0,<2`。生产镜像用 `--no-dev`，运行时不引入 pytest。
+- Dependabot 的 Python 生态指错：仓库有 `backend/uv.lock` 且镜像由 uv 构建，应使用 `uv` 而不是 `pip`。
 - GitHub 仓库地址带 `?tab=readme` 或 `#install` 时被误判为非法 `owner/name`：规范化时先剥离 query 与 fragment。
 
 ## 0.4.0 - 2026-11-19

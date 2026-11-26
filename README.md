@@ -140,9 +140,11 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 
 | 项目 | 结果 |
 | --- | --- |
-| 后端 | Ruff 与 pytest，含教程 DOCX 双来源回归 |
-| 前端 | ESLint、TypeScript 类型检查、production build 通过 |
-| CI | backend / frontend / docker-smoke 三项全绿 |
+| 后端 | Ruff 与 pytest（245 项），含教程 DOCX 双来源回归；覆盖率门槛 78%，实测 82.5% |
+| 前端 | ESLint、TypeScript 类型检查、12 项 Node 单测、production build 通过 |
+| 端到端 | Playwright 4 项：导入 → 画像 → 岗位匹配（真实确认与 worker）→ 报告，另有首页跳转与 404 |
+| CI | 六项全绿：backend / frontend / e2e / docker-smoke / pip-audit / pnpm audit |
+| 依赖与监控 | Dependabot 每周检查（uv / npm / actions）；`GET /metrics` 暴露请求计数、延迟直方图与并发数 |
 | 全栈冒烟 | 双 Worker + 真实 PostgreSQL 跑通导入→画像→岗位→报告→对话、后台 run 与 SSE |
 | 端到端实测 | 导入、画像、岗位、报告、三模式对话、Wiki 编译、后台 run、隐私导出逐项通过 |
 
@@ -150,7 +152,7 @@ PostgreSQL 是业务数据源，Qdrant 是可从 Evidence 重建的检索索引�
 
 ## 参与贡献
 
-欢迎 Issue 与 PR。建议先读[贡献指南](CONTRIBUTING.md)，从 [good first issue](https://github.com/wenmo-yu/careerlens/issues) 入手；提交前请让 CI 三项通过（main 已启用分支保护）。讨论与问题请用 [GitHub Issues](https://github.com/wenmo-yu/careerlens/issues)。安全漏洞请按[安全政策](SECURITY.md)私下报告，不要公开提交。
+欢迎 Issue 与 PR。建议先读[贡献指南](CONTRIBUTING.md)，从 [good first issue](https://github.com/wenmo-yu/careerlens/issues) 入手；提交前请让全部检查通过（main 已启用分支保护）。讨论与问题请用 [GitHub Issues](https://github.com/wenmo-yu/careerlens/issues)。安全漏洞请按[安全政策](SECURITY.md)私下报告，不要公开提交。
 
 ## 许可
 
