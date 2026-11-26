@@ -1,11 +1,15 @@
 - [从这里开始](tutorials/从这里开始.md)
 - [完整学习路径](tutorials/README.md)
 
-- **1. 学会判断证据**
+- **1. 学概念**
   - [00-1 Agent 是什么](tutorials/00-foundations/00-1-Agent是什么.md)
   - [00-2 提示词与证据](tutorials/00-foundations/00-2-提示词与证据.md)
   - [00-3 RAG 与检索](tutorials/00-foundations/00-3-RAG与检索.md)
   - [00-4 数据模型](tutorials/00-foundations/00-4-数据模型大白话.md)
+  - [00-5 LangGraph 与工作流](tutorials/00-foundations/00-5-LangGraph与工作流.md)
+  - [00-6 LangChain 入门](tutorials/00-foundations/00-6-LangChain与模型工具.md)
+  - [00-7 混合 RAG 与排名融合](tutorials/00-foundations/00-7-混合RAG与排名融合.md)
+  - [00-8 Wiki 知识组织](tutorials/00-foundations/00-8-Wiki知识组织.md)
 
 - **2. 跑一遍产品**
   - [01 第一次跑起来](tutorials/01-第一次跑起来.md)
@@ -44,18 +48,16 @@
   - [07 匹配、排期与验证](tutorials/07-接入与验证.md)
   - [07-A MCP 服务与 ACP 对照](tutorials/07-A-MCP服务与ACP对照.md)
 
+- **6. 用证据做画像和学习计划**
+  - [10 导入与可回查画像](tutorials/10-导入与可回查画像.md)
+  - [11 岗位对比与学习计划](tutorials/11-岗位对比与学习计划.md)
+
 - **进阶与作品**
   - [08-1 真实模型](tutorials/08-advanced/08-1-真实模型.md)
   - [08-2 评测](tutorials/08-advanced/08-2-评测.md)
   - [09 画像、自陈测评与 GitHub 导入](tutorials/09-画像与自陈测评.md)
   - [08-3 贡献与结课](tutorials/08-advanced/08-3-贡献与结课.md)
   - [结课模板](tutorials/结课模板.md)
-
-- **按需补概念**
-  - [00-5 LangGraph 与工作流](tutorials/00-foundations/00-5-LangGraph与工作流.md)
-  - [00-6 LangChain 入门](tutorials/00-foundations/00-6-LangChain与模型工具.md)
-  - [00-7 混合 RAG 与排名融合](tutorials/00-foundations/00-7-混合RAG与排名融合.md)
-  - [00-8 Wiki 知识组织](tutorials/00-foundations/00-8-Wiki知识组织.md)
 
 - **跟做时查阅**
   - [静态观察路线](tutorials/静态观察路线.md)

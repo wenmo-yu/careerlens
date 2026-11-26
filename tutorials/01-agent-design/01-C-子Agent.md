@@ -49,7 +49,7 @@ flowchart TB
 
 这是一种「协调者 + 专家」的经典架构。Coordinator 是流程控，专家是执行者。
 
-从 `backend/app/runtime/operations.py` 的 `prepare_operation` 找到 `job_analysis` 分支，再打开 `backend/app/runtime/agents.py` 的 `Coordinator` 和 `SPECIALISTS`。一次 `delegate("requirement_analyst", {"jd_text": ...})` 会按名字找到角色。**输入投影**仅向它交付所需的字段，`RequirementsTask.model_validate(inputs).model_dump()` 在检查岗位描述长度后只保留 `jd_text`。提取结果回到 Worker，用来计算匹配，再把引用 ID 送去核验。 [角色登记和投影](../../backend/app/runtime/agents.py#L123-L134)
+从 `backend/app/runtime/operations.py` 的 `prepare_operation` 找到 `job_analysis` 分支，再打开 `backend/app/runtime/agents.py` 的 `Coordinator` 和 `SPECIALISTS`。一次 `delegate("requirement_analyst", {"jd_text": ...})` 会按名字找到角色。**输入投影**仅向它交付所需的字段，`RequirementsTask.model_validate(inputs).model_dump()` 在检查岗位描述长度后只保留 `jd_text`。提取结果回到 Worker，用来计算匹配，再把引用 ID 送去核验。 [角色登记和投影](../../backend/app/runtime/agents.py#L234-L253)
 
 ### 从一次已运行的任务找代码
 
@@ -120,7 +120,7 @@ def specialist(call: Callable[[dict], Awaitable[dict]]):
 python tutorials/01-agent-design/lab/practice.py open coordinator
 ```
 
-在练习的 `.cache/agent-practice/backend/app/runtime/agents.py` 找到 `Coordinator.delegate` 和 `Coordinator.verify`。先敲预算和进度，再把下面的三行放在 `running` 之后。角色登记决定用哪个投影和子图，`scoped` 是清理后的输入，返回的状态里从 `result` 取角色产物。
+在练习的 `.cache/agent-practice/backend/app/runtime/agents.py` 找到 `Coordinator.delegate` 和 `Coordinator.verify`，再读同一个类里保留的 `_run_role`。前者管预算和派发，`_run_role` 负责生命周期。下面三行已经写在 `_run_role` 的 `try` 块里，可以先用它理解投影怎样交给子图。
 
 ```python
 project, graph = SPECIALISTS[role]
@@ -128,23 +128,21 @@ scoped = project(inputs)
 state = await graph.ainvoke({"inputs": scoped})
 ```
 
-`Coordinator` 的构造函数会给本次调用两次预算。补回类里的方法，保持下面这几步。
+`Coordinator` 的构造函数可接收 `budget`，默认给本次任务两次派发。跟提示补回类里的两个方法。
 
-1. 预算为零时报错，其他情况先扣一次。
-2. 记 `running`，从登记表按角色名取投影函数和子图。
-3. 先把输入缩到角色所需字段，再调用 `await graph.ainvoke({"inputs": scoped})`。
-4. 拿到 `result` 后只把回退标识、引用数量等摘要交给进度。业务候选仍返回给调用者。
-5. `verify` 也是一次 `delegate`。因此「提取一次、验证一次」正好用尽默认预算。
+1. 先检查剩余预算，再核对角色是否登记在 `SPECIALISTS`。
+2. 确认有效后扣一次，把执行交给 `_run_role`。它记 `running`、投影输入、执行子图并报告结束状态。
+3. `verify` 把允许的 ID 和拟用的 ID 交给一次 `delegate`，从返回值取 `citation_count`。因此「提取一次、验证一次」正好用尽默认预算。
 
 ### 预算是资源护栏，不是流程控制
 
-`_remaining` 初始为 2，每次 `delegate` 扣 1。为什么需要它？因为角色调用通常要花钱（模型 token）和时间。如果没有上限，一个写错的循环可能反复派发角色，烧掉大量成本。预算给每次任务设了个硬顶：两次调用用完，第三次直接报错。
+`_remaining` 从构造函数里的预算开始，默认 2。一次有效派发扣 1。角色可能调用模型，花时间和 token。预算给这次任务设定上限，两次用完后，第三次会在调用子图之前报错。
 
 按岗位分析的正常调用顺序，提取和核验各用一次预算。测试先派发提取，再派发一条带越界引用的核验，第二次虽然失败也已扣掉一次。随后传入合法引用做第三次显式调用，预期收到 `Specialist budget exhausted`。
 
 ### 进度里只放摘要，不放业务数据
 
-`_progress(role, "succeeded", **stats)` 只传 `fallback`、`citation_count` 一类的摘要。Worker 的回调更新步骤状态，同时把摘要写进对应事件的 `data`，所以可以分别用 `/steps` 和 `/events` 观察。完整候选经 `return result` 交回岗位分析代码。 [进度回调与最终提交](../../backend/app/runtime/worker.py#L54-L86)
+`_progress(role, "succeeded", **stats)` 传回退标志、引用数和 `duration_ms` 等摘要。投影或子图抛错时，`_run_role` 先记一次 `failed`，带异常类型和耗时，再把异常交回 Worker。这样在 `/events` 能找到 `step.failed`，在 `/steps` 能看到步骤结束。完整候选经 `return result` 交回岗位分析代码。 [角色执行与失败记录](../../backend/app/runtime/agents.py#L156-L185) · [进度回调与最终提交](../../backend/app/runtime/worker.py#L54-L86)
 
 <details>
 <summary>展开 Coordinator 的两个实际方法</summary>
@@ -153,19 +151,10 @@ state = await graph.ainvoke({"inputs": scoped})
     async def delegate(self, role: str, inputs: dict) -> dict:
         if self._remaining <= 0:
             raise ValueError("Specialist budget exhausted")
+        if role not in SPECIALISTS:
+            raise ValueError(f"Unknown specialist: {role}")
         self._remaining -= 1
-        await self._progress(role, "running")
-        project, graph = SPECIALISTS[role]
-        scoped = project(inputs)
-        state = await graph.ainvoke({"inputs": scoped})
-        result = state["result"]
-        stats = {"fallback": bool(
-            result["diagnostics"].get("fallback") or result["diagnostics"].get("fallback_reason")
-        )}
-        if "citation_count" in result:
-            stats["citation_count"] = result["citation_count"]
-        await self._progress(role, "succeeded", **stats)
-        return result
+        return await self._run_role(role, inputs)
 
     async def verify(self, allowed: set[str], refs: list[str]) -> TaskSummary:
         role = "evidence_verifier"
@@ -175,7 +164,7 @@ state = await graph.ainvoke({"inputs": scoped})
 
 </details>
 
-注意缩进。这两个 `def` 放在现成的 `class Coordinator` 里面，类里原有的 `__init__` 也要保留。`self` 是调用这个方法的协调器对象，读取的是这一次任务留下的预算。
+注意缩进。这两个 `def` 放在现成的 `class Coordinator` 里面。保留类里的 `__init__`、`_stats` 和 `_run_role`。`self` 是这一次任务的协调器对象，保存着本次任务剩余的预算。
 
 ### 现在写同一文件的 verification_task
 
@@ -208,7 +197,7 @@ async def verification_task(inputs: dict) -> dict:
 
 </details>
 
-用纸笔检查一遍。允许 `{"E1"}`，候选是 `["E1", "E2"]` 会失败。改成 `["E1", "E1"]` 时通过，引用数是 1。重复出现的编号不等于增加一条证据。 [实际派发方法](../../backend/app/runtime/agents.py#L92-L107) · [核验函数](../../backend/app/runtime/agents.py#L79-L84)
+用纸笔检查一遍。允许 `{"E1"}`，候选是 `["E1", "E2"]` 会失败。改成 `["E1", "E1"]` 时通过，引用数是 1。重复出现的编号不等于增加一条证据。 [实际派发方法](../../backend/app/runtime/agents.py#L187-L193) · [核验函数](../../backend/app/runtime/agents.py#L82-L87)
 
 ## 第 4 块：第三步——找谁真正写入
 
@@ -242,6 +231,19 @@ python tutorials/01-agent-design/lab/practice.py check coordinator
 | 重复引用数不对 | 用了列表没用集合去重 |
 | 结果没写进数据库 | Worker 的 `persist` 分支漏了 |
 | 进度里出现大段正文 | 误把完整 result 放进 `_progress` |
+
+## 选做 · 判断哪两个角色可以一起跑
+
+要求提取的产物要先参与匹配，核验才能拿到待用的引用 ID。这两步在岗位分析里按顺序执行。试想同时生成一份方向草稿和一份课程草稿：如果两者都从同一份已准备好的输入取字段，且彼此不读对方的输出，就能用独立的协程执行。
+
+`backend/app/runtime/agents.py` 的 `delegate_many` 先按角色数检查并扣预算，再用 `asyncio.gather` 汇总两个结果。角色失败时会先记自己的失败事件，协调器再把异常向外抛。练习使用声明为可并行的 `role_scout` 与 `curriculum_planner`。生产岗位、Wiki 和报告操作仍走已有的顺序调用。从下面的测试可以观察两条角色各自返回了什么。
+
+```bash
+cd backend
+python -m pytest -q tests/test_runtime_specialists.py
+```
+
+使用与源码课相同的 Python。选读 `test_delegate_many_runs_independent_roles` 和 `test_parallel_progress_event_seq_is_unique`，核对并行草稿、预算、失败终态与事件序号。有关并发进度如何续看，下一步可去[第 06 篇](../06-后台运行时.md#为什么序号交给数据库)。 [并行派发](../../backend/app/runtime/agents.py#L195-L218) · [专项测试](../../backend/tests/test_runtime_specialists.py)
 
 ## 常见坑，提前绕开
 

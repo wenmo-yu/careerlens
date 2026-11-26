@@ -62,8 +62,8 @@ flowchart LR
 
 | 打开哪个文件 | 在文件里找什么 | 这一跳发生了什么 |
 | --- | --- | --- |
-| `frontend/app/workspace/page.tsx` | `onSubmit={handleChat}`。[工作台表单](../../frontend/app/workspace/page.tsx#L275) | 点发送时，React 会执行表单绑定的 `handleChat` |
-| `frontend/lib/use-workspace.ts` | `handleChat`。它把输入框的 `chatInput` 交给 `sendChat`。[提交处理函数](../../frontend/lib/use-workspace.ts#L262-L269) | 工作台把这一轮输入交给请求函数 |
+| `frontend/app/workspace/page.tsx` | `onSubmit={handleChat}`。[工作台表单](../../frontend/app/workspace/page.tsx#L296) | 点发送时，React 会执行表单绑定的 `handleChat` |
+| `frontend/lib/use-workspace.ts` | `handleChat`。它把输入框的 `chatInput` 交给 `sendChat`。[提交处理函数](../../frontend/lib/use-workspace.ts#L271-L278) | 工作台把这一轮输入交给请求函数 |
 | `frontend/lib/api.ts` | `sendChat`。将参数 `message` 装进 JSON，请求 `/chat`，公共请求函数会带上 API 基础地址。[网页请求代码](../../frontend/lib/api.ts#L921-L935) | 文字被装进请求体，加上前缀发出 |
 | `backend/app/api/routes/chat.py` | `chat`。FastAPI 将请求体转换成 `ChatRequest`，函数通过 `payload.message` 取回问题，再交给 `run_career_graph`。[接口接收与调用](../../backend/app/api/routes/chat.py#L38-L99) | 后端校验请求，取出问题，交给图 |
 | `backend/app/graph/career.py` | `run_career_graph`。将同一个 `message` 放入图的初始状态，开始执行第一个节点。[图的执行入口](../../backend/app/graph/career.py#L239-L254) | 问题成为图状态的一个字段 |
@@ -74,7 +74,7 @@ flowchart LR
 const result = await sendChat(userId, chatInput, chat?.thread_id, analysis?.id, knowledgeMode);
 ```
 
-`chatInput` 在调用中是第二个参数，对应 `sendChat` 的 `message`。把这三个名字按出现顺序连起来，`chatInput → message → payload.message`，你就追完了同一句话从网页到后端的交接。路径里的 `/api/v1` 来自后端配置，`/chat` 由路由登记加上。 [路由登记](../../backend/app/api/router.py#L28) · [应用加载路由](../../backend/app/main.py#L53-L65)
+`chatInput` 在调用中是第二个参数，对应 `sendChat` 的 `message`。把这三个名字按出现顺序连起来，`chatInput → message → payload.message`，你就追完了同一句话从网页到后端的交接。路径里的 `/api/v1` 来自后端配置，`/chat` 由路由登记加上。 [路由登记](../../backend/app/api/router.py#L28) · [应用加载路由](../../backend/app/main.py#L65-L66)
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontFamily":"system-ui, sans-serif","actorBkg":"#eaf6f1","actorBorder":"#60a28d","actorTextColor":"#143f36","actorLineColor":"#a7c2b9","signalColor":"#355c51","signalTextColor":"#203d34","noteBkgColor":"#fff4d9","noteBorderColor":"#ba893b","noteTextColor":"#644117"},"sequence":{"width":112,"height":44,"actorMargin":34,"messageMargin":23,"mirrorActors":false}}}%%

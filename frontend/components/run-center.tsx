@@ -165,7 +165,7 @@ export function RunCenter({ userId, latest, refresh, onOpen }: {
         </>}
         {!terminalRun(current.status) && current.status !== "waiting_confirmation" &&
           <button type="button" className="secondary" disabled={changing} onClick={() => change()}>取消任务</button>}
-        {current.status === "succeeded" && current.result && current.result.count === undefined &&
+        {current.status === "succeeded" && current.result &&
           <button type="button" onClick={() => onOpen(current)}>打开结果</button>}
       </div>
       {current.result?.count !== undefined &&
