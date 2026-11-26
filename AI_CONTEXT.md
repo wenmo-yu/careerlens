@@ -331,7 +331,7 @@ HTTP/MCP 请求
 
 | 文件 | 用途 |
 | --- | --- |
-| `tutorials/README.md` | 第一章八篇概念 → 跑产品 → 最小实现与 Agent 源码 → 知识库 → 任务与接入 → 画像和学习实战 → 选做与结课 |
+| `tutorials/README.md` | 四篇基础概念 → 跑产品 → 最小实现与 Agent 源码 → 知识库 → 任务与接入 → 选做和结课 |
 | `tutorials/setup/动手准备.md` | 终端、编辑器、统一 Python 环境与 8000 / 8030 / 8031 的账号、数据交接 |
 | `tutorials/从这里开始.md` | Docsify 首页；3 分钟证据判断题 |
 | `tutorials/术语表.md` | 术语口径 |
@@ -341,7 +341,7 @@ HTTP/MCP 请求
 | `tutorials/静态观察路线.md` | 不能装 Docker 时的替代路线 |
 | `tutorials/结课模板.md` | 可复跑结课交付模板 |
 
-### 8.2 第一章：八篇概念课（`00-foundations/`）
+### 8.2 阶段 0：八篇概念课（`00-foundations/`）
 
 | 文件 | 主题 |
 | --- | --- |
@@ -369,9 +369,6 @@ HTTP/MCP 请求
 | `08-advanced/08-1-真实模型.md` | 真实模型与 OCR/ASR 边界 |
 | `08-advanced/08-2-评测.md` | 评测实验与指标 |
 | `08-advanced/08-3-贡献与结课.md` | 贡献流程与结课交付 |
-| `09-画像与自陈测评.md` | 自陈与事实对照、三份量表、可选 GitHub 导入 |
-| `10-导入与可回查画像.md` | 合成 HTML 与收藏对照、上传结果、覆盖度、画像偏好和权限清单 |
-| `11-岗位对比与学习计划.md` | 延续第 10 篇账号，按同一画像比较两个岗位、选择课程并保存进度 |
 | `01-agent-design/` | 10 篇 Agent 源码课 + README + `lab/`；从请求状态、路由、工具、MCP、引用、会话到子 Agent 与综合跟做 |
 | `01-agent-design/入门练习-从零写证据助手.md` | 从空目录写证据、检索和引用的最小实现，选做 FastAPI |
 | `04-knowledge-base/` | 6 篇数据知识库课 + README + `lab/kb_practice.py`；去重、检索、Wiki 编译、表格保护、版本回滚、综合验收 |
@@ -384,7 +381,6 @@ HTTP/MCP 请求
 | 路径 | 放的是什么 |
 | --- | --- |
 | `examples/tutorials/README.md` | 六个跟做脚本的依赖与命令索引 |
-| `examples/tutorials/fixtures/hy4-lin-api.html` | 第 10、11 篇共用的合成 HTML 作业证据 |
 | `examples/tutorials/read_mcp_report.py` | 用只读令牌从工具和资源两处读取第 07 篇的同一份报告 |
 | `examples/tutorials/fixtures/{my_scale,work-style-neutral}.json` | 第 09 篇的量表包与可提交答案，原始数据在 assessment 目录 |
 | `examples/tutorials/_client.py` | 教学脚本共用的轻量 API 客户端 |
