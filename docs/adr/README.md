@@ -10,6 +10,7 @@
 | [0004](0004-m0-scripted-runner-prototype.md) | M0 自研 Runner 原型与验证边界 | Accepted（仅原型结论） | M0、M3 |
 | [0005](0005-m0-static-export-packaging-and-job-object.md) | M0 静态导出、Python 打包与 Job Object 边界 | Accepted（仅原型证据） | M0 |
 | [0006](0006-runtime-jsonl-v1-method-registry.md) | Runtime JSONL v1 方法注册表与错误码 | Accepted（v1 方法集冻结） | M0、M3 |
+| [0007](0007-m1-daemon-supervision-prototype.md) | M1 用户级 Daemon 原型与进程监督边界 | Proposed（仅原型证据） | M1、M2 |
 
 ## 优先级
 

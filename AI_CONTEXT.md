@@ -332,6 +332,7 @@ HTTP/MCP 请求
 | `docs/adr/0004-m0-scripted-runner-prototype.md` | 自研 Runner 原型的验证结论、测试 ID 与未做项 |
 | `docs/adr/0005-m0-static-export-packaging-and-job-object.md` | Next.js 静态导出、PyInstaller 启动与 Job Object 原型的已验证边界 |
 | `docs/adr/0006-runtime-jsonl-v1-method-registry.md` | Runtime JSONL v1 的方法集、错误码与校验顺序 |
+| `docs/adr/0007-m1-daemon-supervision-prototype.md` | 用户级 daemon 原型的实例锁、Job Object、重启与管道控制面边界 |
 | `docs/assets/*.jpg` | 23 张新版截图：页面总览、工作台各分区（导入/画像/匹配/报告/Copilot/测评/质量/数据）与公开页 |
 
 ---
