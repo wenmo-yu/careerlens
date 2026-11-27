@@ -90,3 +90,4 @@
     - [0005 M0 静态导出与打包](docs/adr/0005-m0-static-export-packaging-and-job-object.md)
     - [0006 Runtime 方法注册表](docs/adr/0006-runtime-jsonl-v1-method-registry.md)
     - [0007 M1 Daemon 原型](docs/adr/0007-m1-daemon-supervision-prototype.md)
+    - [0008 Daemon 控制协议 v1](docs/adr/0008-daemon-control-protocol-v1.md)

@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wenmo-yu/careerlens/blob/main/contracts/daemon-control-v1.json",
+  "title": "CareerLens Daemon Control Protocol v1",
+  "description": "Host/CLI 与本机用户级 daemon 之间的控制面契约。传输是本机命名管道，不是 HTTP，也不是 Runtime JSONL。业务事实仍以 FastAPI 与业务库为准，本协议只做进程监督与状态查询。",
+  "protocol": "daemon-control",
+  "version": 1,
+  "transport": {
+    "kind": "windows_named_pipe",
+    "name_pattern": "\\\\.\\pipe\\careerlens-daemon-<instance>",
+    "framing": "每条命令一行 UTF-8 JSON 请求，每条响应一行 UTF-8 JSON",
+    "max_message_bytes": 65536,
+    "acl": {
+      "sddl": "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;<current_user_sid>)",
+      "rule": "只允许本机 SYSTEM、Administrators 与创建 daemon 的当前用户；不得给 Everyone 或 ANONYMOUS 授权。",
+      "verification": "客户端不携带令牌；身份由管道 DACL 与进程所有者共同决定。"
+    }
+  },
+  "handshake": {
+    "rule": "任何客户端必须先发 hello，再发其它命令；未握手的连接只能收到 not_ready。",
+    "request": {
+      "command": "hello",
+      "params": {
+        "protocol": { "type": "integer", "const": 1 },
+        "client": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "client_version": { "type": "string", "minLength": 1, "maxLength": 64 }
+      },
+      "required": ["protocol", "client"]
+    },
+    "response": {
+      "ok": true,
+      "protocol": 1,
+      "daemon_version": "string",
+      "pid": "integer",
+      "instance_id": "string",
+      "started_at": "number (unix seconds)",
+      "roles": ["api", "worker"]
+    },
+    "mismatch": {
+      "ok": false,
+      "code": "protocol_mismatch",
+      "message": "client protocol is not supported",
+      "supported": [1]
+    }
+  },
+  "commands": [
+    {
+      "name": "hello",
+      "params_required": ["protocol", "client"],
+      "result_required": ["protocol", "daemon_version", "pid", "instance_id", "roles"],
+      "idempotent": true,
+      "errors": ["protocol_mismatch", "invalid_params"]
+    },
+    {
+      "name": "ping",
+      "params_required": [],
+      "result_required": ["pong"],
+      "idempotent": true,
+      "errors": []
+    },
+    {
+      "name": "status",
+      "params_required": [],
+      "result_required": ["daemon", "backend", "children"],
+      "result_shape": {
+        "daemon": { "pid": "integer", "version": "string", "uptime_s": "number" },
+        "backend": { "healthy": "boolean", "url": "string" },
+        "children": {
+          "<role>": { "pid": "integer|null", "restarts": "integer", "running": "boolean" }
+        }
+      },
+      "idempotent": true,
+      "errors": ["not_ready"]
+    },
+    {
+      "name": "restart",
+      "params_required": ["role"],
+      "result_required": ["restarting"],
+      "allowed_roles": ["api", "worker"],
+      "idempotent": false,
+      "errors": ["invalid_params", "unknown_role", "not_ready"]
+    },
+    {
+      "name": "stop",
+      "params_required": [],
+      "result_required": ["stopping"],
+      "idempotent": true,
+      "errors": ["not_ready"]
+    }
+  ],
+  "error_codes": [
+    {
+      "code": "unknown_command",
+      "retryable": false,
+      "meaning": "命令名不在本契约内。拒绝且不改变 daemon 状态。"
+    },
+    {
+      "code": "invalid_params",
+      "retryable": false,
+      "meaning": "缺必填参数或参数类型不对；details.missing 列出缺失字段。"
+    },
+    {
+      "code": "unknown_role",
+      "retryable": false,
+      "meaning": "restart 指定的角色不存在；只允许契约列出的 role。"
+    },
+    {
+      "code": "protocol_mismatch",
+      "retryable": false,
+      "meaning": "客户端协议版本不被支持。返回 supported 列表，客户端应升级而不是重试。"
+    },
+    {
+      "code": "not_ready",
+      "retryable": true,
+      "meaning": "daemon 仍在启动或正在退出；客户端应按退避重试，不能假定子进程状态。"
+    },
+    {
+      "code": "internal_error",
+      "retryable": true,
+      "meaning": "daemon 内部异常。message 只放可公开摘要，不含路径、令牌或提示词。"
+    }
+  ],
+  "rules": [
+    "daemon 不持有 Run、会话、审批或证据的业务事实；status 只反映进程与健康。",
+    "stop 只结束 daemon 与其受管子进程，不删除数据库、不改 Run 终态。",
+    "控制面不得暴露任何用户内容、令牌或提示词；日志同样脱敏。",
+    "不兼容变化必须提升 version 并提供显式拒绝，不允许静默改命令语义。"
+  ]
+}
