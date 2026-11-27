@@ -9,6 +9,7 @@ import {
 } from "./jsonl.ts";
 import {
   SeenRequestIds,
+  assertEventShape,
   lookupMethod,
   missingParams,
   runtimeError,
@@ -115,6 +116,7 @@ export class RuntimeHost {
     attempt = 1,
     runtimeGeneration = 1,
   ): void {
+    assertEventShape(kind, payload);
     this.write({
       v: 1,
       type: "event",

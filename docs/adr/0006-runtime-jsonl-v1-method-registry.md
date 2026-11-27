@@ -52,11 +52,26 @@ v1 冻结以下五个方法，超出集合的方法名一律按 `unknown_method`
 
 重复 id 在进入处理器之前就被拒绝，因此不会产生第二次副作用；追踪表有上限（默认 512 条，先进先出），长会话不会无界增长。
 
-### 4. 落地位置
+### 4. 事件种类必须先注册
+
+ADR 0003 要求"事件必须先注册再发送"，但 M0 原型里 `emit()` 接受任意 `kind`，拼错的事件名会静默发出、前端永远收不到。本轮把事件也纳入同一份契约：
+
+| 事件 | 必填 payload | 语义 |
+| --- | --- | --- |
+| `message.completed` | `turnId`、`text`、`invocationIds` | 一轮模型输出完成 |
+| `tool.requested` | `invocationIds` | 工具意图已提交，尚未执行 |
+| `tool.completed` | `invocationId`、`status` | 单个工具调用有确定结果 |
+| `approval.requested` | `approvalId`、`invocationId`、`argsDigest` | 审批屏障，带 digest |
+| `run.settled` | `stopReason` | CLI 视角结算，不等于业务提交 |
+| `run.waiting_approval` | `stopReason` | Run 停在审批屏障 |
+
+`emit()` 在写出前调用 `assertEventShape`：未注册种类或缺必填键直接抛错，不再静默发送。
+
+### 5. 落地位置
 
 - 契约：`contracts/runtime-jsonl-v1.methods.json`（唯一对外发布版本）。
 - 执行点：`agent-runtime/src/protocol/methods.ts`，`runtime-host.ts` 只调用注册表。
-- 测试：`agent-runtime/tests/methods.test.ts`，7 项覆盖未知方法、缺参、重复 id、ping 的绑定状态、`run_busy` 与取消后可重入、契约一致性、旧代拒绝。
+- 测试：`agent-runtime/tests/methods.test.ts`，9 项覆盖未知方法、缺参、重复 id、ping 的绑定状态、`run_busy` 与取消后可重入、旧代拒绝、事件种类与 payload 必填、方法/事件双契约一致性。
 
 ## 替代方案与取舍
 
@@ -69,10 +84,10 @@ v1 冻结以下五个方法，超出集合的方法名一律按 `unknown_method`
 
 - `ping_seq` 是 CLI 本地计数，不是业务心跳；崩溃检测仍需调度器侧超时策略，本 ADR 不规定心跳间隔。
 - 方法集冻结不等于能力冻结：工具白名单、审批策略、子代理方法仍可能在 M3 增加新方法，新增必须升 `v` 或走可选方法协商。
-- 契约 JSON 与 `methods.ts` 是两份手写副本，存在漂移风险；后续应在 CI 增加一致性检查（读 JSON 断言与 TS 导出集合相同）。
+- 契约 JSON 与 `methods.ts` 是两份手写副本，存在漂移风险；已在测试里做双向一致性断言（方法集、必填参数、错误码可重试位、事件必填 payload），CI 的 `Agent Core M0 prototype` job 会拦住漂移。
 - 未验证：真实模型流下的 `run_busy` 竞态、跨进程重连后的重复 id 复用、超长会话下追踪表淘汰后的重复请求。
 
 ## 验证与回滚
 
-- 本机 `node --test tests/*.test.ts`：21 项全部通过（含 7 项新增 M3 契约测试，其中 1 项校验契约 JSON 与运行时注册表一致）。
+- 本机 `node --test tests/*.test.ts`：23 项全部通过（含 9 项新增 M3 契约测试，其中 2 项校验契约 JSON 与运行时注册表一致）。
 - 回滚：删除 `contracts/runtime-jsonl-v1.methods.json`、`methods.ts`、`methods.test.ts`，`runtime-host.ts` 恢复为 M0-04 的分支实现即可；因为方法集只增不减，回滚不会破坏已发布帧格式。

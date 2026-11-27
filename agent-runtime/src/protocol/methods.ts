@@ -146,3 +146,35 @@ export class SeenRequestIds {
     }
   }
 }
+
+export interface EventSpec {
+  name: string;
+  requiredPayload: string[];
+}
+
+const EVENT_SPECS: EventSpec[] = [
+  { name: "message.completed", requiredPayload: ["turnId", "text", "invocationIds"] },
+  { name: "tool.requested", requiredPayload: ["invocationIds"] },
+  { name: "tool.completed", requiredPayload: ["invocationId", "status"] },
+  { name: "approval.requested", requiredPayload: ["approvalId", "invocationId", "argsDigest"] },
+  { name: "run.settled", requiredPayload: ["stopReason"] },
+  { name: "run.waiting_approval", requiredPayload: ["stopReason"] },
+];
+
+export const EVENTS: ReadonlyMap<string, EventSpec> = new Map(
+  EVENT_SPECS.map((spec) => [spec.name, spec]),
+);
+
+export function lookupEvent(name: string): EventSpec | undefined {
+  return EVENTS.get(name);
+}
+
+/** Throws when a kind is unregistered or a declared payload key is missing. */
+export function assertEventShape(name: string, payload: Record<string, unknown>): void {
+  const spec = lookupEvent(name);
+  if (!spec) throw new Error(`unregistered event kind: ${name}`);
+  const missing = spec.requiredPayload.filter((key) => payload[key] === undefined);
+  if (missing.length > 0) {
+    throw new Error(`event ${name} missing payload keys: ${missing.join(", ")}`);
+  }
+}

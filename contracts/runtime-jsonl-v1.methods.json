@@ -307,5 +307,55 @@
     "ordering": "调度器可以并发发送请求，但 run.start 的响应不保证先于 run.cancel 的响应返回；调用方必须以 id 配对，不得依赖到达顺序。",
     "settlement": "run.settled 事件是 CLI 视角的结算信号，不等于业务库已提交；业务事实以 FastAPI 事务为准。",
     "reconnect": "断线后调度器必须先 runtime.bind 再 run.start；CLI 不持有跨会话状态。"
-  }
+  },
+  "events": [
+    {
+      "name": "message.completed",
+      "required_payload": [
+        "turnId",
+        "text",
+        "invocationIds"
+      ],
+      "meaning": "一轮模型输出完成；invocationIds 只列本轮产生的工具意图。"
+    },
+    {
+      "name": "tool.requested",
+      "required_payload": [
+        "invocationIds"
+      ],
+      "meaning": "工具意图已提交到调度器，尚未执行。"
+    },
+    {
+      "name": "tool.completed",
+      "required_payload": [
+        "invocationId",
+        "status"
+      ],
+      "meaning": "单个工具调用有确定结果；status 含 succeeded/denied/failed 等。"
+    },
+    {
+      "name": "approval.requested",
+      "required_payload": [
+        "approvalId",
+        "invocationId",
+        "argsDigest"
+      ],
+      "meaning": "审批屏障：带 digest 的审批请求，后续工具不得越过。"
+    },
+    {
+      "name": "run.settled",
+      "required_payload": [
+        "stopReason"
+      ],
+      "meaning": "CLI 视角结算，不等于业务库已提交。"
+    },
+    {
+      "name": "run.waiting_approval",
+      "required_payload": [
+        "stopReason"
+      ],
+      "meaning": "Run 停在审批屏障，等待调度器回灌决定。"
+    }
+  ],
+  "events_rule": "事件种类必须先在本数组注册再发送；未注册种类或缺必填 payload 键时，实现必须报错而不是静默发送。"
 }

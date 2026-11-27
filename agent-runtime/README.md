@@ -10,7 +10,7 @@
 
 ```bash
 cd agent-runtime
-node --test tests/*.test.ts   # 21 项：引擎 8 + 协议(帧/取消) 4 + 方法契约 7 + CLI 1
+node --test tests/*.test.ts   # 23 项：引擎 8 + 协议(帧/取消) 4 + 方法/事件契约 9 + CLI 1
 node src/cli.ts               # stdio JSONL 入口，等待 scheduler 帧
 ```
 

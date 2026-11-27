@@ -5,7 +5,7 @@ import { PassThrough } from "node:stream";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { decodeFrame, encodeFrame, type ResponseFrame, type RuntimeFrame } from "../src/protocol/jsonl.ts";
-import { METHODS, RETRYABLE, lookupMethod } from "../src/protocol/methods.ts";
+import { EVENTS, METHODS, RETRYABLE, lookupMethod } from "../src/protocol/methods.ts";
 import { RuntimeHost, type RuntimeHandlers } from "../src/protocol/runtime-host.ts";
 
 function waitFor(predicate: () => boolean, timeoutMs = 5_000): Promise<void> {
@@ -235,4 +235,30 @@ test("M3: run.start from an older runtime_generation is rejected as stale_genera
   assert.equal(response(frames, "s-3")?.ok, true);
   input.end();
   await running;
+});
+
+test("M3: emit rejects unregistered event kinds and missing payload keys", async () => {
+  const { input, frames, host, running } = build();
+  assert.throws(() => host.emit("run.exploded", { stopReason: "x" }, "r1"), /unregistered event kind/);
+  assert.throws(() => host.emit("run.settled", {}, "r1"), /missing payload keys: stopReason/);
+  host.emit("run.settled", { stopReason: "completed" }, "r1");
+  await waitFor(() => frames.length >= 1);
+  const event = frames[0];
+  assert.equal(event.type, "event");
+  assert.equal((event as { kind: string }).kind, "run.settled");
+  input.end();
+  await running;
+});
+
+test("M3: contract event registry matches the runtime registry", () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const contractPath = resolve(here, "../../contracts/runtime-jsonl-v1.methods.json");
+  const contract = JSON.parse(readFileSync(contractPath, "utf8")) as {
+    events: { name: string; required_payload: string[] }[];
+  };
+  const names = contract.events.map((entry) => entry.name).sort();
+  assert.deepEqual(names, [...EVENTS.keys()].sort());
+  for (const entry of contract.events) {
+    assert.deepEqual(EVENTS.get(entry.name)?.requiredPayload, entry.required_payload);
+  }
 });
