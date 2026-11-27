@@ -19,6 +19,7 @@ All notable changes to CareerLens are documented here.
 
 ### Added
 
+- V4 M2 第一步：daemon 从原型迁入 `backend/app/runtime/daemon/`（`contract` / `supervisor` / `control_ipc` / `lifecycle`），入口 `python -m app.runtime.daemon --api-exe <path>`；契约文件缺失时回退内置副本，新增 41 项单元测试覆盖退避、熔断、握手与错误码，后端覆盖率 78.65%。见 `docs/adr/0009-daemon-implementation-step-one.md`。
 - V4 Daemon 协议：新增 `contracts/daemon-control-v1.json`，冻结本机管道控制面的握手、5 条命令与 6 个错误码，并在 daemon 原型上按契约实现；14 项端到端检查通过。见 `docs/adr/0008-daemon-control-protocol-v1.md`。
 - V4 M1 原型：用户级 daemon 原型验证单实例锁、`KILL_ON_JOB_CLOSE` 进程组回收、API/Worker 监督与退避重启、按 SID 限定 DACL 的命名管道控制面；10 项端到端检查通过（含强杀 daemon 后无孤儿）。原型在仓库外，结论与未做项见 `docs/adr/0007-m1-daemon-supervision-prototype.md`。
 - V4 打包事实：PyInstaller 冻结后 `sys.executable -m app.runtime.parse_input` 会退化成“重跑主程序”，PDF/DOCX 上传必然报 `Unable to parse this file`；需在入口分发解析子进程，并补 `--collect-all pymupdf`、`--collect-data docx`、`--add-data pyproject.toml`。补齐后 PDF/DOCX 解析与 `app.version=0.4.0` 在打包产物中验证通过，详见 ADR 0005。

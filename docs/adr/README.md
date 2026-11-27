@@ -12,6 +12,7 @@
 | [0006](0006-runtime-jsonl-v1-method-registry.md) | Runtime JSONL v1 方法注册表与错误码 | Accepted（v1 方法集冻结） | M0、M3 |
 | [0007](0007-m1-daemon-supervision-prototype.md) | M1 用户级 Daemon 原型与进程监督边界 | Proposed（仅原型证据） | M1、M2 |
 | [0008](0008-daemon-control-protocol-v1.md) | Daemon 控制协议 v1（管道、握手、命令与错误码） | Accepted（v1 命令集冻结） | M2 |
+| [0009](0009-daemon-implementation-step-one.md) | Daemon 实装第一步：模块边界与可测性 | Accepted（已进入 `backend/`） | M2 |
 
 ## 优先级
 
