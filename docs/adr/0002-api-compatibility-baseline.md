@@ -39,9 +39,12 @@ Desktop 与 Web 必须复用同一业务 API。V4 新增 `/runtime/capabilities`
 | Python 最低版本 / CI 版本 / 本机版本 | `>=3.11` / `3.12` / `3.13.14` | `backend/pyproject.toml`、`.github/workflows/quality.yml`、本机 `python --version` |
 | Node CI / 本机 | `22` / `22.22.2` | `.github/workflows/quality.yml`、本机 `node --version` |
 | pnpm CI 主版本 / 本机 | `10` / `10.9.7` | CI 配置、本机 `pnpm --version` |
-| Next.js / React / TypeScript 锁定版本 | `16.4.6` / `19.3.0` / `5.9.3` | `frontend/pnpm-lock.yaml` |
+| Next.js / React / TypeScript 锁定版本 | `16.4.6` / `19.3.0` / `5.9.3` | `frontend/pnpm-lock.yaml`；CI 使用 `pnpm install --frozen-lockfile`，因此这就是 CI 版本 |
 | FastAPI / LangGraph / Qdrant client 锁定版本 | `0.143.2` / `1.2.15` / `1.15.1` | `backend/uv.lock` |
 | SQLAlchemy / pydantic-settings / pytest 锁定版本 | `2.1.4` / `2.16.3` / `9.2.0` | `backend/uv.lock` |
+| 本机隔离环境实测版本 | FastAPI `0.165.0`、LangGraph `1.2.24`、SQLAlchemy `2.1.9`、Qdrant client `1.15.1`、pydantic-settings `2.16.3`、pytest `9.2.0` | `pip install -e ".[dev]"` 后导入版本 |
+
+**版本口径注意**：当前后端 CI 使用 `pip install -e ".[dev]"`，从 `pyproject.toml` 的范围约束解析依赖，并不执行 `uv sync`，因此 `uv.lock` 不是 CI 的事实版本来源；本机隔离环境也已证明解析结果可能与锁文件不同。V4 后续必须把“锁文件版本”和“实际安装版本”分开记录，并在打包原型中固定运行时版本。
 
 ## 替代方案与取舍
 
