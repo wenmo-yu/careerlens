@@ -35,9 +35,14 @@ M0 除自研 Runner 外，还需要证明 Web 前端能被静态导出、后端�
 - 本机依赖来自 `pip install -e ".[dev]"`（与当前 CI 相同），不是 `backend/uv.lock`；原型环境打印的 `app.version` 为 `0.0.0`，与项目 `0.4.0` 不同，说明版本注入方式必须在实现 PR 中固定。
 - 在同一个打包 exe 上实测：`POST /api/v1/evidence/text` 成功写入 self_statement 证据；`POST /api/v1/evidence/file` 上传合成 `.txt` 后返回 `parse_status=parsed`、`readable_count=1`、`source_document_id`。基础文本与文件解析链在打包产物中可用。
 - **单 exe 只跑 API 会留下永远 `queued` 的 Run**：Run 队列由独立进程 `app.runtime.worker` 消费。给打包入口加 `CAREERLENS_PROBE_WORKER=1` 模式、与 API 共用同一 SQLite 库后，Run 才从 `queued` 走到 `succeeded`。这是桌面启动器的结构性要求，不是测试脚本的细节。
-- PDF/DOCX/XLSX、OCR/ASR、真实模型以及依赖锁定版本没有在打包产物中验证，不能据此宣称完整 Desktop 后端可用。
+- PDF/DOCX 在打包产物里最初直接失败。排查结论有三层，都要在实现 PR 里固定：
+  - 打包环境本身不完整：`pip` 环境缺 `asyncpg`、`psycopg`、`langgraph-checkpoint-postgres`（`pyproject.toml` 已声明）。补齐后默认 PostgreSQL 配置不再在导入期崩溃。
+  - `pymupdf` 与 `python-docx` 需要显式收集：只用 `--hidden-import` 不够，还需要 `--collect-all pymupdf` 与 `--collect-data docx`，否则 PDF/OOXML 解析在冻结环境里取不到扩展与模板数据。
+  - **解析子进程在冻结后失效**：上传路径通过 `sys.executable -m app.runtime.parse_input` 起子进程做隔离解析；打包后 `sys.executable` 是 exe 本身，子进程只是把主程序再跑一遍，父进程拿不到 JSON，最终表现为 `Unable to parse this file`。只有 `.txt`（同步在进程内解析）能通过。给入口加 `-m app.runtime.parse_input` 分发后，PDF 返回 `parse_status=parsed`、`readable_count=1`，DOCX 返回 `parsed`、`readable_count=3`。
+- 版本注入：`app.version` 读 `backend/pyproject.toml`；onefile 里该文件不在 `_MEIPASS` 根目录，所以显示 `0.0.0`。把 `pyproject.toml` 以 `--add-data "pyproject.toml;."` 打进包根后，`CAREERLENS_APP=CareerLens API 0.4.0`。
+- 仍未在打包产物验证：XLSX、扫描版 PDF 的 OCR、音视频 ASR、真实模型、PostgreSQL 实例连通性（本机用 SQLite 跑通）。
 
-结论：M0-03 的"打包、启动 API、基础解析、Run 队列消费"通过；"全格式解析、真实依赖锁定与真实模型"仍待验证。
+结论：M0-03 的"打包、启动 API、基础与 PDF/DOCX 解析、Run 队列消费、版本注入"通过；"OCR/ASR、XLSX、真实依赖锁定与真实模型"仍待验证。
 
 ### 3. Windows Job Object 只证明两项进程约束
 
