@@ -17,6 +17,7 @@
 | [GitHub 仓库导入](github-token-import.md) | 自备只读令牌的做法、读取范围、令牌不落库的约束与故障排查 |
 | [评测与运维](evaluation-and-operations.md) | 评测口径、本地验收、监控指标和故障定位 |
 | [API 与配置参考](api-and-configuration.md) | 按任务组织的接口速查、非 Docker 启动、迁移、真实模型与生产配置 |
+| [架构决策记录](adr/README.md) | V4 Desktop 的进程拓扑、唯一所有权、API 兼容基线与 Runtime 协议版本 |
 
 - **零基础入门**：从[教程开始页](../tutorials/从这里开始.md)进入——3 分钟零安装做完第一道证据判断题，再按基础选路线。
 - **想快速上手**：先看[项目首页](../README.md)的 Quick Start；想本机跑通，走[第 01 篇](../tutorials/01-第一次跑起来.md)。

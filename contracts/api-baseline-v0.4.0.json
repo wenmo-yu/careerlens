@@ -1,0 +1,807 @@
+{
+  "schema_version": 1,
+  "name": "careerlens-api-baseline",
+  "api_version": "0.4.0",
+  "openapi_version": "3.1.0",
+  "source_commit": "91cfae2278123cdaf9bd82a1a89403f731c846e7",
+  "source_tree_equivalent_to": "43c67d3b01540ba80c00c17efd483336a08c2426",
+  "openapi_snapshot": "openapi-v0.4.0.json",
+  "path_count": 79,
+  "operation_count": 88,
+  "schema_count": 78,
+  "operations": [
+    {
+      "method": "GET",
+      "path": "/api/v1/assessments/instruments",
+      "operationId": "get_instruments_api_v1_assessments_instruments_get",
+      "tags": [
+        "assessments"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assessments/instruments/{instrument_id}",
+      "operationId": "get_instrument_detail_api_v1_assessments_instruments__instrument_id__get",
+      "tags": [
+        "assessments"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assessments/instruments/{instrument_id}/submit",
+      "operationId": "submit_instrument_api_v1_assessments_instruments__instrument_id__submit_post",
+      "tags": [
+        "assessments"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assessments/questions/{instrument}",
+      "operationId": "get_questions_api_v1_assessments_questions__instrument__get",
+      "tags": [
+        "assessments"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assessments/results",
+      "operationId": "list_results_api_v1_assessments_results_get",
+      "tags": [
+        "assessments"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/assessments/results/{result_id}",
+      "operationId": "delete_result_api_v1_assessments_results__result_id__delete",
+      "tags": [
+        "assessments"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assessments/{instrument}/submit",
+      "operationId": "submit_assessment_api_v1_assessments__instrument__submit_post",
+      "tags": [
+        "assessments"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/me",
+      "operationId": "current_session_api_v1_auth_me_get",
+      "tags": [
+        "auth"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/register",
+      "operationId": "register_owner_api_v1_auth_register_post",
+      "tags": [
+        "auth"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/tokens",
+      "operationId": "create_scoped_token_api_v1_auth_tokens_post",
+      "tags": [
+        "auth"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/{user_id}/tokens",
+      "operationId": "list_tokens_api_v1_auth__user_id__tokens_get",
+      "tags": [
+        "auth"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/auth/{user_id}/tokens/{token_id}",
+      "operationId": "revoke_token_api_v1_auth__user_id__tokens__token_id__delete",
+      "tags": [
+        "auth"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/catalog/courses",
+      "operationId": "get_courses_api_v1_catalog_courses_get",
+      "tags": [
+        "catalog"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/catalog/roles",
+      "operationId": "get_roles_api_v1_catalog_roles_get",
+      "tags": [
+        "catalog"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/chat",
+      "operationId": "chat_api_v1_chat_post",
+      "tags": [
+        "chat"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/connectors/bilibili/import",
+      "operationId": "import_bilibili_export_api_v1_connectors_bilibili_import_post",
+      "tags": [
+        "connectors"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/connectors/browser/import",
+      "operationId": "import_browser_capture_api_v1_connectors_browser_import_post",
+      "tags": [
+        "connectors"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/connectors/github/import",
+      "operationId": "import_github_api_v1_connectors_github_import_post",
+      "tags": [
+        "connectors"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/connectors/public-link/import",
+      "operationId": "import_public_links_api_v1_connectors_public_link_import_post",
+      "tags": [
+        "connectors"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/connectors/registry",
+      "operationId": "get_source_registry_api_v1_connectors_registry_get",
+      "tags": [
+        "connectors"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/connectors/weibo/import",
+      "operationId": "import_weibo_export_api_v1_connectors_weibo_import_post",
+      "tags": [
+        "connectors"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/constraints/me",
+      "operationId": "list_constraints_api_v1_constraints_me_get",
+      "tags": [
+        "profile-extensions"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/constraints/me",
+      "operationId": "upsert_constraint_api_v1_constraints_me_put",
+      "tags": [
+        "profile-extensions"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/evaluation/regression",
+      "operationId": "run_regression_api_v1_evaluation_regression_post",
+      "tags": [
+        "evaluation"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/evaluation/regression/benchmark",
+      "operationId": "run_dev_benchmark_regression_api_v1_evaluation_regression_benchmark_post",
+      "tags": [
+        "evaluation"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/evaluation/regression/sample",
+      "operationId": "run_sample_regression_api_v1_evaluation_regression_sample_post",
+      "tags": [
+        "evaluation"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/evaluation/run",
+      "operationId": "run_dataset_api_v1_evaluation_run_post",
+      "tags": [
+        "evaluation"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/evaluation/runs",
+      "operationId": "get_runs_api_v1_evaluation_runs_get",
+      "tags": [
+        "evaluation"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/evaluation/sample",
+      "operationId": "run_sample_api_v1_evaluation_sample_post",
+      "tags": [
+        "evaluation"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/evidence",
+      "operationId": "read_evidence_list_api_v1_evidence_get",
+      "tags": [
+        "evidence"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/evidence/file",
+      "operationId": "ingest_file_api_v1_evidence_file_post",
+      "tags": [
+        "evidence"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/evidence/media",
+      "operationId": "ingest_media_api_v1_evidence_media_post",
+      "tags": [
+        "evidence"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/evidence/reindex/{user_id}",
+      "operationId": "reindex_user_evidence_api_v1_evidence_reindex__user_id__post",
+      "tags": [
+        "evidence"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/evidence/search",
+      "operationId": "search_user_evidence_api_v1_evidence_search_get",
+      "tags": [
+        "evidence"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/evidence/text",
+      "operationId": "ingest_text_api_v1_evidence_text_post",
+      "tags": [
+        "evidence"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/evidence/{evidence_id}",
+      "operationId": "read_evidence_api_v1_evidence__evidence_id__get",
+      "tags": [
+        "evidence"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/evidence/{evidence_id}",
+      "operationId": "delete_evidence_api_v1_evidence__evidence_id__delete",
+      "tags": [
+        "evidence"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/jobs/analyze",
+      "operationId": "create_analysis_api_v1_jobs_analyze_post",
+      "tags": [
+        "jobs"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/jobs/{analysis_id}",
+      "operationId": "get_analysis_api_v1_jobs__analysis_id__get",
+      "tags": [
+        "jobs"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/learning/plans/{plan_id}",
+      "operationId": "get_learning_plan_api_v1_learning_plans__plan_id__get",
+      "tags": [
+        "learning"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/learning/plans/{plan_id}/progress",
+      "operationId": "upsert_progress_api_v1_learning_plans__plan_id__progress_post",
+      "tags": [
+        "learning"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observability/calls",
+      "operationId": "observability_calls_api_v1_observability_calls_get",
+      "tags": [
+        "observability"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observability/summary",
+      "operationId": "observability_summary_api_v1_observability_summary_get",
+      "tags": [
+        "observability"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/privacy/deletions/{receipt_id}",
+      "operationId": "get_deletion_receipt_api_v1_privacy_deletions__receipt_id__get",
+      "tags": [
+        "privacy"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/privacy/deletions/{receipt_id}/retry",
+      "operationId": "retry_deletion_api_v1_privacy_deletions__receipt_id__retry_post",
+      "tags": [
+        "privacy"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/privacy/{user_id}",
+      "operationId": "delete_account_api_v1_privacy__user_id__delete",
+      "tags": [
+        "privacy"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/privacy/{user_id}/audit",
+      "operationId": "get_audit_log_api_v1_privacy__user_id__audit_get",
+      "tags": [
+        "privacy"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/privacy/{user_id}/export",
+      "operationId": "export_data_api_v1_privacy__user_id__export_get",
+      "tags": [
+        "privacy"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/profiles/proposals/{proposal_id}/decision",
+      "operationId": "resolve_proposal_api_v1_profiles_proposals__proposal_id__decision_post",
+      "tags": [
+        "profiles"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/profiles/{user_id}",
+      "operationId": "get_profile_api_v1_profiles__user_id__get",
+      "tags": [
+        "profiles"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/profiles/{user_id}/agent-manifest",
+      "operationId": "get_agent_manifest_api_v1_profiles__user_id__agent_manifest_get",
+      "tags": [
+        "profiles"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/profiles/{user_id}/dimensions",
+      "operationId": "list_dimensions_api_v1_profiles__user_id__dimensions_get",
+      "tags": [
+        "profile-extensions"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/profiles/{user_id}/dimensions",
+      "operationId": "toggle_dimension_api_v1_profiles__user_id__dimensions_put",
+      "tags": [
+        "profile-extensions"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/profiles/{user_id}/interview-stories",
+      "operationId": "list_interview_stories_api_v1_profiles__user_id__interview_stories_get",
+      "tags": [
+        "profile-extensions"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/profiles/{user_id}/interview-stories",
+      "operationId": "create_interview_story_api_v1_profiles__user_id__interview_stories_post",
+      "tags": [
+        "profile-extensions"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/profiles/{user_id}/interview-stories/{story_id}",
+      "operationId": "delete_interview_story_api_v1_profiles__user_id__interview_stories__story_id__delete",
+      "tags": [
+        "profile-extensions"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/profiles/{user_id}/overview",
+      "operationId": "get_profile_overview_api_v1_profiles__user_id__overview_get",
+      "tags": [
+        "profiles"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/profiles/{user_id}/proposals",
+      "operationId": "get_proposals_api_v1_profiles__user_id__proposals_get",
+      "tags": [
+        "profiles"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/profiles/{user_id}/proposals",
+      "operationId": "propose_update_api_v1_profiles__user_id__proposals_post",
+      "tags": [
+        "profiles"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/profiles/{user_id}/rebuild",
+      "operationId": "rebuild_api_v1_profiles__user_id__rebuild_post",
+      "tags": [
+        "profiles"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/profiles/{user_id}/view-preferences",
+      "operationId": "get_view_preferences_api_v1_profiles__user_id__view_preferences_get",
+      "tags": [
+        "profile-extensions"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/profiles/{user_id}/view-preferences",
+      "operationId": "put_view_preferences_api_v1_profiles__user_id__view_preferences_put",
+      "tags": [
+        "profile-extensions"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/recommendations/learning-plan",
+      "operationId": "suggest_learning_plan_api_v1_recommendations_learning_plan_post",
+      "tags": [
+        "recommendations"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/recommendations/roles",
+      "operationId": "suggest_roles_api_v1_recommendations_roles_post",
+      "tags": [
+        "recommendations"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports",
+      "operationId": "get_reports_api_v1_reports_get",
+      "tags": [
+        "reports"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reports",
+      "operationId": "create_report_api_v1_reports_post",
+      "tags": [
+        "reports"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/{report_id}",
+      "operationId": "get_report_api_v1_reports__report_id__get",
+      "tags": [
+        "reports"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/{report_id}/markdown",
+      "operationId": "download_markdown_api_v1_reports__report_id__markdown_get",
+      "tags": [
+        "reports"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/runs",
+      "operationId": "list_runs_api_v1_runs_get",
+      "tags": [
+        "runs"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/runs",
+      "operationId": "start_run_api_v1_runs_post",
+      "tags": [
+        "runs"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/runs/uploads",
+      "operationId": "upload_run_api_v1_runs_uploads_post",
+      "tags": [
+        "runs"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/runs/{run_id}",
+      "operationId": "read_run_api_v1_runs__run_id__get",
+      "tags": [
+        "runs"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/runs/{run_id}/cancel",
+      "operationId": "cancel_run_api_v1_runs__run_id__cancel_post",
+      "tags": [
+        "runs"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/runs/{run_id}/decision",
+      "operationId": "decide_run_api_v1_runs__run_id__decision_post",
+      "tags": [
+        "runs"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/runs/{run_id}/events",
+      "operationId": "read_events_api_v1_runs__run_id__events_get",
+      "tags": [
+        "runs"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/runs/{run_id}/steps",
+      "operationId": "read_steps_api_v1_runs__run_id__steps_get",
+      "tags": [
+        "runs"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/runs/{run_id}/stream",
+      "operationId": "stream_events_api_v1_runs__run_id__stream_get",
+      "tags": [
+        "runs"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/saved-jobs",
+      "operationId": "list_saved_jobs_api_v1_saved_jobs_get",
+      "tags": [
+        "learning"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/saved-jobs",
+      "operationId": "save_job_api_v1_saved_jobs_post",
+      "tags": [
+        "learning"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/saved-jobs/compare",
+      "operationId": "compare_saved_jobs_api_v1_saved_jobs_compare_get",
+      "tags": [
+        "learning"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/saved-jobs/{job_id}",
+      "operationId": "delete_saved_job_api_v1_saved_jobs__job_id__delete",
+      "tags": [
+        "learning"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wiki",
+      "operationId": "get_wiki_pages_api_v1_wiki_get",
+      "tags": [
+        "wiki"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wiki/compile",
+      "operationId": "compile_wiki_page_api_v1_wiki_compile_post",
+      "tags": [
+        "wiki"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wiki/{slug}",
+      "operationId": "get_wiki_page_api_v1_wiki__slug__get",
+      "tags": [
+        "wiki"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wiki/{slug}/revert",
+      "operationId": "revert_wiki_page_api_v1_wiki__slug__revert_post",
+      "tags": [
+        "wiki"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wiki/{slug}/revisions",
+      "operationId": "get_wiki_revisions_api_v1_wiki__slug__revisions_get",
+      "tags": [
+        "wiki"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/health/live",
+      "operationId": "live_health_live_get",
+      "tags": [
+        "health"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/health/ready",
+      "operationId": "ready_health_ready_get",
+      "tags": [
+        "health"
+      ],
+      "deprecated": false
+    }
+  ],
+  "compatibility_rule": "M0–M9 只新增路径、方法或可选字段；不得改变现有 method/path、请求必填项、成功状态码或 SSE 游标语义。破坏性变化必须先升 API 主/次版本并写 ADR。"
+}

@@ -1,0 +1,6 @@
+{"v":1,"type":"request","id":"req-01","method":"runtime.bind","params":{"session_id":"s1","runtime_generation":2,"capability_ref":"short-lived-ref"}}
+{"v":1,"type":"response","id":"req-01","ok":true,"result":{"session_id":"s1"}}
+{"v":1,"type":"request","id":"req-02","method":"run.start","params":{"run_id":"r1","attempt":1,"runtime_generation":2,"input_ref":"input-1"}}
+{"v":1,"type":"response","id":"req-02","ok":true,"result":{"accepted":true}}
+{"v":1,"type":"event","run_id":"r1","attempt":1,"runtime_generation":2,"local_seq":4,"kind":"tool.started","payload":{"tool_call_id":"t1"}}
+{"v":1,"type":"request","id":"cli-03","method":"gateway.invoke","params":{"run_id":"r1","tool_call_id":"t1","tool":"search_evidence","args":{"query":"Docker"}}}

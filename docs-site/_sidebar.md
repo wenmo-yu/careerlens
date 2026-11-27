@@ -82,3 +82,7 @@
   - [GitHub 仓库导入](docs/github-token-import.md)
   - [评测与运维](docs/evaluation-and-operations.md)
   - [API 与配置参考](docs/api-and-configuration.md)
+  - [架构决策记录](docs/adr/README.md)
+    - [0001 进程拓扑与所有权](docs/adr/0001-v4-process-topology-and-ownership.md)
+    - [0002 API 兼容基线](docs/adr/0002-api-compatibility-baseline.md)
+    - [0003 Runtime JSONL v1](docs/adr/0003-runtime-jsonl-protocol-v1.md)
