@@ -13,7 +13,7 @@ from app.models.profile_suppression import ProfileSuppression
 from app.models.profile_update import ProfileUpdateProposal
 from app.profile.catalog import ROLE_ALIASES, SKILL_ALIASES
 from app.runtime.index_outbox import try_index_now
-from app.runtime.store import scope
+from app.runtime.store import check_write_scope
 from app.services.evidence import create_evidence_chunks
 
 
@@ -114,6 +114,7 @@ async def create_proposal(
                 changes = [item.model_dump() for item in parsed.changes]
         except Exception:
             pass
+    await check_write_scope(session, user_id)
     proposal = ProfileUpdateProposal(user_id=user_id, message=message, changes=changes)
     session.add(proposal)
     await session.commit()
@@ -139,7 +140,7 @@ async def decide_proposal(
     )
     if user_id is None:
         raise LookupError("Profile update proposal not found")
-    await scope(session, user_id, bump=approve)
+    await check_write_scope(session, user_id, bump=approve)
     proposal = await session.scalar(
         select(ProfileUpdateProposal)
         .where(ProfileUpdateProposal.id == proposal_id)

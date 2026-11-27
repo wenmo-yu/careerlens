@@ -21,6 +21,7 @@ class CareerReport(Base):
     markdown: Mapped[str] = mapped_column(Text, nullable=False)
     model_diagnostics: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     is_stale: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    privacy_redacted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

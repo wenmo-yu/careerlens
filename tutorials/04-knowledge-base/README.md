@@ -97,7 +97,7 @@ python tutorials/04-knowledge-base/lab/kb_practice.py --workspace .cache/knowled
 
 1. `check all` 看到 `54 passed` —— 七关的实现全部通过仓库现有测试。
 2. 03-A 用 A、B、A 三次上传，看到共同正文始终是同一个 E，`source_count` 到 2 后不再涨。
-3. 04-A 查询 `Python`，看到 `backend=local`、`fusion=weighted_score`，命中项带真实 `evidence_id`。
+3. 04-A 查询 `Python`，看到 `backend=local`、`fusion=local_lexical_rrf_v1`，命中项带真实 `evidence_id`。
 4. 05 编译出一页 Wiki，记下 slug；05-A 观察 `c000` 怎样翻译回 E。
 5. 05-B 亲手造一条丢行的候选，看到 `DroppedTableRowsError` 和 33% 的损失比例。
 6. 05-C 复现 201 → 409 → 恢复成版本 3 的完整序列。

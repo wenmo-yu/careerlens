@@ -10,7 +10,7 @@ flowchart LR
   MCPClient[MCP 客户端] --> MCP[MCP Server]
   API --> Services[共享业务服务]
   MCP --> Services
-  Services --> PG[(PostgreSQL<br/>业务 + Run/Event)]
+  Services --> PG[(PostgreSQL<br/>业务、对话、Run/Event)]
   Services --> R[检索服务]
   R --> Q[(Qdrant<br/>可重建索引)]
   API -->|写入 Run| PG
@@ -23,7 +23,8 @@ flowchart LR
   Browser -->|聊天| Graph[LangGraph Copilot]
   Graph --> R
   Graph --> Provider[Demo / API / 本地兼容模型]
-  Graph --> CP[(PostgreSQL Checkpoint)]
+  API -->|读写会话消息| PG
+  WK -. 清理旧版快照 .-> CP[(历史 PostgreSQL Checkpoint)]
   Scraper[Prometheus / Grafana] -.->|GET /metrics| API
 ```
 
@@ -81,6 +82,8 @@ sequenceDiagram
   C->>G: run_career_graph
   G->>R: retrieve_evidence(user_id, query)
   R->>Q: Dense + Sparse / RRF 或本地回退
+  R->>P: 按租户和候选 ID 查当前原文
+  R->>R: 对有效候选重排
   R-->>G: Evidence + 检索诊断
   G->>G: compose_answer / compose_gap_answer
   G-->>C: answer + cited_evidence_ids
@@ -96,8 +99,8 @@ Evidence 原文、来源、画像、分析、报告和审计数据都持久化�
 
 ## 状态、权限和模型边界
 
-- 对话状态分两层：`ConversationMessage` 表持久化可回看的消息事实（多轮上下文与界面渲染的来源），LangGraph checkpoint 保存图的执行状态；Docker 模式使用 PostgreSQL，测试或轻量本地运行可用内存 checkpoint。会话线程另有用户归属记录。
-- HTTP API 支持 `disabled`、`optional`、`required` 鉴权模式。MCP HTTP 对外使用 Bearer Token 与用户/Scope 校验；本地 stdio 由运行它的部署环境承担信任边界。
+- `ConversationMessage` 保存对话历史，`ConversationThread` 绑定账号，LangGraph 在本次请求内运行。旧部署的数据库快照由清理 Worker 按线程处理。
+- HTTP API 支持 `disabled`、`optional`、`required` 鉴权。MCP 使用绑定资源地址的独立 Bearer。实例级运维另有凭证。
 - Demo 模型是确定性回退，方便无密钥演示。生成模型与检索模型分开配置；接入 DeepSeek、本地 Qwen 或 OCR/ASR 后必须各自验收效果。
 - 模型输出被结构化 schema 和允许引用的 Evidence ID 约束；这减少无依据引用，但不能保证每一句自然语言结论都语义正确。
 

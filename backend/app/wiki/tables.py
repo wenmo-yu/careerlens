@@ -11,9 +11,9 @@ loss instead of silently persisting it.
 import re
 from collections import Counter
 
-# A Markdown table row: a line starting and ending with a pipe.
-_ROW_LINE = re.compile(r"^\s*\|.*\|\s*$")
-_SEPARATOR = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
+_SEPARATOR = re.compile(r":?-+:?")
+_FENCE = re.compile(r"^ {0,3}(\x60{3,}|~{3,})")
+_HEADING = re.compile(r"^ {0,3}#{1,6}\s+(.*)$")
 _EMPHASIS = str.maketrans("", "", "*_`")
 
 
@@ -30,44 +30,91 @@ def _normalize_cell(cell: str) -> str:
     return " ".join(cell.split()).casefold()
 
 
-def table_row_identities(markdown: str) -> list[str]:
-    """Extract ordered row identities (normalized first non-empty cell).
-
-    Markdown tables are a header row, a separator row, then data rows. We walk
-    consecutive pipe-line blocks and skip the first two lines of each block so
-    the header is never mistaken for data. Per WeKnora, the identity is the
-    first *non-empty* cell after normalization, so a model inserting a leading
-    blank column does not erase every row's identity.
-    """
-    identities: list[str] = []
-    block: list[str] = []
-
-    def flush() -> None:
-        if len(block) < 2 or not _SEPARATOR.match(block[1]):
-            return
-        # Skip header + separator (first two lines); only data rows remain.
-        for line in block[2:]:
-            cells = re.split(r"(?<!\\)\|", line.strip()[1:-1])
-            identity = ""
-            for cell in cells:
-                normalized = _normalize_cell(cell)
-                if normalized:
-                    identity = normalized
-                    break
-            if identity:
-                identities.append(identity)
-
-    for line in markdown.splitlines():
-        if _ROW_LINE.match(line):
-            block.append(line)
+def _cells(line: str) -> list[str]:
+    """Split delimiters while retaining escaped and inline-code pipes."""
+    line = line.strip()
+    cells: list[str] = []
+    current: list[str] = []
+    code_delimiter = 0
+    index = 0
+    ended_on_separator = False
+    while index < len(line):
+        char = line[index]
+        ended_on_separator = False
+        if char == "\\" and index + 1 < len(line) and line[index + 1] in {"|", "\\"}:
+            index += 1
+            current.append(line[index])
+        elif char == "\x60":
+            start = index
+            while index + 1 < len(line) and line[index + 1] == "\x60":
+                index += 1
+            length = index - start + 1
+            if not code_delimiter:
+                code_delimiter = length
+            elif code_delimiter == length:
+                code_delimiter = 0
+        elif char == "|" and not code_delimiter:
+            cells.append("".join(current))
+            current = []
+            ended_on_separator = True
         else:
-            flush()
-            block = []
-    flush()
-    return identities
+            current.append(char)
+        index += 1
+    if not cells:
+        return []
+    if not ended_on_separator:
+        cells.append("".join(current))
+    return cells[1:] if line.startswith("|") else cells
 
 
-def row_identity_loss_ratio(original: str, rewritten: str) -> float:
+def _unfenced_lines(markdown: str):
+    fence = ""
+    for line in markdown.splitlines():
+        match = _FENCE.match(line)
+        marker = match[1] if match else ""
+        if fence:
+            if marker.startswith(fence) and not line.strip().strip(fence[0]).strip():
+                fence = ""
+        elif marker:
+            fence = marker
+            yield ""
+        else:
+            yield line
+
+
+def _row_keys(markdown: str, *, include_heading: bool):
+    heading = ""
+    header: list[str] = []
+    active_header: tuple[str, ...] = ()
+    for line in _unfenced_lines(markdown):
+        match = _HEADING.match(line)
+        if match:
+            heading = _normalize_cell(match[1])
+        cells = _cells(line)
+        separator = bool(cells) and all(_SEPARATOR.fullmatch(cell.strip()) for cell in cells)
+        if not cells:
+            active_header = ()
+        elif separator and len(header) == len(cells):
+            active_header = tuple(_normalize_cell(cell) for cell in header)
+        elif active_header:
+            row = tuple(_normalize_cell(cell) for cell in cells)
+            # A leading/trailing blank introduced by formatting is harmless.
+            # Blanks between data cells still carry column position.
+            first = next((index for index, cell in enumerate(row) if cell), len(row))
+            last = next((index for index, cell in enumerate(reversed(row)) if cell), len(row))
+            if first < len(row):
+                yield (heading if include_heading else "", active_header, row[first:len(row)-last])
+        header = cells
+
+
+def table_row_identities(markdown: str) -> list[str]:
+    """Return the first populated cell of each data row for callers and tutorials."""
+    return [row[0] for _, _, row in _row_keys(markdown, include_heading=False)]
+
+
+def row_identity_loss_ratio(
+    original: str, rewritten: str, *, include_heading: bool = True,
+) -> float:
     """Fraction of original table-row identities missing from the rewrite.
 
     Cell identities are normalized by ``_normalize_cell`` (WeKnora's rule), but
@@ -76,10 +123,10 @@ def row_identity_loss_ratio(original: str, rewritten: str) -> float:
     loss and must not be diluted by the duplicate. This keeps the guard a
     stricter safety net than the upstream variant.
     """
-    original_ids = table_row_identities(original)
+    original_ids = list(_row_keys(original, include_heading=include_heading))
     if not original_ids:
         return 0.0
-    rewritten_counts = Counter(table_row_identities(rewritten))
+    rewritten_counts = Counter(_row_keys(rewritten, include_heading=include_heading))
     missing = sum((Counter(original_ids) - rewritten_counts).values())
     return missing / len(original_ids)
 
@@ -102,7 +149,9 @@ def assert_rows_preserved(
     the original page content is used.
     """
     sources = source_tables if source_tables is not None else [original]
-    loss = row_identity_loss_ratio("\n\n".join(sources), rewritten)
+    loss = row_identity_loss_ratio(
+        "\n\n".join(sources), rewritten, include_heading=source_tables is None,
+    )
     if loss > max_loss_ratio:
         raise DroppedTableRowsError(
             f"rewrite dropped {loss:.0%} of table rows (limit {max_loss_ratio:.0%})"

@@ -10,15 +10,22 @@ does not turn navigation chrome into fake evidence.
 """
 
 import re
+import stat
+import unicodedata
+import zlib
 from html.parser import HTMLParser
 from io import BytesIO
-from zipfile import BadZipFile, ZipFile
+from zipfile import BadZipFile, ZipFile, ZipInfo
 
 from app.ingestion.contract import ParsedBlock, ParsedDocument, source_fingerprint
 
 _MAX_ZIP_BYTES = 25 * 1024 * 1024
+_MAX_ZIP_ENTRIES = 1000
 _MAX_FILES = 200
 _MAX_HTML_BYTES = 2 * 1024 * 1024
+_MAX_ZIP_EXPANDED_BYTES = 32 * 1024 * 1024
+_MAX_COMPRESSION_RATIO = 200
+_READ_CHUNK_BYTES = 64 * 1024
 _SUPPORTED = {".html", ".htm", ".json", ".csv", ".tsv", ".txt", ".md", ".markdown"}
 _SKIP_TAGS = {"script", "style", "noscript", "svg", "iframe"}
 _BLOCK_TAGS = {"p", "div", "article", "section", "li", "h1", "h2", "h3", "h4", "blockquote", "tr"}
@@ -90,68 +97,103 @@ def parse_html_export(filename: str, content: bytes) -> ParsedDocument:
     )
 
 
-def _safe_member(name: str) -> bool:
-    """Reject absolute paths, traversal and nested archives."""
-    parts = name.replace("\\", "/").split("/")
-    return (
-        bool(name)
-        and not name.startswith(("/", "\\"))
-        and all(part not in {"..", ""} for part in parts)
-        and name.lower().endswith(tuple(_SUPPORTED))
-    )
+def _zip_members(archive: ZipFile) -> list[tuple[str, ZipInfo]]:
+    entries = archive.infolist()
+    if len(entries) > _MAX_ZIP_ENTRIES:
+        raise ValueError(f"ZIP 包内条目过多（>{_MAX_ZIP_ENTRIES}）")
+    if sum(entry.file_size for entry in entries) > _MAX_ZIP_EXPANDED_BYTES:
+        raise ValueError("ZIP 包内解压总量超过限制")
+
+    names: set[str] = set()
+    selected: list[tuple[str, ZipInfo]] = []
+    for entry in entries:
+        original = unicodedata.normalize("NFC", entry.orig_filename.replace("\\", "/"))
+        name = original.removesuffix("/")
+        if (
+            any(part in {"", ".", ".."} or ":" in part or "\x00" in part
+                for part in name.split("/"))
+            or stat.S_ISLNK(entry.external_attr >> 16)
+        ):
+            raise ValueError("ZIP 包含无效路径或符号链接")
+        key = name.casefold()
+        if key in names:
+            raise ValueError("ZIP 包含重复路径")
+        names.add(key)
+        if entry.flag_bits & 1:
+            raise ValueError("ZIP 包包含加密文件")
+        if original.endswith("/") or not name.lower().endswith(tuple(_SUPPORTED)):
+            continue
+        if entry.file_size > _MAX_HTML_BYTES:
+            raise ValueError("ZIP 包内单个可解析文件不能超过 2 MB")
+        if (
+            entry.file_size > _READ_CHUNK_BYTES
+            and entry.file_size > _MAX_COMPRESSION_RATIO * max(1, entry.compress_size)
+        ):
+            raise ValueError("ZIP 包内文件压缩比超过限制")
+        selected.append((name, entry))
+    if len(selected) > _MAX_FILES:
+        raise ValueError(f"ZIP 包内可解析文件过多（>{_MAX_FILES}）")
+    return sorted(selected)
+
+
+def _read_zip_member(archive: ZipFile, entry: ZipInfo, remaining: int) -> bytes:
+    limit = min(_MAX_HTML_BYTES, remaining)
+    data = bytearray()
+    with archive.open(entry) as stream:
+        while chunk := stream.read(min(_READ_CHUNK_BYTES, limit - len(data) + 1)):
+            data.extend(chunk)
+            if len(data) > limit:
+                raise ValueError("ZIP 包读取的解压数据超过限制")
+    if len(data) != entry.file_size:
+        raise ValueError("ZIP 文件的实际大小与目录记录不一致")
+    return bytes(data)
 
 
 def parse_export_zip(content: bytes) -> ParsedDocument:
     """Parse a user-downloaded ZIP bundle into one ParsedDocument.
 
-    Every member is checked before reading; traversal, unsupported suffixes,
-    oversized files and too many members are rejected. Order is deterministic
-    so re-uploading the same bundle produces the same result.
+    All entries count toward the archive limits. Unsupported attachments are
+    ignored. Invalid input fails before any parsed evidence is persisted.
     """
     if len(content) > _MAX_ZIP_BYTES:
         raise ValueError("ZIP 导出包不能超过 25 MB")
+    blocks: list[ParsedBlock] = []
+    remaining = _MAX_ZIP_EXPANDED_BYTES
     try:
-        archive = ZipFile(BytesIO(content))
-    except BadZipFile as exc:
+        with ZipFile(BytesIO(content)) as archive:
+            members = _zip_members(archive)
+            if not members:
+                raise ValueError("ZIP 包内没有可解析的 HTML/JSON/CSV/TXT/Markdown 文件")
+            for name, entry in members:
+                raw = _read_zip_member(archive, entry, remaining)
+                remaining -= len(raw)
+                blocks.extend(_member_blocks(name, raw, start=len(blocks)))
+    except (BadZipFile, EOFError, NotImplementedError, zlib.error) as exc:
         raise ValueError("文件不是有效的 ZIP 导出包") from exc
-    with archive:
-        names = [name for name in archive.namelist() if _safe_member(name)]
-        if not names:
-            raise ValueError("ZIP 包内没有可解析的 HTML/JSON/CSV/TXT/Markdown 文件")
-        if len(names) > _MAX_FILES:
-            raise ValueError(f"ZIP 包内文件过多（>{_MAX_FILES}）")
-        blocks: list[ParsedBlock] = []
-        for name in sorted(names):
-            raw = archive.read(name)
-            if len(raw) > _MAX_HTML_BYTES:
-                continue
-            suffix = name.rsplit(".", 1)[-1].lower()
-            if suffix in {"html", "htm"}:
-                member = parse_html_export(name, raw)
-            else:
-                text = raw.decode("utf-8", errors="replace").strip()
-                member = ParsedDocument(
-                    doc_id="", source_type="text",
-                    blocks=[ParsedBlock(
-                        content=text, block_index=0, source_type="text",
-                        source_metadata={"filename": name},
-                    )] if text else [],
-                )
-            for offset, block in enumerate(member.blocks):
-                block.block_index = len(blocks)
-                block.source_metadata = {
-                    **block.source_metadata,
-                    "archive_member": name,
-                    "member_index": offset,
-                }
-                blocks.append(block)
-        return ParsedDocument(
-            doc_id="",
-            blocks=blocks,
-            source_type="export_zip",
-            metadata={
-                "member_count": len(names),
-                "fingerprint": source_fingerprint(content),
-            },
-            parse_status="parsed" if blocks else "empty",
-        )
+
+    return ParsedDocument(
+        doc_id="",
+        blocks=blocks,
+        source_type="export_zip",
+        metadata={"member_count": len(members), "fingerprint": source_fingerprint(content)},
+        parse_status="parsed" if blocks else "empty",
+    )
+
+
+def _member_blocks(name: str, raw: bytes, *, start: int) -> list[ParsedBlock]:
+    if name.lower().endswith((".html", ".htm")):
+        blocks = parse_html_export(name, raw).blocks
+    else:
+        text = raw.decode("utf-8", errors="replace").strip()
+        blocks = [
+            ParsedBlock(
+                content=text, block_index=0, source_type="text",
+                source_metadata={"filename": name},
+            )
+        ] if text else []
+    for offset, block in enumerate(blocks):
+        block.block_index = start + offset
+        block.source_metadata = {
+            **block.source_metadata, "archive_member": name, "member_index": offset,
+        }
+    return blocks

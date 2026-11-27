@@ -204,8 +204,14 @@ try {
     $benchmark = Invoke-Json POST "$apiRoot/evaluation/regression/benchmark" @{}
     Assert-True ($benchmark.status -eq "passed") "regression benchmark"
 
+    $mcpToken = Invoke-Json POST "$apiRoot/auth/tokens" @{
+        user_id = $UserId
+        name = "docker-smoke-mcp"
+        scopes = @("read")
+        audience = "mcp"
+    }
     $mcpHeaders = @{
-        Authorization = "Bearer $($registration.token)"
+        Authorization = "Bearer $($mcpToken.token)"
         Accept = "application/json, text/event-stream"
     }
     $mcpBody = @{

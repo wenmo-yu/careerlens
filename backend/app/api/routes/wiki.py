@@ -103,7 +103,7 @@ async def get_wiki_page(
         session, user_id=user_id, authorization=authorization, required_scope="read"
     )
     page = await get_page(session, user_id=user_id, slug=slug)
-    if page is None:
+    if page is None or page.privacy_redacted:
         raise HTTPException(status_code=404, detail="Wiki page not found")
     return WikiPageRead.model_validate(page)
 

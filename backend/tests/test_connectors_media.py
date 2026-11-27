@@ -232,6 +232,7 @@ async def test_model_cannot_promote_liked_content_to_skill():
                         "level": 3,
                         "confidence": 0.9,
                         "evidence_ids": ["liked-1"],
+                        "evidence_quotes": [{"evidence_id": "liked-1", "quote": "Python 教程"}],
                     },
                     {
                         "category": "interest",
@@ -239,6 +240,7 @@ async def test_model_cannot_promote_liked_content_to_skill():
                         "level": 1,
                         "confidence": 0.6,
                         "evidence_ids": ["liked-1"],
+                        "evidence_quotes": [{"evidence_id": "liked-1", "quote": "Python 教程"}],
                     },
                 ]
             }

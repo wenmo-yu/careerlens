@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.models.evidence import Evidence
 from app.models.run import EvidenceIndexWork
+from app.retrieval.generations import cleanup_collections, register_collection
 from app.retrieval.service import delete_evidence_index, index_evidence
 from app.runtime.store import dialect_insert, now_seconds
 
@@ -12,8 +13,10 @@ from app.runtime.store import dialect_insert, now_seconds
 async def enqueue_index(
     session: AsyncSession, user_id: str, ids: list[str], *, action: str = "upsert"
 ) -> None:
-    if not ids or get_settings().retrieval_backend == "local":
+    if not ids or (action == "upsert" and get_settings().retrieval_backend == "local"):
         return
+    if action == "upsert":
+        await register_collection(session)
     rows = [
         {"evidence_id": evidence_id, "user_id": user_id, "action": action}
         for evidence_id in sorted(set(ids))
@@ -37,6 +40,8 @@ async def process_index_work(session: AsyncSession, evidence_id: str | None = No
     )
     if evidence_id is not None:
         query = query.where(EvidenceIndexWork.evidence_id == evidence_id)
+    if get_settings().retrieval_backend == "local":
+        query = query.where(EvidenceIndexWork.action == "delete")
     if session.get_bind().dialect.name == "sqlite":
         await session.execute(
             update(EvidenceIndexWork).where(EvidenceIndexWork.evidence_id == "")
@@ -50,10 +55,12 @@ async def process_index_work(session: AsyncSession, evidence_id: str | None = No
     )
     try:
         if work.action == "delete" or record is None:
-            outcome = await delete_evidence_index(work.evidence_id, strict=True)
+            outcome = await delete_evidence_index(
+                work.evidence_id, strict=True, collections=await cleanup_collections(session),
+            )
         else:
             outcome = await index_evidence([record], strict=True)
-        if outcome["status"] == "fallback":
+        if outcome["status"] not in {"deleted", "ok"}:
             raise RuntimeError("index unavailable")
     except Exception:
         work.attempts += 1

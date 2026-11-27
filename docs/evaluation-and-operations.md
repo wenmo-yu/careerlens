@@ -42,7 +42,7 @@ CI 里这两条在独立的 `Dependency Audit` 工作流中运行，每周与依
 | 现象 | 优先检查 |
 | --- | --- |
 | Web 无法访问 API | `docker compose ps`、API `/health/ready`（依赖不可用时应返回 503 与 `status: degraded`）、浏览器网络请求、前端 API 地址 |
-| 评测/观测接口返回 401/403 | `AUTH_MODE=required` 下这些实例级接口需要 `manage` Scope 的 Bearer Token；`disabled` 或无 Token 的 `optional` 模式放行 |
+| 评测/观测接口返回 401/403 | `required` 与 `optional` 使用实例 `OPS_ACCESS_TOKEN`。本地 `disabled` 可直接演示 |
 | Evidence 已入库但搜索不到 | 检索诊断中的 `backend/fallback/reason`、Qdrant 健康状态、`/api/v1/evidence/reindex/{user_id}` |
 | 模型一直回退 | `AI_PROVIDER`、Base URL、Key、模型名；检查观测摘要中的失败状态，不打印密钥或原文 |
 | JD 漏掉技能 | 检查技能别名目录与 `extract_requirements`；当前是规则提取，非任意术语理解 |

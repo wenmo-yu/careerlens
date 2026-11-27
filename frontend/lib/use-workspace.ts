@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "re
 import type { ImportResult } from "@/components/import-result-card";
 import { BrowserCaptureDraft, parseBrowserCaptureDraft } from "@/lib/browser-capture";
 import {
+  ApiError,
   BackgroundRun,
   CareerReport,
   ChatResult,
@@ -27,7 +28,6 @@ import {
   ObservabilitySummary,
   AuditEvent,
   decideProfileUpdate,
-  clearAccessToken,
   deleteAccount,
   deleteEvidence,
   downloadCareerReport,
@@ -35,7 +35,6 @@ import {
   getAuditLog,
   getProfile,
   getProfileOverview,
-  getRoles,
   getCourses,
   recommendRoles,
   saveJob,
@@ -51,10 +50,9 @@ import {
   getObservabilitySummary,
   proposeProfileUpdate,
   runBenchmarkRegression,
-  registerOwner,
-  setAccessToken,
   rebuildProfile,
   sendChat,
+  workspaceRequestSignal,
 } from "@/lib/api";
 
 
@@ -70,8 +68,9 @@ type Notice = { kind: "ok" | "error"; text: string } | null;
  * below is the single owner of one API call, and the page never mutates state
  * inline beyond controlled inputs.
  */
-export function useWorkspace() {
-  const [userId, setUserId] = useState("demo-user");
+export function useWorkspace(
+  userId: string, canOperate: boolean, onDeleted: (message: string) => void,
+) {
   const [evidenceText, setEvidenceText] = useState(demoEvidence);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [overview, setOverview] = useState<Awaited<ReturnType<typeof getProfileOverview>> | null>(null);
@@ -101,13 +100,13 @@ export function useWorkspace() {
   const [proposal, setProposal] = useState<ProfileProposal | null>(null);
   const [evaluation, setEvaluation] = useState<EvaluationRun | null>(null);
   const [telemetry, setTelemetry] = useState<ObservabilitySummary | null>(null);
-  const [registrationSecret, setRegistrationSecret] = useState("");
-  const [issuedToken, setIssuedToken] = useState("");
   const [deleteEvidenceId, setDeleteEvidenceId] = useState("");
   const [accountDeletionConfirm, setAccountDeletionConfirm] = useState("");
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  const [resourceStatus, setResourceStatus] = useState({ loading: true, errors: [] as string[] });
+  const [resourceRefresh, setResourceRefresh] = useState(0);
   const [browserDraft, setBrowserDraft] = useState<{ capture: BrowserCaptureDraft; userId: string } | null>(null);
   const [selectedCaptureItems, setSelectedCaptureItems] = useState<number[]>([]);
   const [latestRun, setLatestRun] = useState<BackgroundRun | null>(null);
@@ -131,23 +130,38 @@ export function useWorkspace() {
   }, [notice]);
 
   useEffect(() => {
-    void Promise.all([getEvaluationRuns(), getObservabilitySummary()])
-      .then(([runs, summary]) => {
-        setEvaluation(runs[0] ?? null);
-        setTelemetry(summary);
-      })
-      .catch(() => undefined);
-    void Promise.all([getRoles(), getCourses(), listSavedJobs(userId)])
-      .then(([, courseRows, jobs]) => {
-        setCourses(courseRows);
-        setSavedJobs(jobs);
-      })
-      .catch(() => undefined);
-    // Reload the persisted profile so a refresh never looks like data loss.
-    void getProfile(userId).then(setProfile).catch(() => setProfile(null));
-    void getProfileOverview(userId).then(setOverview).catch(() => setOverview(null));
-    void listEvidence(userId).then((payload) => setEvidenceList(payload.items)).catch(() => setEvidenceList([]));
-  }, [userId]);
+    const controller = new AbortController();
+    function resource<T>(name: string, request: Promise<T>, accept: (value: T) => void) {
+      return request.then((value) => {
+        if (!controller.signal.aborted) accept(value);
+        return null;
+      }, () => name);
+    }
+    const requests = [
+      resource("职业画像", getProfile(userId), setProfile),
+      resource("画像概览", getProfileOverview(userId), setOverview),
+      resource("证据列表", listEvidence(userId), (value) => setEvidenceList(value.items)),
+      resource("课程目录", getCourses(), setCourses),
+      resource("已保存岗位", listSavedJobs(userId), setSavedJobs),
+    ];
+    if (canOperate) {
+      requests.push(
+        resource("质量评测", getEvaluationRuns(), (runs) => setEvaluation(runs[0] ?? null)),
+        resource("模型观测", getObservabilitySummary(), setTelemetry),
+      );
+    }
+    void Promise.all(requests).then((results) => {
+      if (!controller.signal.aborted) {
+        setResourceStatus({ loading: false, errors: results.filter((item) => item !== null) });
+      }
+    });
+    return () => controller.abort();
+  }, [canOperate, userId, resourceRefresh]);
+
+  function retryResources() {
+    setResourceStatus({ loading: true, errors: [] });
+    setResourceRefresh((version) => version + 1);
+  }
 
 
   async function run(label: string, action: () => Promise<void>) {
@@ -166,9 +180,20 @@ export function useWorkspace() {
   }
 
   async function submitTask(identity: string, submit: (key: string) => Promise<BackgroundRun>) {
+    if (!submittedKeys.current.has(identity) && submittedKeys.current.size >= 64) {
+      throw new Error("未确认的提交过多，请先检查后台任务列表。");
+    }
     const key = submittedKeys.current.get(identity) ?? crypto.randomUUID();
     submittedKeys.current.set(identity, key);
-    const task = await submit(key);
+    let task;
+    try {
+      task = await submit(key);
+    } catch (error) {
+      if (error instanceof ApiError && error.submissionRejected) {
+        submittedKeys.current.delete(identity);
+      }
+      throw error;
+    }
     submittedKeys.current.delete(identity);
     setLatestRun(task);
     setNotice({ kind: "ok", text: task.status === "waiting_confirmation"
@@ -220,7 +245,6 @@ export function useWorkspace() {
       setEvidenceList((await listEvidence(userId)).items);
       setAnalysis(null);
       setReport(null);
-      setTelemetry(await getObservabilitySummary());
       setNotice({ kind: "ok", text: `画像已更新：${result.count} 个可追溯条目` });
     });
   }
@@ -273,7 +297,6 @@ export function useWorkspace() {
     void run("chat", async () => {
       const result = await sendChat(userId, chatInput, chat?.thread_id, analysis?.id, knowledgeMode);
       setChat(result);
-      setTelemetry(await getObservabilitySummary());
     });
   }
 
@@ -425,7 +448,12 @@ export function useWorkspace() {
     const file = event.target.files?.[0];
     if (!file) return;
     void run(media ? "media" : "document", async () => {
-      const identity = JSON.stringify([userId, media, file.name, file.size, file.lastModified]);
+      if (file.size > 200 * 1024 * 1024) throw new Error("文件超过上传上限。");
+      const signal = workspaceRequestSignal();
+      const hash = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+      signal.throwIfAborted();
+      const digest = Array.from(new Uint8Array(hash), (part) => part.toString(16).padStart(2, "0"));
+      const identity = JSON.stringify([userId, media, file.name, file.type, digest.join("")]);
       await submitTask(identity, (key) => createUploadRun(userId, file, media, key));
     });
     event.target.value = "";
@@ -445,16 +473,6 @@ export function useWorkspace() {
           ? `质量门禁通过：${result.run.dataset_name}`
           : `质量门禁失败：${result.failures.length} 项指标低于基线`,
       });
-    });
-  }
-
-  function handleRegisterOwner() {
-    void run("register", async () => {
-      const result = await registerOwner(userId, registrationSecret);
-      setAccessToken(result.token);
-      setIssuedToken(result.token);
-      setTasksVersion((current) => current + 1);
-      setNotice({ kind: "ok", text: "Owner Token 已创建并仅保存在当前浏览器会话中。" });
     });
   }
 
@@ -498,30 +516,16 @@ export function useWorkspace() {
 
   function handleDeleteAccount() {
     if (accountDeletionConfirm !== userId) return;
-    if (!window.confirm("这会永久删除账号数据、访问令牌、向量和对话状态。确认继续？")) return;
+    if (!window.confirm("确认关闭账号访问并清除数据？外部索引和检查点可能需要后台处理。")) return;
     void run("delete-account", async () => {
       const result = await deleteAccount(userId);
-      clearAccessToken();
-      setIssuedToken("");
-      setAccountDeletionConfirm("");
-      setProfile(null);
-      setAnalysis(null);
-      setReport(null);
-      setChat(null);
-      setOpenedWiki(null);
-      setWikiSources(null);
-      setWikiSelection([]);
-      setProposal(null);
-      setAuditEvents([]);
-      setLatestRun(null);
-      submittedKeys.current.clear();
-      setTasksVersion((current) => current + 1);
-      setNotice({ kind: "ok", text: `账号数据已删除。匿名回执：${result.receipt_id}` });
+      const cleanup = result.cleanup_status === "completed" ? "外部清理已完成。" : "外部清理状态见回执。";
+      onDeleted(`已关闭账号访问。${cleanup}回执 ${result.receipt_id}`);
     });
   }
 
 
   return {
-    userId, setUserId, evidenceText, setEvidenceText, profile, setProfile, overview, setOverview, evidenceList, setEvidenceList, jobTitle, setJobTitle, jdText, setJdText, weeklyHours, setWeeklyHours, analysis, setAnalysis, roleSuggestions, setRoleSuggestions, courses, setCourses, savedJobs, setSavedJobs, savedJobTitle, setSavedJobTitle, report, setReport, chatInput, setChatInput, chat, setChat, knowledgeMode, setKnowledgeMode, wikiSources, setWikiSources, wikiSelection, setWikiSelection, wikiTitle, setWikiTitle, confirmWiki, setConfirmWiki, openedWiki, setOpenedWiki, memoryInput, setMemoryInput, proposal, setProposal, evaluation, setEvaluation, telemetry, setTelemetry, registrationSecret, setRegistrationSecret, issuedToken, setIssuedToken, deleteEvidenceId, setDeleteEvidenceId, accountDeletionConfirm, setAccountDeletionConfirm, auditEvents, setAuditEvents, busy, setBusy, notice, setNotice, browserDraft, setBrowserDraft, selectedCaptureItems, setSelectedCaptureItems, latestRun, setLatestRun, importResult, setImportResult, tasksVersion, setTasksVersion, run, submitTask, openRunResult, handleBuildProfile, handleJob, handleSaveJob, handleRecommendRoles, handleProgress, handleChat, loadWikiSources, handleWikiCompile, openWiki, handleReport, handleReportDownload, handleProposal, handleDecision, handleBilibili, handleWeibo, handleBrowserCapture, handleConfirmBrowserCapture, handleMedia, handleDocument, handleUpload, handleEvaluation, handleRegisterOwner, handleExport, handleLoadAudit, handleDeleteEvidence, handleDeleteAccount, skills,
+    userId, evidenceText, setEvidenceText, profile, setProfile, overview, setOverview, evidenceList, setEvidenceList, jobTitle, setJobTitle, jdText, setJdText, weeklyHours, setWeeklyHours, analysis, setAnalysis, roleSuggestions, setRoleSuggestions, courses, setCourses, savedJobs, setSavedJobs, savedJobTitle, setSavedJobTitle, report, setReport, chatInput, setChatInput, chat, setChat, knowledgeMode, setKnowledgeMode, wikiSources, setWikiSources, wikiSelection, setWikiSelection, wikiTitle, setWikiTitle, confirmWiki, setConfirmWiki, openedWiki, setOpenedWiki, memoryInput, setMemoryInput, proposal, setProposal, evaluation, setEvaluation, telemetry, setTelemetry, deleteEvidenceId, setDeleteEvidenceId, accountDeletionConfirm, setAccountDeletionConfirm, auditEvents, setAuditEvents, busy, setBusy, notice, setNotice, resourceStatus, retryResources, browserDraft, setBrowserDraft, selectedCaptureItems, setSelectedCaptureItems, latestRun, setLatestRun, importResult, setImportResult, tasksVersion, setTasksVersion, run, submitTask, openRunResult, handleBuildProfile, handleJob, handleSaveJob, handleRecommendRoles, handleProgress, handleChat, loadWikiSources, handleWikiCompile, openWiki, handleReport, handleReportDownload, handleProposal, handleDecision, handleBilibili, handleWeibo, handleBrowserCapture, handleConfirmBrowserCapture, handleMedia, handleDocument, handleUpload, handleEvaluation, handleExport, handleLoadAudit, handleDeleteEvidence, handleDeleteAccount, skills,
   };
 }

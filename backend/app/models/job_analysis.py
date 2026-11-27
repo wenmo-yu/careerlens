@@ -25,3 +25,7 @@ class JobAnalysis(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+    @property
+    def privacy_redacted(self) -> bool:
+        return not isinstance(self.report, dict) or self.report.get("privacy_redacted") is True

@@ -7,6 +7,7 @@ from app.models.evidence import Evidence
 from app.models.parsed_block import ParsedBlock
 from app.models.source_document import SourceDocument
 from app.runtime.index_outbox import enqueue_index, try_index_now
+from app.runtime.store import check_write_scope
 from app.services.evidence import insert_no_conflict, resolve_evidence
 
 
@@ -21,11 +22,13 @@ async def ingest_source_document(
     source_hash: str,
     parsed: ParsedDocument,
     commit: bool = True,
+    expected_deletion: int | None = None,
 ) -> list[Evidence]:
     if not any(normalize_text(block.content) for block in parsed.blocks):
         if not any(block.source_metadata.get("ocr_pending") for block in parsed.blocks):
             raise ValueError("No readable text was found")
 
+    await check_write_scope(session, user_id, expected_deletion=expected_deletion, bump=True)
     metadata = {**parsed.metadata, "block_count": len(parsed.blocks)}
     await session.execute(
         insert_no_conflict(

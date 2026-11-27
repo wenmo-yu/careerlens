@@ -18,6 +18,7 @@ class ModelCallMetric:
     estimated_cost_usd: float
     error_type: str | None
     created_at: str
+    pricing_configured: bool = False
 
 
 class MetricsStore:
@@ -37,8 +38,15 @@ class MetricsStore:
     def summary(self) -> dict[str, Any]:
         with self._lock:
             values = list(self._calls)
+        window = {
+            "scope": "process_recent",
+            "window_size": self._calls.maxlen,
+            "window_started_at": values[0].created_at if values else None,
+            "window_ended_at": values[-1].created_at if values else None,
+        }
         if not values:
             return {
+                **window,
                 "request_count": 0,
                 "success_rate": 0.0,
                 "average_latency_ms": 0.0,
@@ -46,6 +54,7 @@ class MetricsStore:
                 "prompt_tokens": 0,
                 "completion_tokens": 0,
                 "estimated_cost_usd": 0.0,
+                "pricing_status": "unknown",
                 "status_counts": {},
                 "providers": {},
             }
@@ -54,7 +63,9 @@ class MetricsStore:
         statuses = Counter(item.status for item in values)
         providers = Counter(f"{item.provider}/{item.model}" for item in values)
         success_count = statuses.get("success", 0)
+        priced = sum(item.pricing_configured for item in values)
         return {
+            **window,
             "request_count": len(values),
             "success_rate": round(success_count / len(values), 4),
             "average_latency_ms": round(sum(latencies) / len(latencies), 2),
@@ -62,6 +73,9 @@ class MetricsStore:
             "prompt_tokens": sum(item.prompt_tokens for item in values),
             "completion_tokens": sum(item.completion_tokens for item in values),
             "estimated_cost_usd": round(sum(item.estimated_cost_usd for item in values), 6),
+            "pricing_status": "configured" if priced == len(values) else (
+                "partial" if priced else "unknown"
+            ),
             "status_counts": dict(statuses),
             "providers": dict(providers),
         }

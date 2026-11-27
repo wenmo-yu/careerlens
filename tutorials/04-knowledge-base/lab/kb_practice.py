@@ -82,7 +82,7 @@ HINTS = {
     "search_evidence": (
         "先按配置决定是否查 Qdrant，给实时过滤留多一点候选。",
         "按本轮可读证据 ID 过滤索引结果，正文以数据库记录为准。",
-        "按模式处理空列表和异常。走本地时写明 weighted_score 和 fallback 原因。",
+        "按模式处理空列表和异常。走本地时写明 local_lexical_rrf_v1 和 fallback 原因。",
     ),
     "HandleTable.register": (
         "已经给过这个稳定 ID 句柄时复用。新 ID 从当前计数生成如 c000 的短名。",

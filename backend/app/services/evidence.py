@@ -10,6 +10,7 @@ from app.ingestion.claim_strength import classify_claim_strength
 from app.ingestion.contract import content_fingerprint
 from app.models.evidence import Evidence
 from app.runtime.index_outbox import enqueue_index, try_index_now
+from app.runtime.store import check_write_scope
 
 
 def _source_entry(source_type: str, source_name: str, metadata: dict[str, Any]) -> dict[str, Any]:
@@ -102,6 +103,8 @@ async def create_evidence_chunks(
     chunks = chunk_text(content)
     if not chunks:
         raise ValueError("No readable text was found")
+    if commit:
+        await check_write_scope(session, user_id, bump=True)
 
     effective_metadata = classify_claim_strength(content, metadata or {})
     records: dict[int, Evidence] = {}
@@ -134,7 +137,7 @@ async def list_evidence(
     if source_type:
         query = query.where(Evidence.source_type == source_type)
     query = (
-        query.order_by(Evidence.created_at.desc(), Evidence.chunk_index)
+        query.order_by(Evidence.created_at.desc(), Evidence.chunk_index, Evidence.id)
         .limit(limit)
         .offset(offset)
     )

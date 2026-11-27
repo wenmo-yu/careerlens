@@ -6,6 +6,7 @@ import { buildScoreBreakdown } from "@/lib/profile-views";
 export function ScoreBreakdown({ analysis }: { analysis: JobAnalysis | null }) {
   const data = buildScoreBreakdown(analysis);
   if (!analysis) return <p className="insight-empty">{data.note}</p>;
+  const coverage = analysis.report.match_coverage;
   return (
     <div className="score-breakdown">
       <div className="score-breakdown-head">
@@ -15,8 +16,13 @@ export function ScoreBreakdown({ analysis }: { analysis: JobAnalysis | null }) {
       <div className="score-breakdown-grid">
         <div><span>必需 / 加分</span><b>{data.required} / {data.preferred}</b></div>
         <div><span>strong / partial / gap</span><b>{data.strong} / {data.partial} / {data.gap}</b></div>
-        <div><span>对照要求</span><b>{data.total} 项</b></div>
+        <div><span>{coverage ? "有证据的要求组" : "对照要求"}</span><b>{coverage
+          ? `${coverage.assessed_groups} / ${coverage.total_skill_groups}` : `${data.total} 项`}</b></div>
       </div>
+      {!!coverage?.qualification_checks.length && <div className="insight-note">
+        <p>待核对的必需资格</p>
+        <ul>{coverage.qualification_checks.map((item) => <li key={item.requirement_id}>{item.name}</li>)}</ul>
+      </div>}
       <p className="insight-note">{data.note}</p>
     </div>
   );

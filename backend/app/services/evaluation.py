@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -35,8 +36,15 @@ async def execute_evaluation(
     session: AsyncSession,
     dataset: EvaluationDataset,
     minimums: RegressionThresholds | None = None,
+    *,
+    origin: str = "custom",
 ) -> EvaluationRun:
     metrics, details = run_evaluation(dataset)
+    details.update(
+        origin=origin,
+        dataset_sha256=hashlib.sha256(dataset.model_dump_json().encode("utf-8")).hexdigest(),
+        evaluation_method="deterministic_development",
+    )
     if minimums is not None:
         status, failures = evaluate_regression(metrics, minimums)
         details["regression"] = {
@@ -63,8 +71,10 @@ async def execute_regression(
     session: AsyncSession,
     dataset: EvaluationDataset,
     minimums: RegressionThresholds,
+    *,
+    origin: str = "custom",
 ) -> tuple[EvaluationRun, dict]:
-    record = await execute_evaluation(session, dataset, minimums)
+    record = await execute_evaluation(session, dataset, minimums, origin=origin)
     return record, record.details["regression"]
 
 

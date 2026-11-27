@@ -105,7 +105,7 @@ CareerLens 分三层，职责清楚、可逐层替换：
 | --- | --- | --- |
 | 客户端 | Next.js 工作台、MCP 客户端 | 导入、画像、匹配、报告、对话等交互；MCP 客户端用 Bearer + Scope 访问工具 |
 | 服务层 | FastAPI、MCP 服务、共享业务服务、Worker / Coordinator、LangGraph Copilot | HTTP 与 MCP 复用同一套业务规则和权限校验；长任务写入 Run，由 Worker 领取执行 |
-| 数据层 | PostgreSQL、Qdrant | PostgreSQL 是业务与 Run/Event/checkpoint 的真相源；Qdrant 只存可由 Evidence 重建的检索索引 |
+| 数据层 | PostgreSQL、Qdrant | PostgreSQL 保存业务、对话与 Run/Event。Qdrant 保存可由 Evidence 重建的检索索引 |
 
 工作台经 HTTP 调用 API、经 SSE 接收后台进度，聊天走 Copilot 路由；API 写 Run、Worker 领取并回写结果，索引更新经 outbox 进入 Qdrant。PostgreSQL 与 Qdrant 各有明确边界，API 与 MCP 共用业务服务。分层图、两条请求链与状态边界见[架构文档](docs/architecture.md)。
 

@@ -1,6 +1,19 @@
 import { readRunEvents } from "./run-events";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+export const SESSION_CHANGE = "careerlens-session-change";
+const SESSION_STORAGE_KEY = "careerlens_access_token";
+let requestScope = new AbortController();
+
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly submissionRejected = false,
+  ) {
+    super(message);
+  }
+}
 
 export type ProfileItem = {
   id: string;
@@ -63,6 +76,12 @@ export type JobAnalysis = {
     claim_policy: string;
     required_gap_count?: number;
     weekly_hours?: number;
+    match_coverage?: {
+      assessed_groups: number;
+      total_skill_groups: number;
+      coverage: number;
+      qualification_checks: Array<{ requirement_id: string; name: string; status: "unknown" }>;
+    };
   };
 };
 
@@ -197,6 +216,8 @@ export type RegressionResult = {
 };
 
 export type ObservabilitySummary = {
+  scope: "process_recent";
+  window_size: number;
   request_count: number;
   success_rate: number;
   average_latency_ms: number;
@@ -204,6 +225,7 @@ export type ObservabilitySummary = {
   prompt_tokens: number;
   completion_tokens: number;
   estimated_cost_usd: number;
+  pricing_status?: "configured" | "unknown" | "partial";
   status_counts: Record<string, number>;
   providers: Record<string, number>;
 };
@@ -232,13 +254,33 @@ export type AccountDeletionResult = {
   deleted_counts: Record<string, number>;
   vector_result: Record<string, unknown>;
   checkpoint_result: { status: string; deleted: number };
+  cleanup_status: "pending" | "completed" | "failed" | "unknown";
   created_at: string;
 };
 
-function authorizationHeaders(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  const token = window.sessionStorage.getItem("careerlens_access_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
+function accessToken() {
+  return typeof window === "undefined" ? null : window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+}
+
+export function resetWorkspaceRequests() {
+  requestScope.abort();
+  requestScope = new AbortController();
+}
+
+export function workspaceRequestSignal() {
+  return requestScope.signal;
+}
+
+export type WorkspaceSession = {
+  mode: "disabled" | "optional" | "required";
+  user_id: string | null;
+  scopes: string[];
+  can_operate: boolean;
+  registration_enabled: boolean;
+};
+
+export function getWorkspaceSession(signal?: AbortSignal) {
+  return request<WorkspaceSession>("/auth/me", { signal });
 }
 
 export type RunRequest =
@@ -254,6 +296,7 @@ export type RunStatus = "queued" | "running" | "waiting_confirmation" |
 export type BackgroundRun = {
   id: string;
   user_id: string;
+  cancel_outcome?: "cancelled" | "already_cancelled" | "already_terminal";
   operation: RunRequest["operation"] | "file_import" | "media_import";
   status: RunStatus;
   confirmation: string;
@@ -339,13 +382,14 @@ export async function streamRun(
   userId: string, id: string, after: number,
   signal: AbortSignal, onEvent: (event: RunEvent) => void,
 ) {
-  const response = await fetch(`${API_URL}${runPath(userId, id, "/stream")}`, {
+  const response = await scopedFetch(runPath(userId, id, "/stream"), {
     headers: {
-      ...authorizationHeaders(), Accept: "text/event-stream", "Last-Event-ID": String(after),
+      Accept: "text/event-stream", "Last-Event-ID": String(after),
     },
     signal, cache: "no-store",
   });
-  if (!response.ok || !response.body) throw new Error(`无法订阅任务进度 (${response.status})`);
+  if (!response.ok) throw await responseError(response);
+  if (!response.body) throw new Error("任务进度响应缺少事件流。");
   await readRunEvents(response.body, (event) => onEvent(event as RunEvent));
 }
 
@@ -358,42 +402,66 @@ export function getCareerReport(id: string) {
 }
 
 export function setAccessToken(token: string) {
-  window.sessionStorage.setItem("careerlens_access_token", token);
+  window.sessionStorage.setItem(SESSION_STORAGE_KEY, token);
+  resetWorkspaceRequests();
+  window.dispatchEvent(new Event(SESSION_CHANGE));
 }
 
 export function clearAccessToken() {
-  window.sessionStorage.removeItem("careerlens_access_token");
+  window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  resetWorkspaceRequests();
+  window.dispatchEvent(new Event(SESSION_CHANGE));
+}
+
+async function scopedFetch(path: string, init: RequestInit = {}) {
+  const scope = requestScope.signal;
+  const token = accessToken();
+  const headers = new Headers(init.headers);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(`${API_URL}${path}`, {
+    ...init, headers, signal: init.signal ? AbortSignal.any([scope, init.signal]) : scope,
+  });
+  scope.throwIfAborted();
+  if (response.status === 401 && token && token === accessToken()) {
+    clearAccessToken();
+    throw new ApiError(401, "会话已失效，请重新连接。");
+  }
+  return response;
+}
+
+async function responseError(response: Response) {
+  const payload = await response.json().catch(() => null);
+  const message = typeof payload?.detail === "string" ? payload.detail
+    : response.status === 403 ? "当前身份没有权限执行此操作。"
+    : response.status === 422 ? "输入未通过校验，请检查后重试。"
+    : `请求失败（HTTP ${response.status}）。`;
+  return new ApiError(
+    response.status, message, response.headers.get("X-Submission-Outcome") === "rejected",
+  );
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await scopedFetch(path, {
     ...init,
-    headers: { "Content-Type": "application/json", ...authorizationHeaders(), ...init?.headers },
+    headers: { "Content-Type": "application/json", ...init?.headers },
   });
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.detail ?? "请求失败，请检查后端服务。");
-  }
-  return payload as T;
+  if (!response.ok) throw await responseError(response);
+  return response.json() as Promise<T>;
 }
 
 async function upload<T>(path: string, form: FormData, headers?: Record<string, string>): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await scopedFetch(path, {
     method: "POST",
-    headers: { ...authorizationHeaders(), ...headers },
+    headers,
     body: form,
   });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.detail ?? "文件导入失败。");
-  return payload as T;
+  if (!response.ok) throw await responseError(response);
+  return response.json() as Promise<T>;
 }
 
 async function requestText(path: string): Promise<string> {
-  const response = await fetch(`${API_URL}${path}`, { headers: authorizationHeaders() });
-  if (!response.ok) {
-    const payload = await response.json();
-    throw new Error(payload.detail ?? "请求失败，请检查后端服务。");
-  }
+  const response = await scopedFetch(path);
+  if (!response.ok) throw await responseError(response);
   return response.text();
 }
 

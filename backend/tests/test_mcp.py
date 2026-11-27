@@ -52,6 +52,7 @@ async def test_mcp_exposes_complete_contract():
 
 
 async def test_mcp_job_report_flow_is_audited(monkeypatch):
+    monkeypatch.setattr(mcp_server.get_settings(), "mcp_stdio_user_id", "mcp-user")
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -121,7 +122,7 @@ async def test_mcp_job_report_flow_is_audited(monkeypatch):
     await engine.dispose()
 
 
-async def test_mcp_token_verifier_reuses_api_tokens(monkeypatch):
+async def test_mcp_token_verifier_accepts_only_bound_mcp_credentials(monkeypatch):
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -132,6 +133,10 @@ async def test_mcp_token_verifier_reuses_api_tokens(monkeypatch):
             user_id="token-user",
             name="MCP client",
             scopes=["read", "write"],
+            audience="mcp",
+        )
+        _, api_token = await create_access_token(
+            session, user_id="token-user", name="API client", scopes=["read"],
         )
 
     monkeypatch.setattr(mcp_server, "SessionFactory", session_factory)
@@ -143,6 +148,7 @@ async def test_mcp_token_verifier_reuses_api_tokens(monkeypatch):
     assert verified.client_id == record.id
     assert verified.subject == "token-user"
     assert verified.scopes == ["read", "write"]
+    assert await verifier.verify_token(api_token) is None
     assert await verifier.verify_token("invalid") is None
     await engine.dispose()
 

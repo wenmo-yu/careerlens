@@ -164,8 +164,12 @@ def _xlsx_blocks(content: bytes) -> tuple[list[tuple[str, str, dict]], dict]:
             root = ElementTree.fromstring(archive.read(sheet_path))
             rows: list[list[str]] = []
             for row in root.iter(f"{_NS_MAIN}row"):
+                if total_rows + len(rows) >= 10_000:
+                    raise ValueError("Spreadsheet exceeds the supported row limit")
                 cells: list[str] = []
                 for cell in row.findall(f"{_NS_MAIN}c"):
+                    if len(cells) >= 256:
+                        raise ValueError("Spreadsheet exceeds the supported column limit")
                     cell_type = cell.get("t")
                     if cell_type == "inlineStr":
                         node = cell.find(f"{_NS_MAIN}is")
@@ -181,7 +185,9 @@ def _xlsx_blocks(content: bytes) -> tuple[list[tuple[str, str, dict]], dict]:
                         )
                         if cell_type == "s" and value:
                             index = int(value)
-                            value = shared[index] if index < len(shared) else ""
+                            if not 0 <= index < len(shared):
+                                raise ValueError("Invalid spreadsheet shared-string reference")
+                            value = shared[index]
                     cells.append(
                         value.strip().replace("\r", "").replace("\n", " ").replace("|", "\\|")
                     )
@@ -211,6 +217,20 @@ def _page_is_scanned(page: pymupdf.Page) -> bool:
     )
 
 
+def _validate_office_archive(content: bytes) -> None:
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            items = archive.infolist()
+            if len(items) > 1000 or sum(item.file_size for item in items) > 32 * 1024 * 1024:
+                raise ValueError("Office package exceeds the expanded attachment budget")
+            if len({item.filename for item in items}) != len(items) or any(
+                item.flag_bits & 1 or item.file_size > 8 * 1024 * 1024 for item in items
+            ):
+                raise ValueError("Office package contains an invalid or oversized attachment")
+    except zipfile.BadZipFile as exc:
+        raise ValueError("File is not a readable Office package") from exc
+
+
 def parse_document(filename: str, content: bytes) -> ParsedDocument:
     """Parse a file into the shared structured contract.
 
@@ -226,12 +246,16 @@ def parse_document(filename: str, content: bytes) -> ParsedDocument:
             else " 支持 PDF / Word .docx / Excel .xlsx / TXT / Markdown / CSV / TSV。"
         )
         raise ValueError(f"Unsupported file type: {suffix or 'unknown'}.{hint}")
+    if suffix in {".docx", ".xlsx"}:
+        _validate_office_archive(content)
 
     if suffix == ".pdf":
         blocks: list[ParsedBlock] = []
         scanned_pages: list[int] = []
         with pymupdf.open(stream=content, filetype="pdf") as document:
             page_count = len(document)
+            if page_count > 500:
+                raise ValueError("PDF exceeds the supported page limit")
             for index, page in enumerate(document):
                 page_no = index + 1
                 if _page_is_scanned(page):

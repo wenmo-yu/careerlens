@@ -1,6 +1,6 @@
 # CareerLens AI 上下文导航（AI 专用）
 
-> 更新时间：2026-11-26。这个文件是给 AI 查阅用的**代码与公开文档索引**，不是给读者看的产品介绍。
+> 更新时间：2026-11-27。这个文件是给 AI 查阅用的代码与公开文档索引。
 > 目标：让 AI 在回答「某个功能在哪、以前怎么做、现在怎么做、改它要读什么」时，不必重新遍历整个仓库。
 > 入口规则见 [`AGENTS.md`](AGENTS.md)；仓库外的本地管理文档见 [`../AI查阅导航.md`](../AI查阅导航.md)。
 
@@ -14,7 +14,7 @@
 | 仓库 | https://github.com/wenmo-yu/careerlens |
 | 公开教程站 | https://wenmo-yu.github.io/careerlens/ |
 | 最新公开提交 | `ce5bb08`（PR #59，教程同步画像与岗位工作台）；本轮文档/截图提交 `34680ab` → `aee4487` → `9953471` |
-| 验证基线 | 后端 246 项测试（覆盖率门槛 78%，实测约 82%）、20 个冻结合成场景、Playwright 端到端 5 项、Quality Gate 四项与依赖审计两项全绿（backend / frontend / e2e / docker-smoke / pip-audit / pnpm audit）；Docsify build 111 文件 0 坏链，Pages 部署成功；画像推荐轮后新增导入结果、画像概览、目录推荐、学习进度、测评、运行时、HTML/ZIP、画像模式、来源注册表与 Prometheus 指标专项测试 |
+| 验证基线 | 后端 258 项测试（覆盖率门槛 78%，实测 78.35%）、20 个冻结合成场景、Playwright 端到端 5 项、Quality Gate 四项与依赖审计两项全绿（backend / frontend / e2e / docker-smoke / pip-audit / pnpm audit）；Docsify build 111 文件 0 坏链，Pages 部署成功；源码整改后新增安全、跨存储删除、运行时不变量、检索世代与前端幂等等专项测试 |
 | 默认可运行方式 | Docker Compose；无需 API Key，使用确定性 Demo 模型与本地检索 |
 | 仍未完成 | 真人独立试学、真机初装/剪贴板/跨端点检、真实模型与旧库迁移；这些是验证缺口，不是源码缺口 |
 | 本地 git 状态 | 本地 `HEAD` 和 `ahead` 可能滞后（远端 fetch 502），**远端 main + Actions + Pages 才是权威** |
@@ -97,7 +97,7 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | 文件 | 放的是什么代码 |
 | --- | --- |
 | `backend/pyproject.toml` | 依赖、脚本、Ruff/pytest 配置、版本号；`main.py` 从这里读版本 |
-| `backend/app/main.py` | FastAPI `create_app()`、CORS、健康检查、router 挂载、lifespan、checkpoint 与 telemetry 生命周期；`required` _auth 使用默认密钥会直接拒绝启动 |
+| `backend/app/main.py` | FastAPI `create_app()`、CORS、健康检查、路由、应用级聊天图与 telemetry 生命周期；启动时校验生产配置 |
 | `backend/app/migration_runner.py` | 启动时执行 Alembic 迁移的辅助逻辑 |
 | `backend/app/core/config.py` | `get_settings()`：认证模式、API 前缀、CORS、模型、检索、运行时的全部配置入口 |
 | `backend/app/core/database.py` | 异步 engine / session / `create_schema()` |
@@ -107,7 +107,7 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 
 | 文件 | 放的是什么代码 |
 | --- | --- |
-| `auth.py` | 注册、令牌、scope 相关接口 |
+| `auth.py` | 注册、令牌 scope、有效期/受众和 `/me` 身份入口。运维签发或恢复账号见 `backend/app/security/provision.py` |
 | `health.py` | `/health` 与 `/health/ready`；依赖不可用时返回 503 + `degraded` |
 | `evidence.py` | 证据导入、列表、来源、删除；上传文件与去重入口 |
 | `profile.py` | 画像读取、重建、条目操作 |
@@ -118,8 +118,8 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `wiki.py` | Wiki 编译、页面读取、回滚、版本操作 |
 | `connectors.py` | B站/微博导出与浏览器采集接入；画像推荐补充轮新增 `/connectors/registry`（来源清单）、`/connectors/public-link/import`（用户粘贴的证据卡，后端不访问 URL）与 `/connectors/github/import`（自备只读令牌，令牌不落库） |
 | `privacy.py` | 导出、单条删除、账号清理 |
-| `evaluation.py` | 评测运行与结果读取（受 `manage` scope 控制） |
-| `observability.py` | 指标/追踪只读接口（受 `manage` scope 控制） |
+| `evaluation.py` | 评测运行与结果读取，鉴权部署使用实例运维凭证 |
+| `observability.py` | 指标/追踪只读接口，鉴权部署使用实例运维凭证 |
 | `catalog.py` | 画像推荐只读目录：`/catalog/roles`、`/catalog/courses` |
 | `profile_extensions.py` | 自陈扩展入口：`/constraints/me`、`/profiles/{id}/dimensions`、`/profiles/{id}/view-preferences`（画像模式与模块开关）、`/profiles/{id}/interview-stories`（证据锚定故事库）。只改展示/过滤/软排序，不碰事实与匹配分 |
 | `recommendations.py` | 画像推荐确定性推荐：`/recommendations/roles`、`/recommendations/learning-plan` |
@@ -174,7 +174,7 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | 文件 | 放的是什么代码 |
 | --- | --- |
 | `backend/app/graph/career.py` | LangGraph 状态图：意图判断、检索、回答、画像修正、结束条件；短对话同步路径 |
-| `backend/app/graph/checkpoint.py` | PostgreSQL checkpoint 配置，支撑多轮上下文 |
+| `backend/app/graph/checkpoint.py` | 按线程清理旧版 PostgreSQL checkpoint。当前聊天图按请求运行，SQL 消息表提供历史 |
 | `backend/app/llm/provider.py` | 模型 Provider 抽象与 Demo/DeepSeek/OpenAI-compatible/Qwen 路由；`MODEL_ROLE_BINDINGS` 按 answer/wiki/analysis/profile 分角色，`get_llm(role=...)` 是角色入口 |
 | `backend/app/retrieval/providers.py` | Dense/Sparse Provider 抽象、Qdrant/本地降级、`MODEL_ROLE_BINDINGS` 之外的检索配置入口；两阶段重排由 `retrieval/reranker.py` 的 `build_reranker` 实现（coarse top-15 → fine top-5，失败降级到词法分） |
 | `backend/app/retrieval/qdrant_store.py` | Qdrant 集合、upsert/delete、用户隔离、payload 过滤 |
@@ -206,7 +206,11 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/runtime/operations.py` | 长任务操作分发：导入、Wiki 编译、岗位分析、报告 |
 | `backend/app/runtime/agents.py` | 结构化 specialist 工作流，把复杂任务拆成可恢复步骤。运行时补充轮：`Coordinator` 预算参数化（默认仍为 2）、失败补发 `step.failed`、记录 `duration_ms`；新增只读 `profile_cartographer`/`role_scout`/`curriculum_planner`，`delegate_many()` 仅用于 `PARALLEL_SAFE_ROLES` 的无依赖并行 |
 | `backend/app/runtime/parse_input.py` | Run payload / upload 输入解析 |
-| `backend/app/runtime/index_outbox.py` | 事务性索引补偿：PG 用 `pg_advisory_xact_lock('carerlens')`，SQLite 用进程内锁；数据库提交后再重试 Qdrant upsert/delete |
+| `backend/app/runtime/index_outbox.py` | 持久索引待办，PostgreSQL 行锁领取，SQLite 使用写事务串行；本地检索模式也消费删除 |
+| `backend/app/runtime/deletion_work.py` | 跨存储删除任务的租约、重试和清理回执 |
+| `backend/app/runtime/reindex.py` | 维护窗口内全量重建并核对 Qdrant 目标集合 |
+| `backend/app/retrieval/generations.py` / `backend/app/models/index_generation.py` | 保存已使用的向量集合，隐私清理按登记范围处理 |
+| `backend/migrations/versions/e1f2a3b4c5d6_*` → `14c5d6e7f8a9_*` | 本轮的令牌、运行时、隐私清理、向量世代与历史审计升级 |
 | `backend/app/mcp/server.py` | MCP 工具与资源；`create_server()` 支持 stdio 与 Streamable HTTP；工具 list_generate_career_report/generate_career_report/list_profile/list_reports/get_report/list_jobs/analyze_job/get_job_analysis（共享 services），另有 `search_evidence` / `upsert_profile` 两个 local-only 便利工具；资源 careerlens://profile/reports/jobs/evidence；和 API 共用 scope 审计，不另起业务实现 |
 | `backend/app/security/auth.py` | token/scope 校验、用户隔离、`required` 模式守卫 |
 
@@ -417,6 +421,7 @@ HTTP/MCP 请求
 | v0.2.0 | `ParsedDocument/ParsedBlock`、SourceDocument、源级去重、多轮消息、报告版本唯一、删除墓碑；恢复被 `.gitignore` 误排除的 `models/` ORM 包；修复 `hybrid_search` 错配 evidence_id、画像批准孤儿证据 | 解析与去重以当前 `ingestion/` + `models/parsed_block.py` 为准；早期「直接文本切块」说法已过时；新克隆导入 `app.models` 失败是历史问题 |
 | v0.3.0 | Wiki 编译/版本/短句柄/表格行守卫、查询期 `rag/wiki/hybrid`、模型角色绑定、两阶段 reranker；修复 Wiki 引用导致 fallback KeyError | 知识组织以 `wiki/` + `services/wiki_pages.py` 为准；模式切换是**建索引/页面时决定、查询时切换**，不是每次重建 |
 | v0.4.0 | 持久后台 Run、Worker/Coordinator、SSE、审批取消、租约恢复、fencing、索引 outbox、任务中心 | 长任务以 `runtime/` + `api/routes/runs.py` + `components/run-center.tsx` 为准；不要把长任务当成请求线程里的同步调用 |
+| 未发布整改 | 分离 API/MCP/实例运维身份，靠持久任务清理外部副本，聊天上下文改用关系表，向量集合检查指纹 | 升级先运行迁移，维护窗口内重建旧向量集合；生产配置和恢复命令以 `docs/api-and-configuration.md` 为准 |
 
 ### 10.2 教程与站点（2026-11-24 → 2026-11-25）
 

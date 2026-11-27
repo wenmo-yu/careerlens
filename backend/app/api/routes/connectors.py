@@ -2,7 +2,7 @@ from typing import Annotated
 
 import httpx
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors import parse_bilibili_export, parse_browser_capture, parse_weibo_export
@@ -11,6 +11,7 @@ from app.connectors.public_link import PublicLinkCard, build_public_link_items
 from app.connectors.registry import list_sources
 from app.core.config import get_settings
 from app.core.database import get_session
+from app.runtime.store import DELETION, StaleInput, read_scope
 from app.schemas.evidence import ConnectorImportRead
 from app.security import authorize_user
 from app.services.connectors import import_connector_items
@@ -59,7 +60,7 @@ async def import_public_links(
 
 class GitHubImportRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=128)
-    token: str = Field(min_length=20, max_length=255)
+    token: SecretStr = Field(min_length=20, max_length=255)
     repos: list[str] = Field(default_factory=list, max_length=20)
 
 
@@ -78,12 +79,16 @@ async def import_github(
         session, user_id=payload.user_id, authorization=authorization, required_scope="write"
     )
     try:
+        epoch = await read_scope(session, payload.user_id, DELETION)
         items, skipped = await fetch_github_items(
-            token=payload.token, repos=payload.repos
+            token=payload.token.get_secret_value(), repos=payload.repos
         )
         records, duplicates = await import_connector_items(
-            session, user_id=payload.user_id, source_type="github", items=items
+            session, user_id=payload.user_id, source_type="github", items=items,
+            expected_deletion=epoch,
         )
+    except StaleInput as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except GitHubImportError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except httpx.HTTPError as exc:

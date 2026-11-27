@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Index, String, func
+from sqlalchemy import JSON, DateTime, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -43,6 +43,7 @@ class ConversationMessage(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(String(8000), nullable=False)
     intent: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    evidence_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # Python-side microsecond timestamp keeps ordering reliable within a turn,
     # where server-side second precision can make user/assistant tie and sort by
     # random UUID. The server_default remains as a DB-level fallback.

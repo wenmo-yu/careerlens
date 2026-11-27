@@ -8,6 +8,11 @@ from app.ingestion.contract import ParsedBlock, ParsedDocument
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 AUDIO_VIDEO_SUFFIXES = {".mp3", ".wav", ".m4a", ".mp4", ".mov", ".webm", ".mkv"}
+_IMAGE_FORMATS = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".webp": "WEBP", ".bmp": "BMP"}
+_CONTAINER_FORMATS = {
+    ".mp3": "mp3", ".wav": "wav", ".m4a": "m4a", ".mp4": "mp4",
+    ".mov": "mov", ".webm": "webm", ".mkv": "matroska",
+}
 
 
 class MediaExtractor(Protocol):
@@ -34,7 +39,7 @@ class OptionalMultimodalExtractor:
     def extract(self, filename: str, content: bytes) -> tuple[str, dict[str, Any]]:
         suffix = Path(filename).suffix.lower()
         if suffix in IMAGE_SUFFIXES:
-            return self._ocr_image(content)
+            return self._ocr_image(content, suffix)
         if suffix in AUDIO_VIDEO_SUFFIXES:
             return self._transcribe(filename, content)
         raise ValueError(f"Unsupported media type: {suffix or 'unknown'}")
@@ -42,24 +47,32 @@ class OptionalMultimodalExtractor:
     def extract_blocks(self, filename: str, content: bytes) -> list[dict[str, Any]]:
         suffix = Path(filename).suffix.lower()
         if suffix in IMAGE_SUFFIXES:
-            return self._ocr_blocks(content)
+            return self._ocr_blocks(content, suffix)
         if suffix in AUDIO_VIDEO_SUFFIXES:
             return self._asr_blocks(filename, content)
         return MediaExtractor.extract_blocks(self, filename, content)
 
-    def _ocr_result(self, content: bytes):
+    def _ocr_result(self, content: bytes, suffix: str):
         try:
             from io import BytesIO
 
             import numpy as np
             from paddleocr import PaddleOCR
-            from PIL import Image
+            from PIL import Image, UnidentifiedImageError
         except ImportError as exc:
             raise RuntimeError(
                 'OCR is unavailable. Install the "backend[multimodal]" dependencies.'
             ) from exc
         settings = get_settings()
-        image = np.asarray(Image.open(BytesIO(content)).convert("RGB"))
+        try:
+            with Image.open(BytesIO(content)) as decoded:
+                if decoded.format != _IMAGE_FORMATS[suffix]:
+                    raise ValueError("Image format does not match the supported file type")
+                if decoded.width * decoded.height > 16_000_000 or decoded.n_frames > 1:
+                    raise ValueError("Image exceeds the supported pixel or frame budget")
+                image = np.asarray(decoded.convert("RGB"))
+        except (UnidentifiedImageError, Image.DecompressionBombError, OSError) as exc:
+            raise ValueError("The image could not be decoded within supported limits") from exc
         result = PaddleOCR(lang=settings.ocr_language).predict(image)
         return result
 
@@ -91,8 +104,8 @@ class OptionalMultimodalExtractor:
                 lines.append(record)
         return lines
 
-    def _ocr_blocks(self, content: bytes) -> list[dict[str, Any]]:
-        lines = self._ocr_lines(self._ocr_result(content))
+    def _ocr_blocks(self, content: bytes, suffix: str) -> list[dict[str, Any]]:
+        lines = self._ocr_lines(self._ocr_result(content, suffix))
         blocks = [
             {
                 "content": line["text"],
@@ -109,6 +122,7 @@ class OptionalMultimodalExtractor:
 
     def _asr_blocks(self, filename: str, content: bytes) -> list[dict[str, Any]]:
         try:
+            import av
             from faster_whisper import WhisperModel
         except ImportError as exc:
             raise RuntimeError(
@@ -118,6 +132,19 @@ class OptionalMultimodalExtractor:
         with TemporaryDirectory(prefix="careerlens-media-") as directory:
             path = Path(directory) / Path(filename).name
             path.write_bytes(content)
+            try:
+                with av.open(path.as_posix()) as container:
+                    formats = set(container.format.name.split(","))
+                    if _CONTAINER_FORMATS[path.suffix.lower()] not in formats:
+                        raise ValueError("Media format does not match the selected file type")
+                    if not 1 <= len(container.streams.audio) <= 4:
+                        raise ValueError("Media must have between one and four audio streams")
+                    if container.duration is None or not (
+                        0 < container.duration / av.time_base <= 1800
+                    ):
+                        raise ValueError("Media duration is unavailable or exceeds 30 minutes")
+            except av.error.FFmpegError as exc:
+                raise ValueError("The media container could not be decoded") from exc
             model = WhisperModel(
                 settings.whisper_model,
                 device=settings.whisper_device,
@@ -148,8 +175,8 @@ class OptionalMultimodalExtractor:
             raise ValueError("ASR did not find readable speech in the media")
         return blocks
 
-    def _ocr_image(self, content: bytes) -> tuple[str, dict[str, Any]]:
-        blocks = self._ocr_blocks(content)
+    def _ocr_image(self, content: bytes, suffix: str) -> tuple[str, dict[str, Any]]:
+        blocks = self._ocr_blocks(content, suffix)
         text = "\n".join(block["content"] for block in blocks).strip()
         return text, {"extractor": "paddleocr", "line_count": len(blocks)}
 

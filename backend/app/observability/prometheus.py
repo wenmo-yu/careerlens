@@ -42,6 +42,7 @@ INFLIGHT = Gauge(
 )
 
 _EXEMPT_PATHS = frozenset({"/metrics", "/health/live", "/health/ready"})
+_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE"})
 
 
 def _route_template(scope: Scope) -> str:
@@ -51,20 +52,10 @@ def _route_template(scope: Scope) -> str:
     series per guessed URL. Known paths keep their real segments with path
     parameters replaced by their names.
     """
-    if scope.get("route") is None:
-        return "unmatched"
-    raw = scope.get("path", "/")
-    params = {
-        str(value): name
-        for name, value in (scope.get("path_params") or {}).items()
-        if str(value)
-    }
-    if not params:
-        return raw
-    segments = raw.split("/")
-    return "/".join(
-        f"{{{params[segment]}}}" if segment in params else segment for segment in segments
-    )
+    # FastAPI's included-router context has the path with all static prefixes.
+    context = scope.get("fastapi", {}).get("effective_route_context")
+    route = context or scope.get("route")
+    return getattr(route, "path_format", None) or "unmatched"
 
 
 class PrometheusMiddleware:
@@ -85,10 +76,13 @@ class PrometheusMiddleware:
 
         started = time.perf_counter()
         status_code = {"value": 500}
+        path_template = "unmatched"
 
         async def send_wrapper(message: Message) -> None:
+            nonlocal path_template
             if message["type"] == "http.response.start":
                 status_code["value"] = int(message["status"])
+                path_template = _route_template(scope)
             await send(message)
 
         INFLIGHT.inc()
@@ -96,16 +90,13 @@ class PrometheusMiddleware:
             await self.app(scope, receive, send_wrapper)
         finally:
             INFLIGHT.dec()
-            # FastAPI wraps included routers, so scope["route"].path is the
-            # path relative to its own router ("/text", not "/api/v1/evidence
-            # /text"). Rebuild the template from the request path instead and
-            # substitute path parameters by segment.
-            path = _route_template(scope)
-            method = scope.get("method", "GET")
+            method = scope.get("method")
+            if method not in _METHODS:
+                method = "OTHER"
             REQUEST_TOTAL.labels(
-                method=method, path=path, status=str(status_code["value"])
+                method=method, path=path_template, status=str(status_code["value"])
             ).inc()
-            REQUEST_DURATION.labels(method=method, path=path).observe(
+            REQUEST_DURATION.labels(method=method, path=path_template).observe(
                 time.perf_counter() - started
             )
 

@@ -7,6 +7,9 @@ members are rejected so a downloaded bundle cannot smuggle unexpected files.
 from io import BytesIO
 from zipfile import ZipFile
 
+import pytest
+
+from app.ingestion import html_export
 from app.ingestion.files import parse_document
 from app.ingestion.html_export import parse_export_zip, parse_html_export
 
@@ -55,9 +58,19 @@ def test_zip_rejects_path_traversal():
     try:
         parse_export_zip(buffer.getvalue())
     except ValueError as exc:
-        assert "没有可解析" in str(exc)
+        assert "无效路径" in str(exc)
     else:
         raise AssertionError("traversal member was accepted")
+
+
+def test_zip_budget_includes_ignored_attachments(monkeypatch):
+    monkeypatch.setattr(html_export, "_MAX_ZIP_EXPANDED_BYTES", 12)
+    buffer = BytesIO()
+    with ZipFile(buffer, "w") as archive:
+        archive.writestr("results/readme.md", "results")
+        archive.writestr("results/tiny.png", b"details")
+    with pytest.raises(ValueError, match="解压总量超过限制"):
+        parse_export_zip(buffer.getvalue())
 
 
 def test_parse_document_dispatches_html_and_zip():

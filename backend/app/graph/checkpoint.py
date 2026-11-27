@@ -1,27 +1,25 @@
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-
-from langgraph.checkpoint.memory import InMemorySaver
+import asyncio
 
 from app.core.config import get_settings
-from app.graph.career import configure_career_graph
 
 
-@asynccontextmanager
-async def configure_checkpoint() -> AsyncIterator[None]:
+async def delete_postgres_checkpoint(thread_id: str) -> None:
     settings = get_settings()
-    use_postgres = settings.checkpoint_backend == "postgres" or (
-        settings.checkpoint_backend == "auto"
-        and settings.checkpoint_url.startswith(("postgresql://", "postgres://"))
-    )
-    if not use_postgres:
-        configure_career_graph(InMemorySaver())
-        yield
-        return
+    if not settings.uses_postgres_checkpoint:
+        raise RuntimeError("Postgres checkpoint cleanup requires the configured checkpoint store")
+    await asyncio.to_thread(_delete_thread, settings.checkpoint_url, thread_id)
 
-    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
-    async with AsyncPostgresSaver.from_conn_string(settings.checkpoint_url) as checkpointer:
-        await checkpointer.setup()
-        configure_career_graph(checkpointer)
-        yield
+def _delete_thread(url: str, thread_id: str) -> None:
+    from langgraph.checkpoint.postgres import PostgresSaver
+    from psycopg.conninfo import make_conninfo
+
+    # A blocking client in a bounded worker handles Windows Proactor loops too.
+    conninfo = make_conninfo(url, connect_timeout=5, options="-c statement_timeout=8000")
+    with PostgresSaver.from_conn_string(conninfo) as checkpointer:
+        with checkpointer.conn.cursor() as cursor:
+            cursor.execute("SELECT to_regclass('checkpoints') AS checkpoints")
+            row = cursor.fetchone()
+        if row and row["checkpoints"]:
+            with checkpointer.conn.transaction():
+                checkpointer.delete_thread(thread_id)

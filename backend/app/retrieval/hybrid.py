@@ -33,7 +33,7 @@ def hybrid_search(
     if not query_tokens:
         return []
 
-    scored: list[tuple[float, str, Evidence | dict[str, Any]]] = []
+    scored: dict[str, tuple[float, float, bool, str, Evidence | dict[str, Any]]] = {}
     total = max(len(evidence), 1)
     document_frequency = Counter(
         token for record in evidence for token in set(tokenize(_field(record, "content")))
@@ -48,19 +48,28 @@ def hybrid_search(
             for token in query_tokens
         )
         sparse_score = sparse_score / max(sum(query_tokens.values()), 1)
-        exact_bonus = 0.25 if query.lower() in content.lower() else 0.0
-        score = 0.45 * dense_score + 0.55 * sparse_score + exact_bonus
-        if score > 0:
-            scored.append((score, content, record))
+        exact = query.casefold() in content.casefold()
+        if dense_score or sparse_score:
+            scored[_field(record, "id")] = (dense_score, sparse_score, exact, content, record)
 
-    scored.sort(key=lambda pair: pair[0], reverse=True)
+    # Fuse rank positions so unbounded corpus-dependent IDF values do not
+    # overwhelm cosine. Literal phrase hits also have a separate rank list.
+    fused: Counter[str] = Counter()
+    for method in range(3):
+        ranked = sorted(
+            (record_id for record_id, row in scored.items() if row[method]),
+            key=lambda record_id: (-scored[record_id][method], record_id),
+        )
+        for rank, record_id in enumerate(ranked, start=1):
+            fused[record_id] += 1 / (60 + rank)
+    top = sorted(fused, key=lambda record_id: (-fused[record_id], record_id))[:limit]
     return [
         {
-            "evidence_id": _field(record, "id"),
-            "score": round(score, 4),
-            "source_type": _field(record, "source_type"),
-            "source_name": _field(record, "source_name"),
-            "content": content,
+            "evidence_id": record_id,
+            "score": round(fused[record_id], 6),
+            "source_type": _field(scored[record_id][4], "source_type"),
+            "source_name": _field(scored[record_id][4], "source_name"),
+            "content": scored[record_id][3],
         }
-        for score, content, record in scored[:limit]
+        for record_id in top
     ]

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_session
 from app.models.evidence import Evidence
 from app.models.learning import LearningProgress, SavedJob
+from app.runtime.store import check_write_scope
 from app.security import authorize_user
 
 router = APIRouter()
@@ -62,6 +63,7 @@ async def save_job(
     await authorize_user(
         session, user_id=payload.user_id, authorization=authorization, required_scope="write"
     )
+    await check_write_scope(session, payload.user_id)
     source_hash = hashlib.sha256(
         f"{payload.title.strip().lower()}\n{payload.jd_text.strip()}".encode()
     ).hexdigest()
@@ -127,6 +129,7 @@ async def delete_saved_job(
     await authorize_user(
         session, user_id=record.user_id, authorization=authorization, required_scope="write"
     )
+    await check_write_scope(session, record.user_id)
     await session.delete(record)
     await session.commit()
     return {"deleted": True, "id": job_id}
@@ -194,6 +197,7 @@ async def upsert_progress(
         raise HTTPException(
             status_code=422, detail=f"status must be one of {sorted(ALLOWED_STATUS)}"
         )
+    await check_write_scope(session, user_id)
     if payload.evidence_ids:
         found = set(await session.scalars(
             select(Evidence.id).where(

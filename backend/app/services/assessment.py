@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.assessment import AssessmentResult
 from app.models.career_report import CareerReport
+from app.runtime.store import check_write_scope
 
 
 async def mark_reports_stale(session: AsyncSession, user_id: str) -> int:
@@ -39,6 +40,7 @@ async def record_assessment(
     answers: dict[str, int],
 ) -> AssessmentResult:
     """Store one consented self-report and invalidate stale reports atomically."""
+    await check_write_scope(session, user_id)
     record = AssessmentResult(
         user_id=user_id,
         instrument=instrument,
@@ -60,6 +62,7 @@ async def delete_assessment_result(
 ) -> None:
     """Delete one result and flag dependent reports stale in the same commit."""
     user_id = record.user_id
+    await check_write_scope(session, user_id)
     await session.delete(record)
     await mark_reports_stale(session, user_id)
     await session.commit()

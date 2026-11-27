@@ -94,7 +94,7 @@ CareerLens 的 `CareerState` 声明了问题、用户、历史、意图、画像
 
 官方文档把持久化分两类：**checkpointer** 保存某个 thread 的图状态快照，用于对话连续、人工介入、时间旅行和故障恢复；**store** 保存跨 thread 的应用数据，例如长期偏好。调用图时传 `thread_id`，就知道恢复到哪份状态。 [持久化官方说明](https://docs.langchain.com/oss/python/langgraph/persistence)
 
-第三章的独立练习副本使用 `InMemorySaver`，进程重启后从内存里保存的图状态会消失。第 01 篇的默认 Compose 启动则使用 `AsyncPostgresSaver`，图状态写入 PostgreSQL。打开 `backend/app/graph/checkpoint.py` 的 `configure_checkpoint`，可以看到 `auto` 也会按数据库地址选择保存方式。 [checkpoint 配置源码](../../backend/app/graph/checkpoint.py) · [Compose 配置](../../docker-compose.yml)
+上面的 Checkpointer 是框架可选能力。CareerLens 的聊天图在 `build_career_graph()` 中以 `checkpointer=False` 编译，每轮用 SQL 读出的近期消息重新装配上下文。较旧的版本曾把图状态写到 PostgreSQL。当前 Worker 会在用户删除数据时清理对应旧快照。 [聊天图工厂](../../backend/app/graph/career.py) · [旧快照清理](../../backend/app/graph/checkpoint.py)
 
 ### 容易混淆的三样东西
 
@@ -178,7 +178,7 @@ CareerLens 把「理解意图」单独做节点，因为它产出的意图会改
 | Node | 五个函数节点 | 按「是否改变路径 / 是否需重试」切分 |
 | 条件边 | `route_intent`、`route_answer` | 纯函数判断，路径可复现 |
 | 停止 | 每个答复分支连到 `END` | 无无限循环，成本可控 |
-| Checkpointer | `InMemorySaver` → `AsyncPostgresSaver` | 演示零配置，生产持久化 |
+| Checkpointer | 独立框架示例使用 `InMemorySaver` | CareerLens 当前用 SQL 消息续接 |
 | 人工确认 | 独立草案 API，不用 `interrupt()` | 用户在专门界面可见、可拒绝 |
 | 护栏 | 模型输出校验 + 回退 | 图管流程，校验管诚实 |
 

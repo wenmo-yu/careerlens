@@ -4,12 +4,15 @@ import signal
 from uuid import uuid4
 
 from sqlalchemy import select, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.orm import undefer
 
 from app.core.config import get_settings
 from app.core.database import SessionFactory, engine
+from app.llm.provider import ModelUnavailable
 from app.models.run import AgentRun
+from app.runtime.deletion_work import process_deletion_work
 from app.runtime.index_outbox import process_index_work
 from app.runtime.operations import ParserUnavailable, prepare_operation
 from app.runtime.store import (
@@ -43,12 +46,20 @@ async def tick(factory: async_sessionmaker, owner: str) -> Claim | None:
 
 
 async def keep_lease(factory: async_sessionmaker, claim: Claim) -> None:
-    interval = min(2, get_settings().run_lease_seconds / 3)
+    lease_seconds = get_settings().run_lease_seconds
+    interval = min(2, lease_seconds / 3)
+    loop = asyncio.get_running_loop()
+    renewed = loop.time()
     while True:
         await asyncio.sleep(interval)
-        async with factory.begin() as session:
-            if not await heartbeat(session, claim):
-                raise LeaseLost
+        try:
+            async with factory.begin() as session:
+                if not await heartbeat(session, claim):
+                    raise LeaseLost
+            renewed = loop.time()
+        except SQLAlchemyError as exc:
+            if loop.time() - renewed >= lease_seconds - interval:
+                raise LeaseLost from exc
 
 
 async def execute(factory: async_sessionmaker, claim: Claim) -> None:
@@ -129,6 +140,8 @@ async def perform(factory: async_sessionmaker, claim: Claim) -> None:
             reason = "permission_revoked"
         elif isinstance(exc, ParserUnavailable):
             reason = "parser_unavailable"
+        elif isinstance(exc, ModelUnavailable):
+            reason = "model_unavailable"
         elif isinstance(exc, (ValueError, WikiCompileError)):
             reason = "invalid_input"
         elif isinstance(exc, TimeoutError):
@@ -136,7 +149,11 @@ async def perform(factory: async_sessionmaker, claim: Claim) -> None:
         else:
             reason = "worker_error"
             LOG.warning("Run %s failed with %s", claim.run_id, type(exc).__name__)
-        await settle_error(factory, claim, reason, retry=reason in {"timeout", "worker_error"})
+        retry = reason in {"timeout", "worker_error"} or (
+            isinstance(exc, ModelUnavailable)
+            and exc.reason in {"connection_error", "timeout", "rate_limit", "upstream_error"}
+        )
+        await settle_error(factory, claim, reason, retry=retry)
     finally:
         work.cancel()
         guard.cancel()
@@ -149,9 +166,10 @@ async def worker_loop(
     while not stop.is_set():
         try:
             if indexing:
+                deletion_handled = await process_deletion_work(factory)
                 async with factory.begin() as session:
                     handled = await process_index_work(session)
-                if handled:
+                if deletion_handled or handled:
                     continue
             else:
                 claim = await tick(factory, owner)
@@ -168,6 +186,7 @@ async def worker_loop(
 
 async def main() -> None:
     logging.basicConfig(level=logging.INFO)
+    get_settings().validate_security("worker")
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):

@@ -27,7 +27,7 @@ CareerLens 只应处理用户主动提交或明确授权导出的个人内容。
 | Resources | `profile://{user_id}`、`evidence://{user_id}/{evidence_id}`、`report://{user_id}/{report_id}` |
 | Prompts | 画像证据解释、JD 匹配复核、面试表达准备 |
 
-本地 `stdio` 适合可信桌面客户端启动子进程；`streamable-http` 适合独立服务。后者使用 Bearer Token，对请求中的 `user_id` 与 Token subject 做校验。读操作需要 `read`，写操作需要 `write`；`manage` 可覆盖对应 Scope。MCP Tool 调用记审计事件。不要把无鉴权的 stdio 进程暴露为公共服务。
+`streamable-http` 使用专门签发、绑定服务资源地址的 MCP Bearer。服务校验令牌主体与请求的 `user_id`。读操作需要 `read`，写操作需要 `write`，租户的 `manage` 覆盖本账号权限。开发用 `stdio` 固定到演示主体，或从环境读取一枚专属 MCP 令牌。生产统一使用鉴权 HTTP。签发命令见[配置参考](api-and-configuration.md#mcp)。
 
 ## API 权限模型
 
@@ -35,12 +35,12 @@ CareerLens 只应处理用户主动提交或明确授权导出的个人内容。
 
 - `disabled`：默认本地演示，不要求 Token；**不适合公网**。
 - `optional`：兼容旧客户端；没有 Token 的请求仍可进入，因此同样不能作为真正的公网保护。
-- `required`：个人数据接口要求 Bearer Token；部署时还要设置随机 `AUTH_TOKEN_PEPPER` 与注册密钥。
+- `required` 要求个人数据接口持有有效 Bearer Token。生产用运维命令签发首个令牌，注册接口默认关闭。
 
-Token 只在创建时返回明文，数据库存加 pepper 的哈希。Scope 为 `read`、`write`、`export`、`delete`、`manage`；具体路由会校验资源所属用户与所需 Scope。评测与观测接口是实例级能力（不归属单个用户），在 `required` 模式下要求 `manage` Scope；`disabled` 与无 Token 的 `optional` 模式放行。生产 Compose 有鉴权与密钥检查，但**没有自动提供 HTTPS 反向代理**。公网部署还需 TLS、限流、数据库与 Qdrant 端口隔离、密钥轮换和备份治理。
+Token 只在创建时返回明文，数据库存哈希、有效期和受众。`manage` 管理本账号。启用应用鉴权后，实例评测、观测和删除回执查询需要独立的 `OPS_ACCESS_TOKEN`。生产 Compose 关闭 PostgreSQL 与 Qdrant 的宿主机映射，由部署方接入 HTTPS 反向代理。
 
 ## 导出、删除与审计
 
-`GET /api/v1/privacy/{user_id}/export` 获取用户数据副本；`DELETE /api/v1/evidence/{evidence_id}` 清理单条证据及其引用；`DELETE /api/v1/privacy/{user_id}` 执行账号清理并生成匿名回执，清理范围包含对话线程及其全部 `ConversationMessage` 消息。审计记录不应包含 Evidence 原文、Prompt 或 API Key。模型调用观测也仅记录模型、耗时、Token、状态等元数据。
+`GET /api/v1/privacy/{user_id}/export` 获取用户数据副本。删除 Evidence 时，关系库清除相关报告与分析中的受影响内容，向量及旧会话快照交给后台清理。删除账号还会清除线程和消息、停用原标识和撤销凭证。回执分别显示 `pending`、`completed` 或 `failed`。审计只记录操作与必要元数据，MCP 检索不记录用户的查询正文。
 
 这些接口描述的是应用数据库、索引与 checkpoint 的行为，不自动涵盖外部模型提供商的留存政策、操作系统日志、备份副本或已经下载的报告。部署方需要依据实际环境制定数据保留、备份删除传播和故障补偿策略；应用接口本身不是端到端合规承诺。

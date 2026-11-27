@@ -116,7 +116,8 @@ CareerLens 第三期沿用 Web 架构，仓库未实现 ACP 服务。工作台�
 {
   "user_id": "learner-plan",
   "name": "tutorial-mcp-read",
-  "scopes": ["read"]
+  "scopes": ["read"],
+  "audience": "mcp"
 }
 ```
 
@@ -126,7 +127,7 @@ CareerLens 第三期沿用 Web 架构，仓库未实现 ACP 服务。工作台�
 python examples/tutorials/read_mcp_report.py learner-plan REPORT_ID
 ```
 
-终端提示时粘贴只读令牌。程序以隐藏输入读取令牌，并通过 Bearer 请求头连接本机。它先建立 MCP 会话，调用 `get_career_report`，再读取 `report://learner-plan/REPORT_ID`。两次结果相同才打印编号、版本和 Markdown 首行。与第一步的 HTTP 结果核对，记录一次传的是 URL 和参数，一次传的是工具名与参数。 [完整练习脚本](../examples/tutorials/read_mcp_report.py)
+终端提示时粘贴刚签发的 MCP 只读令牌。程序以隐藏输入读取令牌，并通过 Bearer 请求头连接本机。它先建立 MCP 会话，调用 `get_career_report`，再读取 `report://learner-plan/REPORT_ID`。两次结果相同才打印编号、版本和 Markdown 首行。和第一步的 HTTP 结果核对，再用 API Owner Token 连接 MCP，观察受众校验怎样阻止它。 [完整练习脚本](../examples/tutorials/read_mcp_report.py)
 
 4. 在 Swagger 打开 `GET /api/v1/privacy/{user_id}/audit`，填写教学账号和拥有者令牌。按报告 ID 找两条 `action=mcp.report.read` 的读取记录。合约测试也会核对这一类成功审计。 [审计接口](../backend/app/api/routes/privacy.py)
 
@@ -145,7 +146,7 @@ python -m pytest -q tests/test_mcp.py
 
 1. `test_mcp_exposes_complete_contract` 从客户端请求工具、资源模板和提示模板。写出一项读取工具、一个报告 URI 和一个提示名。然后回 `server.py` 找到对应声明。注意工具用「子集」断言、资源和提示用「精确相等」断言。
 2. `test_mcp_job_report_flow_is_audited` 用合成的 Python 项目做岗位分析，拿到 `job_analysis_id` 去生成报告，再按 `report_id` 取回版本 1，最后读一次资源 URI。末尾检查数据库里出现了 `mcp.job.analyze`、`mcp.report.generate` 和 `mcp.report.read` 三类审计动作。你可以把这三个动作按自己的理解画成一条调用线。
-3. `test_mcp_token_verifier_reuses_api_tokens` 把测试库签发的 CareerLens Token 直接交给 verifier，验证返回的 `client_id`、`subject`、`scopes` 与原 token 一致，无效 token 返回 `None`。这证明 MCP 和 HTTP 共用一套 token 体系。
+3. `test_mcp_token_verifier_accepts_only_bound_mcp_credentials` 校验 `audience=mcp` 与资源地址。API 与 MCP 在同一令牌表中保存凭证，服务各自核对受众。
 4. `test_streamable_http_requires_bearer_token` 构造一个 `required` 模式的服务，对 `/mcp` 发空请求，断言 401。
 
 这个练习用同进程 MCP 客户端和测试库。可以把「测试通过」和「真实桌面客户端完成接入」分别记录，两个环境验证的内容不同：测试证明合约和审计逻辑正确，真实客户端还要验证传输、鉴权配置和用户体验。

@@ -1,6 +1,7 @@
 """Phase 2/C: build-time solidification + query-time mode switching."""
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.database import Base
@@ -60,6 +61,27 @@ async def test_wiki_mode_only_returns_wiki_pages(mode_db):
         assert diag["wiki_count"] >= 1
         assert all(h["source_kind"] == "wiki" for h in hits)
         assert all("chunk_refs" in h for h in hits)
+
+
+async def test_redacted_wiki_page_is_not_retrievable(mode_db):
+    """Evidence deletion marks wiki pages redacted; those must not surface."""
+    from app.models.wiki import WikiPage
+
+    async with mode_db() as session:
+        await compile_page(
+            session, user_id="u", slug="python", title="Python 技能",
+            sources=[{"evidence_id": "ev-1", "content": "熟悉 Python 与 FastAPI 构建 Agent。"}],
+        )
+        page = await session.scalar(select(WikiPage).where(WikiPage.user_id == "u"))
+        assert page is not None
+        page.privacy_redacted = True
+        await session.commit()
+
+        hits, diag = await search_knowledge(
+            session, user_id="u", query="Python", mode="wiki", evidence=[]
+        )
+        assert diag["wiki_count"] == 0
+        assert hits == []
 
 
 async def test_hybrid_fuses_both_sources_with_multi_source_refs(mode_db):

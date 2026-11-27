@@ -1,7 +1,9 @@
 import hashlib
+import json
 import math
 from collections.abc import Sequence
 from functools import lru_cache
+from time import perf_counter
 from typing import Protocol
 
 from app.core.config import Settings, get_settings
@@ -66,7 +68,7 @@ class LexicalReranker:
 class QwenEmbeddingProvider:
     name = "qwen3-embedding"
 
-    def __init__(self, model_name: str, dimension: int, instruction: str):
+    def __init__(self, model_name: str, dimension: int, instruction: str, revision: str):
         try:
             from sentence_transformers import SentenceTransformer
         except ImportError as exc:
@@ -75,7 +77,7 @@ class QwenEmbeddingProvider:
             ) from exc
         self.dimension = dimension
         self.instruction = instruction
-        self.model = SentenceTransformer(model_name)
+        self.model = SentenceTransformer(model_name, revision=revision)
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
         vectors = self.model.encode(
@@ -144,9 +146,17 @@ class CascadingReranker:
         self.name = f"cascade:{coarse.name}->{fine.name}({coarse_top_k}/{fine_top_k})"
 
     def score(self, query: str, documents: Sequence[str]) -> list[float]:
+        return self.score_with_trace(query, documents, allow_fallback=True)[0]
+
+    def score_with_trace(
+        self, query: str, documents: Sequence[str], *, allow_fallback: bool,
+    ) -> tuple[list[float], dict]:
         documents = list(documents)
         if not documents:
-            return []
+            return [], {"stage": "empty", "effective": "none", "fine_count": 0}
+        started = perf_counter()
+        stage = "coarse"
+        shortlist = []
         try:
             coarse_scores = self._coarse.score(query, documents)
             if len(coarse_scores) != len(documents) or not all(map(math.isfinite, coarse_scores)):
@@ -158,6 +168,7 @@ class CascadingReranker:
                 reverse=True,
             )[: self._coarse_top_k]
             shortlist = [documents[index] for index in ranked]
+            stage = "fine"
             fine_scores = self._fine.score(query, shortlist)
             if len(fine_scores) != len(shortlist) or not all(map(math.isfinite, fine_scores)):
                 raise ValueError("Invalid fine scores")
@@ -179,10 +190,50 @@ class CascadingReranker:
                 span = high - low
                 for index, value in fine_pairs:
                     result[index] = 1.0 + ((value - low) / span if span else 0.5)
-            return result
-        except Exception:
-            # Degrade to the cheapest reliable scorer; never fail retrieval.
-            return LexicalReranker().score(query, documents)
+            return result, {
+                "requested": self.name, "effective": self.name,
+                "coarse_model": self._coarse.name, "fine_model": self._fine.name,
+                "coarse_count": len(documents), "fine_count": len(shortlist),
+                "fine_promoted_count": len(fine_pairs),
+                "latency_ms": round((perf_counter() - started) * 1000, 2),
+            }
+        except (RuntimeError, ValueError, OSError) as exc:
+            if not allow_fallback:
+                raise
+            lexical = LexicalReranker()
+            scores = lexical.score(query, documents)
+            return scores, {
+                "requested": self.name, "effective": lexical.name,
+                "fallback_stage": stage, "fallback_reason": type(exc).__name__,
+                "coarse_count": len(documents), "fine_count": len(shortlist),
+                "fine_promoted_count": 0,
+                "latency_ms": round((perf_counter() - started) * 1000, 2),
+            }
+
+
+def score_documents(
+    reranker: RerankerProvider, query: str, documents: Sequence[str], *, allow_fallback: bool,
+) -> tuple[list[float], dict]:
+    if isinstance(reranker, CascadingReranker):
+        return reranker.score_with_trace(query, documents, allow_fallback=allow_fallback)
+    if not documents:
+        return [], {"requested": reranker.name, "effective": "none", "document_count": 0}
+    started = perf_counter()
+    trace = {"requested": reranker.name, "effective": reranker.name}
+    try:
+        scores = reranker.score(query, documents)
+        if len(scores) != len(documents) or not all(map(math.isfinite, scores)):
+            raise ValueError("Invalid reranker scores")
+    except (RuntimeError, ValueError, OSError) as exc:
+        if not allow_fallback or isinstance(reranker, LexicalReranker):
+            raise
+        lexical = LexicalReranker()
+        scores = lexical.score(query, documents)
+        trace.update(effective=lexical.name, fallback_reason=type(exc).__name__)
+    return scores, {
+        **trace, "document_count": len(documents),
+        "latency_ms": round((perf_counter() - started) * 1000, 2),
+    }
 
 
 @lru_cache
@@ -193,6 +244,7 @@ def get_embedding_provider() -> EmbeddingProvider:
             settings.qwen_embedding_model,
             settings.embedding_dimension,
             settings.retrieval_query_instruction,
+            settings.qwen_embedding_revision,
         )
     return HashEmbeddingProvider(settings.embedding_dimension)
 
@@ -239,3 +291,19 @@ def provider_diagnostics(settings: Settings | None = None) -> dict[str, str | in
         ),
         "dimension": selected.embedding_dimension,
     }
+
+
+def embedding_fingerprint(settings: Settings) -> str:
+    qwen = settings.retrieval_provider == "qwen"
+    config = {
+        "provider": settings.retrieval_provider,
+        "model": settings.qwen_embedding_model if qwen else "hash-v1",
+        "revision": settings.qwen_embedding_revision if qwen else "hash-v1",
+        "dimension": settings.embedding_dimension,
+        "distance": "Cosine",
+        "normalize": True,
+        "query_prefix": settings.retrieval_query_instruction if qwen else "",
+        "document_preprocessing": "raw-v1" if qwen else "career-tokenize-v1",
+        "sparse": "blake2b-32-terms-idf-v1",
+    }
+    return hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()

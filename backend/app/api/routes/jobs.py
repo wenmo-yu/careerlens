@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.models.job_analysis import JobAnalysis
+from app.runtime.store import StaleInput
 from app.schemas.job import JobAnalysisRead, JobAnalyzeRequest
 from app.security import authorize_user
 from app.services.jobs import analyze_job
@@ -27,6 +28,8 @@ async def create_analysis(
     )
     try:
         return await analyze_job(session, **payload.model_dump())
+    except StaleInput as exc:
+        raise HTTPException(409, "Inputs changed. Analyze the JD again.") from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -46,4 +49,6 @@ async def get_analysis(
         authorization=authorization,
         required_scope="read",
     )
+    if analysis.privacy_redacted:
+        raise HTTPException(410, "Job analysis was removed for privacy")
     return JobAnalysisRead.model_validate(analysis)

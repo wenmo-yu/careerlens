@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Index, String, func
+from sqlalchemy import JSON, Boolean, DateTime, Index, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -18,6 +18,10 @@ class AccessToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True, unique=True)
     scopes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    audience: Mapped[str] = mapped_column(String(8), nullable=False, default="api")
+    resource: Mapped[str | None] = mapped_column(String(512))
+    key_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

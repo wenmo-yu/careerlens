@@ -1,9 +1,21 @@
 x-processing-environment: &processing-environment
   DATABASE_URL: postgresql+asyncpg://career:career@postgres:5432/career
   QDRANT_URL: http://qdrant:6333
+  QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+  QDRANT_COLLECTION: ${QDRANT_COLLECTION:-career_evidence}
+  QDRANT_CLEANUP_COLLECTIONS: ${QDRANT_CLEANUP_COLLECTIONS:-}
   RETRIEVAL_BACKEND: ${RETRIEVAL_BACKEND:-auto}
   RETRIEVAL_PROVIDER: ${RETRIEVAL_PROVIDER:-hash}
+  EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-384}
+  QWEN_EMBEDDING_MODEL: ${QWEN_EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-0.6B}
+  QWEN_EMBEDDING_REVISION: ${QWEN_EMBEDDING_REVISION:-97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3}
+  QWEN_RERANKER_MODEL: ${QWEN_RERANKER_MODEL:-Qwen/Qwen3-Reranker-0.6B}
+  RETRIEVAL_PREFETCH_LIMIT: ${RETRIEVAL_PREFETCH_LIMIT:-20}
+  RETRIEVAL_LOCAL_ROW_LIMIT: ${RETRIEVAL_LOCAL_ROW_LIMIT:-2000}
+  CHECKPOINT_BACKEND: ${CHECKPOINT_BACKEND:-auto}
+  CHECKPOINT_DATABASE_URL: ${CHECKPOINT_DATABASE_URL:-}
   AI_PROVIDER: ${AI_PROVIDER:-demo}
+  AI_FAILURE_POLICY: ${AI_FAILURE_POLICY:-allow_fallback}
   AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
   AI_API_KEY: ${AI_API_KEY:-}
   AI_MODEL: ${AI_MODEL:-deepseek-flash}
@@ -15,6 +27,13 @@ x-processing-environment: &processing-environment
   AI_INPUT_PRICE_PER_MILLION: ${AI_INPUT_PRICE_PER_MILLION:-0}
   AI_OUTPUT_PRICE_PER_MILLION: ${AI_OUTPUT_PRICE_PER_MILLION:-0}
   AUTH_MODE: ${AUTH_MODE:-disabled}
+  APP_ENV: ${APP_ENV:-development}
+  AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:-careerlens-compose-development-only}
+  AUTH_TOKEN_KEY_VERSION: ${AUTH_TOKEN_KEY_VERSION:-1}
+  AUTH_TOKEN_PREVIOUS_PEPPER: ${AUTH_TOKEN_PREVIOUS_PEPPER:-}
+  AUTH_TOKEN_PREVIOUS_UNTIL: ${AUTH_TOKEN_PREVIOUS_UNTIL:-}
+  AUTH_TOKEN_LIFETIME_HOURS: ${AUTH_TOKEN_LIFETIME_HOURS:-24}
+  AUTO_CREATE_SCHEMA: "false"
   RUN_WORKER_CONCURRENCY: ${RUN_WORKER_CONCURRENCY:-2}
   RUN_GLOBAL_CONCURRENCY: ${RUN_GLOBAL_CONCURRENCY:-4}
   RUN_PENDING_PER_USER: ${RUN_PENDING_PER_USER:-12}
@@ -39,14 +58,13 @@ services:
       context: ./backend
     environment:
       <<: *processing-environment
-      AUTO_CREATE_SCHEMA: "false"
-      APP_ENV: ${APP_ENV:-development}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
-      CHECKPOINT_BACKEND: postgres
-      CHECKPOINT_DATABASE_URL: postgresql://career:career@postgres:5432/career
       LANGGRAPH_STRICT_MSGPACK: "true"
-      AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:-careerlens-compose-development-only}
       AUTH_REGISTRATION_SECRET: ${AUTH_REGISTRATION_SECRET:-}
+      AUTH_REGISTRATION_ENABLED: ${AUTH_REGISTRATION_ENABLED:-true}
+      OPS_ACCESS_TOKEN: ${OPS_ACCESS_TOKEN:-}
+      MCP_RESOURCE_SERVER_URL: ${MCP_RESOURCE_SERVER_URL:-http://localhost:8001/mcp}
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-careerlens-api}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://host.docker.internal:4318/v1/traces}
@@ -55,14 +73,12 @@ services:
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
       LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-careerlens-local}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       migrate:
         condition: service_completed_successfully
-      qdrant:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -103,32 +119,15 @@ services:
       - --port
       - "8001"
     environment:
-      DATABASE_URL: postgresql+asyncpg://career:career@postgres:5432/career
-      QDRANT_URL: http://qdrant:6333
-      RETRIEVAL_BACKEND: ${RETRIEVAL_BACKEND:-auto}
-      RETRIEVAL_PROVIDER: ${RETRIEVAL_PROVIDER:-hash}
-      AI_PROVIDER: ${AI_PROVIDER:-demo}
-      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
-      AI_API_KEY: ${AI_API_KEY:-}
-      AI_MODEL: ${AI_MODEL:-deepseek-flash}
-      MODEL_ROLE_BINDINGS: ${MODEL_ROLE_BINDINGS:-}
-      RERANK_STAGES_ENABLED: ${RERANK_STAGES_ENABLED:-false}
-      RERANK_COARSE_TOP_K: ${RERANK_COARSE_TOP_K:-15}
-      RERANK_FINE_TOP_K: ${RERANK_FINE_TOP_K:-5}
-      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-60}
-      AI_INPUT_PRICE_PER_MILLION: ${AI_INPUT_PRICE_PER_MILLION:-0}
-      AI_OUTPUT_PRICE_PER_MILLION: ${AI_OUTPUT_PRICE_PER_MILLION:-0}
-      AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:-careerlens-compose-development-only}
+      <<: *processing-environment
       MCP_AUTH_MODE: required
-      MCP_AUTH_ISSUER_URL: http://localhost:8000
-      MCP_RESOURCE_SERVER_URL: http://localhost:8001/mcp
+      MCP_AUTH_ISSUER_URL: ${MCP_AUTH_ISSUER_URL:-http://localhost:8000}
+      MCP_RESOURCE_SERVER_URL: ${MCP_RESOURCE_SERVER_URL:-http://localhost:8001/mcp}
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     depends_on:
       migrate:
         condition: service_completed_successfully
-      qdrant:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',8001),5); s.close()"]
       interval: 10s
@@ -143,7 +142,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       api:
         condition: service_healthy
@@ -162,7 +161,7 @@ services:
       POSTGRES_USER: career
       POSTGRES_PASSWORD: career
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -177,8 +176,8 @@ services:
     ports:
       # Keep the standard ports inside the Compose network, but avoid
       # colliding with a developer's already-running local Qdrant instance.
-      - "${QDRANT_HTTP_PORT:-16333}:6333"
-      - "${QDRANT_GRPC_PORT:-16334}:6334"
+      - "127.0.0.1:${QDRANT_HTTP_PORT:-16333}:6333"
+      - "127.0.0.1:${QDRANT_GRPC_PORT:-16334}:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:

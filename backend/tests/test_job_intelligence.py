@@ -134,6 +134,37 @@ async def test_model_cannot_reweight_catalogued_requirement_with_an_ambiguous_qu
     }
 
 
+async def test_job_alternatives_are_one_group_and_requirements_point_to_original_spans():
+    from app.models.profile import ProfileItem
+    from app.services.jobs import prepare_analysis
+
+    jd = "本科及以上；Java 或 Go 二选一；负责协调团队上线。"
+    requirements, diagnostics = await extract_requirements_with_fallback(jd, StubProvider({
+        "requirements": [
+            {"name": "Java", "priority": "required", "quote": "Java 或 Go 二选一"},
+            {"name": "Go", "priority": "required", "quote": "Java 或 Go 二选一"},
+            {
+                "name": "学历", "category": "qualification",
+                "priority": "required", "quote": "本科及以上",
+            },
+            {
+                "name": "部署", "category": "responsibility",
+                "priority": "required", "quote": "负责协调团队上线",
+            },
+        ],
+    }))
+    assert all(
+        jd[item["span_start"]:item["span_end"]] == item["raw_quote"] for item in requirements
+    )
+    profile = [ProfileItem(name="Java", category="skill", level=3, evidence_ids=["java"])]
+    result = prepare_analysis(profile, {"java"}, "Platform", jd, 10, requirements, diagnostics)
+    assert result["score"] == 100 and result["gaps"] == []
+    coverage = result["report"]["match_coverage"]
+    assert coverage["total_skill_groups"] == 1 and coverage["coverage"] == 1.0
+    assert coverage["qualification_checks"][0]["status"] == "unknown"
+    assert "资格" in result["report"]["recommendation"]
+
+
 def test_weighted_score_ignores_missing_evidence_and_resolves_aliases():
     from app.models.profile import ProfileItem
 

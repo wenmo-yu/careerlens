@@ -9,21 +9,134 @@ import { CoverageCard, EvidenceTimeline, ProfileRadar, SkillMatrix } from "@/com
 import { ReportOverview, ScoreBreakdown } from "@/components/score-breakdown";
 import { RunCenter } from "@/components/run-center";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
-import type { ReactNode } from "react";
-import type { KnowledgeMode, LearningPlanStep } from "@/lib/api";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  SESSION_CHANGE, clearAccessToken, getEvaluationRuns, getObservabilitySummary,
+  getWorkspaceSession, registerOwner, resetWorkspaceRequests, runBenchmarkRegression, setAccessToken,
+  workspaceRequestSignal,
+  type EvaluationRun, type KnowledgeMode, type LearningPlanStep, type ObservabilitySummary,
+  type WorkspaceSession,
+} from "@/lib/api";
 import { useWorkspace } from "@/lib/use-workspace";
 
 export default function Home() {
+  const [demoUser, setDemoUser] = useState("demo-user");
+  const [session, setSession] = useState<WorkspaceSession | null>(null);
+  const [revision, setRevision] = useState(0);
+  const [connectionError, setConnectionError] = useState("");
+  const [connectionNotice, setConnectionNotice] = useState("");
+  const [connecting, setConnecting] = useState(false);
+
+  useEffect(() => {
+    function resetSession() {
+      setSession(null);
+      setConnectionError("");
+      setRevision((version) => version + 1);
+    }
+    window.addEventListener(SESSION_CHANGE, resetSession);
+    return () => window.removeEventListener(SESSION_CHANGE, resetSession);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void getWorkspaceSession(controller.signal).then((verified) => {
+      if (!controller.signal.aborted) setSession(verified);
+    }, (error: unknown) => {
+      if (!controller.signal.aborted) {
+        setConnectionError(error instanceof Error ? error.message : "无法连接工作台。");
+      }
+    });
+    return () => controller.abort();
+  }, [revision]);
+
+  function login(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const token = String(new FormData(event.currentTarget).get("token") ?? "").trim();
+    if (!token) return;
+    event.currentTarget.reset();
+    setConnectionNotice("");
+    setAccessToken(token);
+  }
+
+  async function bootstrap(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    const signal = workspaceRequestSignal();
+    setConnecting(true);
+    setConnectionError("");
+    try {
+      const created = await registerOwner(
+        String(values.get("user_id") || demoUser), String(values.get("secret") ?? ""),
+      );
+      if (signal.aborted) return;
+      form.reset();
+      setConnectionNotice("凭证已创建并保存在本次浏览器会话。");
+      setAccessToken(created.token);
+    } catch (error) {
+      if (!signal.aborted) {
+        setConnectionError(error instanceof Error ? error.message : "创建凭证失败。");
+      }
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  const demo = !!session && !session.user_id && (
+    session.mode === "disabled" || (session.mode === "optional" && !session.can_operate)
+  );
+  const userId = session?.user_id ?? (demo ? demoUser : "");
+  return <main className="site-page workspace-page">
+    <SiteHeader active="workspace" />
+    <section className="workspace workspace-identity" aria-label="工作台身份">
+      {demo && <label>用户标识<input value={demoUser} required onChange={(event) => {
+        resetWorkspaceRequests();
+        setDemoUser(event.target.value);
+      }} /></label>}
+      {session && (session.user_id || session.mode !== "disabled" && session.can_operate) &&
+        <div><span>{session.user_id ?? "实例运维"}</span><button type="button" className="secondary"
+          onClick={clearAccessToken}>退出会话</button></div>}
+      {session && session.mode !== "disabled" && !session.user_id && !session.can_operate &&
+        <form onSubmit={login}><label>访问令牌<input name="token" type="password" required /></label>
+          <button type="submit">连接工作台</button></form>}
+      {session?.registration_enabled && !session.user_id &&
+        <details><summary>创建 Owner Token</summary><form onSubmit={bootstrap}>
+          {!demo && <label>账号标识<input name="user_id" required maxLength={128} /></label>}
+          <label>注册密钥<input name="secret" type="password" autoComplete="off" /></label>
+          <button type="submit" disabled={connecting || demo && !demoUser.trim()}>创建并连接</button>
+        </form></details>}
+      {!session && !connectionError && <p role="status">正在确认工作台身份…</p>}
+      {connectionError && <p role="alert">{connectionError} <button type="button" className="secondary"
+        onClick={() => { setConnectionError(""); setRevision((version) => version + 1); }}>重试</button></p>}
+      {connectionNotice && <p role="status">{connectionNotice}</p>}
+    </section>
+    {session && userId.trim() && <WorkspaceContent
+      key={`${revision}:${userId}`} userId={userId} canOperate={session.can_operate}
+      onDeleted={(message) => {
+        setConnectionNotice(message);
+        if (demo) setDemoUser(`demo-${crypto.randomUUID().slice(0, 8)}`);
+        clearAccessToken();
+      }}
+    />}
+    {session?.can_operate && !demo && !userId && <OperationsOnly key={revision} />}
+    <SiteFooter />
+  </main>;
+}
+
+function WorkspaceContent({ userId, canOperate, onDeleted }: {
+  userId: string;
+  canOperate: boolean;
+  onDeleted: (message: string) => void;
+}) {
   const {
-    userId, setUserId, evidenceText, setEvidenceText, profile, setProfile, overview, evidenceList, jobTitle, setJobTitle, jdText, setJdText, weeklyHours, setWeeklyHours, analysis, setAnalysis, roleSuggestions, courses, savedJobs, savedJobTitle, setSavedJobTitle, report, setReport, chatInput, setChatInput, chat, setChat, knowledgeMode, setKnowledgeMode, wikiSources, setWikiSources, wikiSelection, setWikiSelection, wikiTitle, setWikiTitle, confirmWiki, setConfirmWiki, openedWiki, setOpenedWiki, memoryInput, setMemoryInput, proposal, setProposal, evaluation, telemetry, registrationSecret, setRegistrationSecret, issuedToken, deleteEvidenceId, setDeleteEvidenceId, accountDeletionConfirm, setAccountDeletionConfirm, auditEvents, busy, notice, setNotice, browserDraft, setBrowserDraft, selectedCaptureItems, setSelectedCaptureItems, latestRun, setLatestRun, importResult, setImportResult, tasksVersion, openRunResult, handleBuildProfile, handleJob, handleSaveJob, handleRecommendRoles, handleProgress, handleChat, loadWikiSources, handleWikiCompile, openWiki, handleReport, handleReportDownload, handleProposal, handleDecision, handleBilibili, handleWeibo, handleBrowserCapture, handleConfirmBrowserCapture, handleMedia, handleDocument, handleEvaluation, handleRegisterOwner, handleExport, handleLoadAudit, handleDeleteEvidence, handleDeleteAccount, skills,
-  } = useWorkspace();
+    evidenceText, setEvidenceText, profile, overview, evidenceList, jobTitle, setJobTitle, jdText, setJdText, weeklyHours, setWeeklyHours, analysis, roleSuggestions, courses, savedJobs, savedJobTitle, setSavedJobTitle, report, chatInput, setChatInput, chat, knowledgeMode, setKnowledgeMode, wikiSources, wikiSelection, setWikiSelection, wikiTitle, setWikiTitle, confirmWiki, setConfirmWiki, openedWiki, memoryInput, setMemoryInput, proposal, evaluation, telemetry, deleteEvidenceId, setDeleteEvidenceId, accountDeletionConfirm, setAccountDeletionConfirm, auditEvents, busy, notice, setNotice, resourceStatus, retryResources, browserDraft, setBrowserDraft, selectedCaptureItems, setSelectedCaptureItems, latestRun, importResult, setImportResult, tasksVersion, openRunResult, handleBuildProfile, handleJob, handleSaveJob, handleRecommendRoles, handleProgress, handleChat, loadWikiSources, handleWikiCompile, openWiki, handleReport, handleReportDownload, handleProposal, handleDecision, handleBilibili, handleWeibo, handleBrowserCapture, handleConfirmBrowserCapture, handleMedia, handleDocument, handleEvaluation, handleExport, handleLoadAudit, handleDeleteEvidence, handleDeleteAccount, skills,
+  } = useWorkspace(userId, canOperate, onDeleted);
 
   return (
-    <main className="site-page workspace-page">
-      <SiteHeader active="workspace" />
+    <>
       <nav className="workspace-subnav" aria-label="工作台模块">
         <span>WORKSPACE / 真实业务接口 · 虚构预填内容</span>
-        <div><a href="#profile">职业画像</a><a href="#matching">岗位匹配</a><a href="#report">职业报告</a><a href="#copilot">Career Copilot</a><a href="#runs">后台任务</a><a href="#assessment">自我探索</a><a href="#quality">质量评测</a><a href="#privacy">数据控制</a></div>
+        <div><a href="#profile">职业画像</a><a href="#matching">岗位匹配</a><a href="#report">职业报告</a><a href="#copilot">Career Copilot</a><a href="#runs">后台任务</a><a href="#assessment">自我探索</a>{canOperate && <a href="#quality">质量评测</a>}<a href="#privacy">数据控制</a></div>
       </nav>
 
       <section className="hero" id="top">
@@ -50,6 +163,13 @@ export default function Home() {
       </div>
 
       {notice && <div className={`notice ${notice.kind}`} role="status">{notice.text}</div>}
+      <div className="workspace">
+        {resourceStatus.loading && <p role="status">正在读取工作台资料…</p>}
+        {resourceStatus.errors.length > 0 && <p role="alert">
+          {resourceStatus.errors.join("、")}读取失败。 <button type="button" className="secondary"
+            onClick={retryResources}>重试读取</button>
+        </p>}
+      </div>
       <section className="workspace" id="profile">
         <div className="section-heading">
           <div><span>01</span><h2>构建职业画像</h2></div>
@@ -59,19 +179,6 @@ export default function Home() {
 
         <div className="two-column">
           <form id="import-form" className="panel input-panel" onSubmit={handleBuildProfile}>
-            <label>用户标识<input value={userId} disabled={busy !== null} onChange={(event) => {
-              setUserId(event.target.value);
-              setLatestRun(null);
-              setImportResult(null);
-              setProfile(null);
-              setChat(null);
-              setAnalysis(null);
-              setReport(null);
-              setProposal(null);
-              setOpenedWiki(null);
-              setWikiSources(null);
-              setWikiSelection([]);
-            }} required /></label>
             <label>个人经历与自述<textarea rows={9} value={evidenceText} onChange={(event) => setEvidenceText(event.target.value)} required /></label>
             <button disabled={busy !== null}>{busy === "profile" ? "正在构建…" : "导入并生成画像"}<span>↗</span></button>
           </form>
@@ -305,14 +412,41 @@ export default function Home() {
         <AssessmentCard userId={userId} onNotice={(text) => setNotice({ kind: "ok", text })} />
       </section>
 
-      <section className="workspace quality-section" id="quality">
+      {canOperate && <QualityPanel evaluation={evaluation} telemetry={telemetry}
+        busy={busy !== null} running={busy === "evaluation"} onEvaluate={handleEvaluation} />}
+
+      <section className="workspace privacy-section" id="privacy">
+        <div className="section-heading light">
+          <div><span>06</span><h2>隐私与数据控制</h2></div>
+          <p>Token 只返回一次；导出和删除会留下不包含原文的审计记录。</p>
+        </div>
+        <div className="privacy-grid">
+          <article><span>02 / PORTABILITY</span><h3>导出我的数据</h3><p>导出 Evidence、画像、JD 分析、职业报告、画像纠正和审计日志，不包含 Token 哈希。</p><button type="button" onClick={handleExport} disabled={busy !== null}>{busy === "export" ? "导出中…" : "下载 JSON 数据副本"}</button></article>
+          <article><span>03 / ERASURE</span><h3>删除数据</h3><p>可删除单条 Evidence；永久删除账号会同时清理数据库、向量、对话状态和全部 Token。</p><input value={deleteEvidenceId} onChange={(event) => setDeleteEvidenceId(event.target.value)} placeholder="Evidence ID" /><button type="button" className="danger" onClick={handleDeleteEvidence} disabled={busy !== null || !deleteEvidenceId}>{busy === "delete" ? "删除中…" : "删除 Evidence"}</button><div className="erasure-divider" /><input value={accountDeletionConfirm} onChange={(event) => setAccountDeletionConfirm(event.target.value)} placeholder={`输入 ${userId} 确认永久删除`} /><button type="button" className="danger" onClick={handleDeleteAccount} disabled={busy !== null || accountDeletionConfirm !== userId}>{busy === "delete-account" ? "正在永久删除…" : "永久删除账号"}</button></article>
+          <article className="audit-card"><span>04 / AUDIT</span><h3>最近操作</h3><button type="button" className="secondary" onClick={handleLoadAudit} disabled={busy !== null}>{busy === "audit" ? "读取中…" : "刷新审计日志"}</button>{auditEvents.length ? <div>{auditEvents.map((event) => <p key={event.id}><b>{event.action}</b><small>{event.resource_id ?? event.resource_type}</small></p>)}</div> : <p>尚未读取审计事件。</p>}</article>
+        </div>
+      </section>
+
+    </>
+  );
+}
+
+function QualityPanel({ evaluation, telemetry, busy, running, onEvaluate }: {
+  evaluation: EvaluationRun | null;
+  telemetry: ObservabilitySummary | null;
+  busy: boolean;
+  running: boolean;
+  onEvaluate: () => void;
+}) {
+  return (
+<section className="workspace quality-section" id="quality">
         <div className="section-heading">
           <div><span>05</span><h2>质量评测与观测</h2></div>
           <p>使用人工标注基准衡量抽取、检索和匹配，不让模型自己给自己打分。</p>
         </div>
         <div className="quality-grid">
           <div className="quality-main">
-            <div className="quality-title"><div><span>CONTINUOUS REGRESSION GATE</span><h3>{evaluation?.dataset_name ?? "等待首次评测"}</h3></div><button type="button" onClick={handleEvaluation} disabled={busy !== null}>{busy === "evaluation" ? "评测中…" : "运行质量门禁"}</button></div>
+            <div className="quality-title"><div><span>CONTINUOUS REGRESSION GATE</span><h3>{evaluation?.dataset_name ?? "等待首次评测"}</h3></div><button type="button" onClick={onEvaluate} disabled={busy}>{running ? "评测中…" : "运行质量门禁"}</button></div>
             <div className="metric-grid">
               <Metric label="Profile Extraction F1" value={evaluation?.profile_extraction_f1} />
               <Metric label={`Evidence Recall@${evaluation?.metrics.recall_k ?? "K"}`} value={evaluation?.evidence_recall_at_k} />
@@ -323,29 +457,45 @@ export default function Home() {
             <p className="sample-note">{evaluation ? `${evaluation.metrics.case_count} 个场景 · ${evaluation.metrics.query_count} 个检索问题 · ${evaluation.metrics.claim_count} 个画像结论` : "开发基准用于持续回归；真实业务指标需另行扩充脱敏人工标注集后再引用。"} {evaluation?.dataset_name.includes("dev-benchmark") && "当前为合成开发基准，不代表真实用户准确率。"}</p>
           </div>
           <aside className="telemetry-card">
-            <span>MODEL OBSERVABILITY</span><h3>调用健康度</h3>
-            <dl><div><dt>请求数</dt><dd>{telemetry?.request_count ?? 0}</dd></div><div><dt>成功率</dt><dd>{Math.round((telemetry?.success_rate ?? 0) * 100)}%</dd></div><div><dt>平均延迟</dt><dd>{telemetry?.average_latency_ms ?? 0}<small> ms</small></dd></div><div><dt>P95 延迟</dt><dd>{telemetry?.p95_latency_ms ?? 0}<small> ms</small></dd></div><div><dt>Token</dt><dd>{(telemetry?.prompt_tokens ?? 0) + (telemetry?.completion_tokens ?? 0)}</dd></div><div><dt>估算成本</dt><dd>${(telemetry?.estimated_cost_usd ?? 0).toFixed(4)}</dd></div></dl>
+            <span>MODEL OBSERVABILITY</span><h3>当前进程 · 最近请求</h3>
+            <dl><div><dt>请求数</dt><dd>{telemetry?.request_count ?? 0}</dd></div><div><dt>成功率</dt><dd>{Math.round((telemetry?.success_rate ?? 0) * 100)}%</dd></div><div><dt>平均延迟</dt><dd>{telemetry?.average_latency_ms ?? 0}<small> ms</small></dd></div><div><dt>P95 延迟</dt><dd>{telemetry?.p95_latency_ms ?? 0}<small> ms</small></dd></div><div><dt>Token</dt><dd>{(telemetry?.prompt_tokens ?? 0) + (telemetry?.completion_tokens ?? 0)}</dd></div><div><dt>估算成本</dt><dd>{telemetry?.pricing_status === "configured" ? `$${telemetry.estimated_cost_usd.toFixed(4)}` : "缺少完整价格"}</dd></div></dl>
             <p>成本由环境变量中的每百万 Token 单价估算；OTLP Span 只记录模型、耗时、Token 和状态，不记录 Prompt、API Key 或 Evidence 原文。</p>
           </aside>
         </div>
       </section>
-
-      <section className="workspace privacy-section" id="privacy">
-        <div className="section-heading light">
-          <div><span>06</span><h2>隐私与数据控制</h2></div>
-          <p>Token 只返回一次；导出和删除会留下不包含原文的审计记录。</p>
-        </div>
-        <div className="privacy-grid">
-          <article><span>01 / ACCESS</span><h3>Owner Token</h3><p>生产环境开启强制鉴权后，用 Registration Secret 初始化第一个 Owner Token。</p><input type="password" value={registrationSecret} onChange={(event) => setRegistrationSecret(event.target.value)} placeholder="Registration Secret（本地可留空）" /><button type="button" onClick={handleRegisterOwner} disabled={busy !== null}>{busy === "register" ? "创建中…" : "创建并启用 Token"}</button>{issuedToken && <code className="token-output">{issuedToken}</code>}</article>
-          <article><span>02 / PORTABILITY</span><h3>导出我的数据</h3><p>导出 Evidence、画像、JD 分析、职业报告、画像纠正和审计日志，不包含 Token 哈希。</p><button type="button" onClick={handleExport} disabled={busy !== null}>{busy === "export" ? "导出中…" : "下载 JSON 数据副本"}</button></article>
-          <article><span>03 / ERASURE</span><h3>删除数据</h3><p>可删除单条 Evidence；永久删除账号会同时清理数据库、向量、对话状态和全部 Token。</p><input value={deleteEvidenceId} onChange={(event) => setDeleteEvidenceId(event.target.value)} placeholder="Evidence ID" /><button type="button" className="danger" onClick={handleDeleteEvidence} disabled={busy !== null || !deleteEvidenceId}>{busy === "delete" ? "删除中…" : "删除 Evidence"}</button><div className="erasure-divider" /><input value={accountDeletionConfirm} onChange={(event) => setAccountDeletionConfirm(event.target.value)} placeholder={`输入 ${userId} 确认永久删除`} /><button type="button" className="danger" onClick={handleDeleteAccount} disabled={busy !== null || accountDeletionConfirm !== userId}>{busy === "delete-account" ? "正在永久删除…" : "永久删除账号"}</button></article>
-          <article className="audit-card"><span>04 / AUDIT</span><h3>最近操作</h3><button type="button" className="secondary" onClick={handleLoadAudit} disabled={busy !== null}>{busy === "audit" ? "读取中…" : "刷新审计日志"}</button>{auditEvents.length ? <div>{auditEvents.map((event) => <p key={event.id}><b>{event.action}</b><small>{event.resource_id ?? event.resource_type}</small></p>)}</div> : <p>尚未读取审计事件。</p>}</article>
-        </div>
-      </section>
-
-      <SiteFooter />
-    </main>
   );
+}
+
+function OperationsOnly() {
+  const [evaluation, setEvaluation] = useState<EvaluationRun | null>(null);
+  const [telemetry, setTelemetry] = useState<ObservabilitySummary | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    void getEvaluationRuns().then((runs) => { if (active) setEvaluation(runs[0] ?? null); },
+      () => { if (active) setError("评测记录读取失败。"); });
+    void getObservabilitySummary().then((summary) => { if (active) setTelemetry(summary); },
+      () => { if (active) setError("模型观测读取失败。"); });
+    return () => { active = false; };
+  }, []);
+  async function evaluate() {
+    setBusy(true);
+    setError("");
+    try {
+      setEvaluation((await runBenchmarkRegression()).run);
+      setTelemetry(await getObservabilitySummary());
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "运行评测失败。");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <>
+    {error && <p role="alert">{error}</p>}
+    <QualityPanel evaluation={evaluation} telemetry={telemetry} busy={busy} running={busy}
+      onEvaluate={() => void evaluate()} />
+  </>;
 }
 
 function Empty({ text, action }: { text: string; action?: ReactNode }) {

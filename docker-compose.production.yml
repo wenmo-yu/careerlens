@@ -7,22 +7,36 @@ services:
     environment:
       APP_ENV: production
       DATABASE_URL: postgresql+asyncpg://career:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/career
-      CHECKPOINT_DATABASE_URL: postgresql://career:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/career
       AUTH_MODE: required
       AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:?Set AUTH_TOKEN_PEPPER in .env}
-      AUTH_REGISTRATION_SECRET: ${AUTH_REGISTRATION_SECRET:?Set AUTH_REGISTRATION_SECRET in .env}
+      AUTH_REGISTRATION_ENABLED: ${AUTH_REGISTRATION_ENABLED:-false}
+      AUTH_REGISTRATION_SECRET: ${AUTH_REGISTRATION_SECRET:-}
+      METRICS_ENABLED: ${METRICS_ENABLED:-false}
+      QDRANT_API_KEY: ${QDRANT_API_KEY:?Set QDRANT_API_KEY in .env}
 
   worker:
     environment:
+      APP_ENV: production
       DATABASE_URL: postgresql+asyncpg://career:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/career
       AUTH_MODE: required
+      AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:?Set AUTH_TOKEN_PEPPER in .env}
+      QDRANT_API_KEY: ${QDRANT_API_KEY:?Set QDRANT_API_KEY in .env}
 
   mcp:
     environment:
+      APP_ENV: production
       DATABASE_URL: postgresql+asyncpg://career:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/career
       AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:?Set AUTH_TOKEN_PEPPER in .env}
+      AUTH_MODE: required
       MCP_AUTH_MODE: required
+      QDRANT_API_KEY: ${QDRANT_API_KEY:?Set QDRANT_API_KEY in .env}
 
   postgres:
+    ports: !reset []
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+
+  qdrant:
+    ports: !reset []
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?Set QDRANT_API_KEY in .env}

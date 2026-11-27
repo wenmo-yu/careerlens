@@ -28,7 +28,7 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 async def _ops_guard(
     session: Session, authorization: Annotated[str | None, Header()] = None
 ) -> None:
-    """Evaluation is instance-wide; require a manage-scoped token in secured modes."""
+    """Evaluation results and controls are scoped to the instance operator."""
     await authorize_ops(session, authorization=authorization)
 
 
@@ -48,7 +48,7 @@ async def run_sample(
     authorization: Annotated[str | None, Header()] = None,
 ) -> EvaluationRunRead:
     await _ops_guard(session, authorization)
-    return await execute_evaluation(session, load_sample_dataset())
+    return await execute_evaluation(session, load_sample_dataset(), origin="sample")
 
 
 @router.post("/regression", response_model=RegressionResult)
@@ -72,7 +72,7 @@ async def run_sample_regression(
     await _ops_guard(session, authorization)
     minimums = load_sample_thresholds()
     record, regression = await execute_regression(
-        session, load_sample_dataset(), minimums
+        session, load_sample_dataset(), minimums, origin="sample",
     )
     return RegressionResult(run=record, **regression)
 
@@ -85,7 +85,8 @@ async def run_dev_benchmark_regression(
     """Run the frozen synthetic development benchmark used by CI and the demo UI."""
     await _ops_guard(session, authorization)
     record, regression = await execute_regression(
-        session, load_dev_benchmark(), load_dev_benchmark_thresholds()
+        session, load_dev_benchmark(), load_dev_benchmark_thresholds(),
+        origin="development_benchmark",
     )
     return RegressionResult(run=record, **regression)
 

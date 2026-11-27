@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 import time
@@ -25,10 +26,35 @@ class LLMProvider(Protocol):
     ) -> dict[str, Any]: ...
 
 
+class ModelUnavailable(RuntimeError):
+    def __init__(self, reason: str):
+        super().__init__(f"Model generation unavailable ({reason})")
+        self.reason = reason
+
+
+def model_fallback(provider: LLMProvider, error: Exception, stage: str) -> dict:
+    if not isinstance(error, (RuntimeError, ValueError, KeyError, TypeError)):
+        raise error
+    reason = error.reason if isinstance(error, ModelUnavailable) else type(error).__name__
+    if get_settings().ai_failure_policy == "strict":
+        raise ModelUnavailable(reason) from None
+    return {
+        "provider": "demo",
+        "model": "deterministic",
+        "requested_provider": provider.diagnostics.get("provider", "unknown"),
+        "requested_model": provider.diagnostics.get("model", "unknown"),
+        "fallback": True,
+        "fallback_reason": reason,
+        "reason": reason,
+        "stage": stage,
+        "status": "degraded",
+    }
+
+
 class DemoProvider:
     @property
     def diagnostics(self) -> dict[str, Any]:
-        return {"provider": "demo", "model": "deterministic", "fallback": True}
+        return {"provider": "demo", "model": "deterministic", "fallback": False, "status": "demo"}
 
     async def generate_json(
         self,
@@ -76,6 +102,9 @@ class OpenAICompatibleProvider:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         schema_text = json.dumps(schema, ensure_ascii=False)
+        settings = get_settings()
+        if len(system_prompt) + len(user_prompt) + len(schema_text) > settings.ai_max_prompt_chars:
+            raise ModelUnavailable("input_budget")
         payload = {
             "model": self.model,
             "messages": [
@@ -90,6 +119,7 @@ class OpenAICompatibleProvider:
             ],
             "response_format": {"type": "json_object"},
             "temperature": 0.1,
+            "max_tokens": settings.ai_max_output_tokens,
         }
         with trace_operation(
             "llm.generate_json",
@@ -100,9 +130,10 @@ class OpenAICompatibleProvider:
             },
         ) as span:
             try:
-                async with httpx.AsyncClient(
-                    timeout=self.timeout, transport=self.transport
-                ) as client:
+                async with (
+                    asyncio.timeout(self.timeout),
+                    httpx.AsyncClient(timeout=self.timeout, transport=self.transport) as client,
+                ):
                     response = await client.post(
                         f"{self.base_url}/chat/completions", headers=headers, json=payload
                     )
@@ -115,12 +146,25 @@ class OpenAICompatibleProvider:
                 value = json.loads(content)
                 if not isinstance(value, dict):
                     raise ValueError("The model response must be a JSON object")
-            except Exception as exc:
-                self._record(operation, started, "error", {}, type(exc).__name__)
+            except (
+                httpx.HTTPError, TimeoutError, ValueError, KeyError, TypeError, AttributeError,
+                IndexError,
+            ) as exc:
+                reason = "response_invalid"
+                if isinstance(exc, (httpx.TimeoutException, TimeoutError)):
+                    reason = "timeout"
+                elif isinstance(exc, httpx.HTTPStatusError):
+                    status = exc.response.status_code
+                    reason = (
+                        "authentication" if status in {401, 403} else
+                        "rate_limit" if status == 429 else "upstream_error"
+                    )
+                elif isinstance(exc, httpx.RequestError):
+                    reason = "connection_error"
+                self._record(operation, started, "error", {}, reason)
                 span.set_attribute("careerlens.status", "error")
-                span.set_attribute("error.type", type(exc).__name__)
-                span.record_exception(exc)
-                raise
+                span.set_attribute("error.type", reason)
+                raise ModelUnavailable(reason) from None
             metric = self._record(operation, started, "success", body.get("usage", {}), None)
             span.set_attribute("careerlens.status", "success")
             span.set_attribute("gen_ai.usage.input_tokens", metric.prompt_tokens)
@@ -154,6 +198,11 @@ class OpenAICompatibleProvider:
             estimated_cost_usd=round(cost, 8),
             error_type=error_type,
             created_at=now_iso(),
+            pricing_configured=(
+                "prompt_tokens" in usage and "completion_tokens" in usage
+                and settings.ai_input_price_per_million > 0
+                and settings.ai_output_price_per_million > 0
+            ),
         )
         get_metrics_store().record(metric)
         return metric
@@ -166,10 +215,7 @@ def _get_llm_provider_for(role: str, model: str) -> LLMProvider:
     provider = settings.ai_provider.lower().strip()
     if provider == "demo":
         return DemoProvider()
-    if provider == "deepseek" and not settings.ai_api_key:
-        return DemoProvider()
-    if provider not in {"deepseek", "openai_compatible", "local"}:
-        return DemoProvider()
+    settings.validate_generation()
     return OpenAICompatibleProvider(
         provider=provider,
         base_url=settings.ai_base_url,

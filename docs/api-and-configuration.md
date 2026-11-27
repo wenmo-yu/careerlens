@@ -13,7 +13,7 @@
 
 需要 Python 3.11+；CI 固定 Node.js 22，本地建议使用同一版本。不要执行裸 `docker compose up -d`：基础 Compose 会同时启动 `migrate / api / worker / mcp / web / postgres / qdrant`，再在本机启 API 或前端会撞 8000、3000 端口，并可能造成两个 Worker 重复消费。按下面两条路径二选一。
 
-### 路径 A：轻量模式（零容器，SQLite + local 检索 + memory checkpoint）
+### 路径 A：轻量模式（零容器，SQLite + local 检索）
 
 与 CI 的端到端环境一致，无需 Docker、PostgreSQL 或 Qdrant：
 
@@ -37,7 +37,7 @@ pnpm install
 pnpm dev
 ```
 
-用 `GET /health/live` 核对 API 是否启动。`GET /health/ready` 会无条件探测 `QDRANT_URL` 的 `/readyz`，在轻量模式下返回 503 是预期，不代表 API 不可用。
+用 `GET /health/live` 核对 API 是否启动。轻量模式的 `GET /health/ready` 只查数据库，SQLite 正常时返回 200。
 
 ### 路径 B：容器只提供依赖，本机跑 API / Worker / Web
 
@@ -61,7 +61,7 @@ python -m app.runtime.worker
 
 完整容器方式仍用 `docker compose up -d --build`，由 `migrate` 服务先迁移，再启动 API、Worker、MCP 与 Web。
 
-`migration_runner` 对全新数据库执行 `alembic upgrade head`；若检测到旧版通过 `create_all()` 建立的完整表结构，会补齐新表后调用 `command.stamp(head)` 标记版本，之后按迁移版本演进；无法识别的无版本库会直接报错。开发环境可用 `AUTO_CREATE_SCHEMA=true` 建临时 SQLite 表，**生产必须设为 `false`**。
+`migration_runner` 把新库和已有 Alembic 版本的库升级到 `head`。识别出旧版 `create_all()` 的完整表结构时，先补旧表并采用已知历史版本，再运行后续迁移。无法识别的无版本库会报错。生产使用 `AUTO_CREATE_SCHEMA=false`，升级前备份并停止旧版本的 API、Worker 和 MCP 写入。
 
 ---
 
@@ -69,7 +69,7 @@ python -m app.runtime.worker
 
 **健康与观测**
 - `GET /health/live`：进程存活检查，不探测依赖。
-- `GET /health/ready`：检查 `DATABASE_URL` 指向的数据库与 `QDRANT_URL` 的 `/readyz`；任一失败返回 503 与 `status: degraded`。它始终探测 Qdrant，与 `RETRIEVAL_BACKEND` 无关。
+- `GET /health/ready` 先检查数据库。`local` 跳过向量服务，`auto` 在向量服务不可用或索引不兼容时返回 `200 degraded`，`qdrant` 模式返回 503。数据库不可用时均返回 503。
 - `GET /metrics`：Prometheus 文本格式，可用 `METRICS_ENABLED=false` 关闭。
 
 **导入与来源**
@@ -97,7 +97,7 @@ python -m app.runtime.worker
 
 **报告与对话**
 - `POST /api/v1/reports`、`GET /api/v1/reports?user_id=...`、`GET /api/v1/reports/{id}/markdown`：生成、列出、下载版本化报告。
-- `POST /api/v1/chat`：LangGraph 多轮对话；传上次响应的 `thread_id`，响应 `messages` 为完整历史。
+- `POST /api/v1/chat` 使用 LangGraph 编排本次对话。下一轮传入服务端返回的 `thread_id`，`messages` 最多返回最近 80 条消息。
 
 **后台任务（Run / Worker）**
 - `POST /api/v1/runs`、`POST /api/v1/runs/uploads`：提交 JSON 或文件上传任务。
@@ -107,11 +107,12 @@ python -m app.runtime.worker
 **Wiki、测评与评测**
 - `POST /api/v1/wiki/compile`、`GET /api/v1/wiki`、`GET /api/v1/wiki/{slug}`、`/{slug}/revert`、`/{slug}/revisions`：编译、读取、回滚与版本。
 - `GET /api/v1/assessments/instruments`、`GET /{id}`、`POST /{id}/submit`、`GET /api/v1/assessments/results`：自陈量表与结果。
-- `POST /api/v1/evaluation/*`、`GET /api/v1/evaluation/runs`、`GET /api/v1/observability/summary|calls`：实例级评测与模型调用观测；`required` 模式需 `manage` Scope。
+- `POST /api/v1/evaluation/*`、`GET /api/v1/evaluation/runs`、`GET /api/v1/observability/summary|calls` 用于实例评测和观测，启用鉴权时使用独立 `OPS_ACCESS_TOKEN`。
 
 **鉴权与隐私**
 - `POST /api/v1/auth/register`、`POST /api/v1/auth/tokens`：Owner Token 与细粒度 Scope Token。
 - `GET /api/v1/privacy/{user_id}/export|audit`、`DELETE /api/v1/privacy/{user_id}`：导出、审计、账号清理。
+- `GET /api/v1/auth/me` 返回当前主体和会话权限。`GET /api/v1/privacy/deletions/{receipt_id}` 供运维查询后台清理进度。
 
 **几个容易混的 ID**
 - `Run ID`：由 `POST /api/v1/runs` 或 `/runs/uploads` 返回，用于所有 `/runs/{run_id}/*` 与 SSE。
@@ -119,7 +120,7 @@ python -m app.runtime.worker
 - `report_id`：由 `POST /api/v1/reports` 返回，也可从后台 Run 的 `result.report_id` 取得。
 - `plan_id`：**服务端不生成**，由调用方自选不透明字符串（如 UUID 或复用分析 ID），作为 `/learning/plans/{plan_id}` 的路径参数。
 
-评测与观测接口是实例级能力，不归属某个用户：在 `AUTH_MODE=required` 下调用 `/api/v1/evaluation/*` 与 `/api/v1/observability/*` 需要携带具备 `manage` Scope 的 Bearer Token；`disabled` 模式（默认）与无 Token 的 `optional` 模式放行，便于本机演示。
+本地 `AUTH_MODE=disabled` 允许演示评测和观测。`optional` 和 `required` 使用 `Authorization: Bearer <OPS_ACCESS_TOKEN>`。`manage` 只管理令牌所属账号。
 
 示例：
 
@@ -160,7 +161,8 @@ Docker 全栈启动后，可运行真实 PostgreSQL、Qdrant、API、MCP 与业�
 本地 stdio Server（适合由桌面客户端拉起进程）：
 
 ```powershell
-$env:DATABASE_URL = "postgresql+asyncpg://career:career@localhost:5432/career"
+$env:DATABASE_URL = "sqlite+aiosqlite:///./careerlens-demo.db"
+$env:MCP_STDIO_USER_ID = "demo-user"
 python -m app.mcp.server --transport stdio
 ```
 
@@ -175,7 +177,9 @@ $env:AUTH_TOKEN_PEPPER = "与 API 服务完全相同的随机密钥"
 python -m app.mcp.server --transport streamable-http --host 0.0.0.0 --port 8001
 ```
 
-Docker Compose 已包含这个 HTTP 服务。先通过 `POST /api/v1/auth/register` 创建 Token，MCP 客户端连接 `http://localhost:8001/mcp` 时携带 `Authorization: Bearer <token>`。HTTP 模式按 Token 的 `subject` 限制 `user_id`，读取工具要求 `read`，导入、JD 分析和报告生成要求 `write`，`manage` 可覆盖这两类 Scope；所有工具调用都会写入同一张审计表。
+先取得 API Owner Token，再用 `POST /api/v1/auth/tokens` 签发 MCP 凭证。读取场景使用 `{"user_id":"demo-user","name":"mcp-reader","scopes":["read"],"audience":"mcp"}`。签发时绑定 API 的 `MCP_RESOURCE_SERVER_URL`，它须与 MCP 服务对外资源地址相同。连接 `http://localhost:8001/mcp` 时发送该 MCP Bearer。工具用令牌的主体校验 `user_id`，导入、JD 分析和报告生成另外需要 `write`。
+
+开发环境的 `stdio` 固定在 `MCP_STDIO_USER_ID`，适合独立演示库。可信本地客户端也可以通过进程环境注入 `MCP_STDIO_TOKEN`，主体与权限由这枚 MCP 令牌决定。生产选择鉴权后的 `streamable-http`。
 
 提供的工具：
 
@@ -207,7 +211,7 @@ $env:EMBEDDING_DIMENSION = "384"
 uvicorn app.main:app --app-dir backend --reload
 ```
 
-Qwen3 Embedding 支持 Matryoshka 降维，因此这里默认使用 384 维；需要最高维度时可改为 `1024`，但应使用新 collection 或清空并重建现有 collection。
+Qwen3 Embedding 默认固定模型 revision 并输出 384 维。改变模型、revision、维度或 Qwen 查询前缀时，准备新的 `QDRANT_COLLECTION`。应用在查询和写入时检查索引指纹和实际向量配置。旧集合缺少指纹时需从 SQL 重建。
 
 使用包含 Qwen 依赖和 Hugging Face 模型缓存卷的容器：
 
@@ -215,16 +219,18 @@ Qwen3 Embedding 支持 Matryoshka 降维，因此这里默认使用 384 维；�
 docker compose -f docker-compose.yml -f docker-compose.qwen.yml up --build
 ```
 
-模型首次使用会下载约 0.6B 参数的 Embedding 与 Reranker 权重。导入 Evidence 时会自动写入 Qdrant；已有数据可调用：
+模型首次使用会下载 Embedding 与 Reranker 权重。单个用户的索引补写可以调用现有接口，目标集合须与当前模型匹配。
 
 ```powershell
 Invoke-RestMethod -Method Post `
   -Uri http://localhost:8000/api/v1/evidence/reindex/demo-user
 ```
 
+全量换代安排一个停止写入的维护窗口。先停 API、MCP 和 Worker，把旧集合名称加到 `QDRANT_CLEANUP_COLLECTIONS`，并为目标进程指定全新的 `QDRANT_COLLECTION`、模型配置和同一个数据库。运行 `python -m app.runtime.reindex --writes-paused`。命令逐批核对 Evidence ID 和租户，再把目标标为可用。成功后让 API、MCP 和 Worker 同时采用新配置。要保留旧集合，就继续把它纳入删除范围；要切回旧模型，先确认旧集合已补齐期间的新增和删除。
+
 ## 对话模型：API 与本地双路线
 
-检索模型（`RETRIEVAL_*`）和生成模型（`AI_*`）相互独立。默认 `AI_PROVIDER=demo`，无需任何密钥即可运行，并使用确定性逻辑回退。
+检索模型（`RETRIEVAL_*`）和生成模型（`AI_*`）相互独立。默认 `AI_PROVIDER=demo`，无需密钥，直接执行确定性逻辑。
 
 使用 DeepSeek API：
 
@@ -260,7 +266,7 @@ $env:AI_MODEL = "Qwen/Qwen3-8B"
 uvicorn app.main:app --app-dir backend --reload
 ```
 
-`openai_compatible` 也可连接其他兼容服务。模型不可用、返回非法 JSON 或超时时，画像构建和对话会自动回退，不会影响核心闭环。
+`openai_compatible` 也可连接其他兼容服务。`AI_FAILURE_POLICY=allow_fallback` 允许相应阶段使用确定性结果，并附降级诊断。`strict` 将模型故障返回为明确的 503 或后台任务错误。
 若 API 在 Docker 容器内运行，而 Qwen 服务在宿主机，`AI_BASE_URL` 应改为 `http://host.docker.internal:8010/v1`；容器中的 `localhost` 指向容器自身。
 
 ## 完整职业报告
@@ -283,13 +289,9 @@ Invoke-WebRequest `
   -OutFile ".\careerlens-report.md"
 ```
 
-报告固定包含个人画像、核心能力、证据目录、就业方向、岗位匹配、能力缺口、学习路线和行动建议。DeepSeek/OpenAI-compatible 或本地 Qwen 可在证据边界内润色摘要与面试表达；未配置模型或调用失败时会生成确定性报告。每次生成都会创建新版本，不覆盖历史记录。若底层 Evidence 被删除，引用它的历史报告会标记为 `is_stale=true`，提醒用户重新生成。
+报告包含个人画像、核心能力、证据目录、就业方向、岗位匹配、能力缺口、学习路线和行动建议。每次生成创建一个新版本。画像更新造成的普通过期报告仍可查阅。删除所引用的 Evidence 后，受影响的报告正文会被清除，详情和 Markdown 下载返回 410。
 
-Docker Compose 默认启用 PostgreSQL LangGraph checkpoint；本地 SQLite 测试可设置：
-
-```powershell
-$env:CHECKPOINT_BACKEND = "memory"
-```
+聊天记录由数据库中的会话与消息表保存。当前 LangGraph 运行在单次请求内。`CHECKPOINT_BACKEND` 和 `CHECKPOINT_DATABASE_URL` 继续用于清理旧部署的 PostgreSQL 快照。
 
 ## 个人数据来源与多模态导入
 
@@ -451,15 +453,13 @@ OTLP 适合统一接入 Collector/Jaeger/Grafana 等后端；LangSmith 是额外
 - `optional`：无 Token 时兼容旧客户端；提供 Token 时严格校验用户和 Scope。
 - `required`：生产模式，所有个人数据接口必须携带 Bearer Token。
 
-生产配置必须更换 pepper 并设置初始化密钥，否则服务会拒绝启动：
+生产要求 `APP_ENV=production`、`AUTH_MODE=required`、高熵 pepper、明确 HTTPS 来源，以及适用的向量服务密钥。注册和 Prometheus scrape 默认关闭。启动并完成迁移后，从可信运维终端签发拥有者令牌。
 
-```text
-AUTH_MODE=required
-AUTH_TOKEN_PEPPER=使用密码管理器生成的高熵随机值
-AUTH_REGISTRATION_SECRET=仅部署管理员持有的初始化密钥
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.production.yml exec api python -m app.security.provision account-id
 ```
 
-初始化 Owner Token：
+命令只打印一次明文。持有者将它填入工作台的访问令牌输入框。账户已有令牌且失效时，运维核对归属后可追加 `--recover`，它会撤销该账号的旧令牌。开发环境也可从 HTTP 注册。
 
 ```powershell
 $headers = @{ "X-Registration-Secret" = $env:AUTH_REGISTRATION_SECRET }
@@ -479,13 +479,13 @@ Invoke-RestMethod `
   -Headers $headers
 ```
 
-Scope 包括 `read`、`write`、`export`、`delete`、`manage`。数据库仅保存带 pepper 的 SHA-256 Token 哈希；导出文件不包含 Token 或哈希。删除 Evidence 时会同时删除 Qdrant 向量、移除 Profile 引用，并保存不含 Evidence 原文的审计事件。
+Scope 包括 `read`、`write`、`export`、`delete`、`manage`。数据库保存带 pepper 的哈希和受众。新令牌默认 24 小时，可用 `AUTH_TOKEN_LIFETIME_HOURS` 调整。升级时已有令牌只可访问 API，并从迁移时起保留七天。需要 MCP 的调用方重新签发 `audience=mcp` 的令牌。
 
-整账号删除要求 `delete` 或 `manage` Scope，会删除 Evidence、画像、JD、报告、画像修正、审计事件、对话线程及其全部消息、LangGraph checkpoint、Qdrant 向量和全部 Token。删除完成后原 Token 立即失效；系统仅保留匿名回执，其中包含带 pepper 的不可逆用户哈希、删除数量、向量/会话清理状态和时间，不保留用户 ID 或 Evidence 原文。
+轮换时各进程使用相同配置。把原 pepper 放入 `AUTH_TOKEN_PREVIOUS_PEPPER`，声明带时区的截止时间 `AUTH_TOKEN_PREVIOUS_UNTIL`，再把 `AUTH_TOKEN_KEY_VERSION` 递增一并配置新 pepper。窗口内重签 API 与 MCP 凭证，过期后移除旧值。确认密钥泄露时可直接停用旧 key 并走运维重签。
 
-本地 stdio MCP 被视为部署边界内的可信接口，不读取 HTTP Bearer Token；生产部署时不要向不受信任用户暴露 stdio 进程。对外服务必须使用启用 Bearer Token 的 Streamable HTTP，并将 `AUTH_TOKEN_PEPPER` 替换为随机密钥。
+整账号删除要求 `delete` 或 `manage`。数据库提交后访问即关闭，原令牌失效，该账号标识随即停用。`cleanup_status` 显示外部向量及旧 checkpoint 清理状态。部署运维凭证可查询 `GET /api/v1/privacy/deletions/{receipt_id}`，并在修复外部依赖后用 `POST /api/v1/privacy/deletions/{receipt_id}/retry` 重试失败目标。
 
-生产配置模板会强制 API 鉴权并检查 PostgreSQL 密码、Token Pepper 和 Registration Secret 是否存在：
+生产 Compose 需要支持 `!reset` 的 Compose 版本，例如 v2.36.2。它解除数据库及向量服务的宿主机端口映射，Web、API 和 MCP 监听宿主机回环地址，供 HTTPS 反向代理接入。
 
 ```powershell
 Copy-Item .env.production.example .env

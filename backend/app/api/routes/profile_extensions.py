@@ -17,6 +17,7 @@ from app.core.database import get_session
 from app.models.assessment import UserConstraint
 from app.models.evidence import Evidence
 from app.models.profile_extension import DimensionDefinition, ProfileExtension
+from app.runtime.store import check_write_scope
 from app.schemas.assessment import (
     ConstraintUpsert,
     DimensionToggle,
@@ -45,6 +46,7 @@ async def upsert_constraint(
     await authorize_user(
         session, user_id=payload.user_id, authorization=authorization, required_scope="write"
     )
+    await check_write_scope(session, payload.user_id)
     existing = (
         await session.scalars(
             select(UserConstraint).where(
@@ -113,6 +115,7 @@ async def toggle_dimension(
     await authorize_user(
         session, user_id=user_id, authorization=authorization, required_scope="write"
     )
+    await check_write_scope(session, user_id)
     if payload.evidence_ids:
         found = set(await session.scalars(
             select(Evidence.id).where(
@@ -214,6 +217,7 @@ async def put_view_preferences(
     await authorize_user(
         session, user_id=user_id, authorization=authorization, required_scope="write"
     )
+    await check_write_scope(session, user_id)
     mode = normalise_mode(payload.mode)
     modules = default_modules()
     for key, value in payload.modules.items():
@@ -274,6 +278,7 @@ async def create_interview_story(
     await authorize_user(
         session, user_id=user_id, authorization=authorization, required_scope="write"
     )
+    await check_write_scope(session, user_id)
     if payload.evidence_ids:
         found = set(await session.scalars(
             select(Evidence.id).where(
@@ -319,6 +324,7 @@ async def delete_interview_story(
     await authorize_user(
         session, user_id=user_id, authorization=authorization, required_scope="write"
     )
+    await check_write_scope(session, user_id)
     await session.delete(record)
     await session.commit()
     return {"deleted": True, "id": story_id}

@@ -109,6 +109,7 @@ async def test_parallel_progress_event_seq_is_unique():
                 id="parallel-run", user_id="parallel-user", operation="job_analysis",
                 status="running", request_key="pk", request_hash="ph",
                 payload={}, created_at=datetime.now(UTC),
+                lease_owner="test-worker", lease_until=int(datetime.now(UTC).timestamp()) + 30,
             ))
             await session.commit()
 

@@ -87,7 +87,11 @@ async def test_career_report_is_versioned_traceable_and_downloadable(client):
     assert deleted.status_code == 200
     assert deleted.json()["stale_reports"] == 2
     refreshed = await client.get(f"/api/v1/reports/{report['id']}")
-    assert refreshed.json()["is_stale"] is True
+    assert refreshed.status_code == 410
+    assert (await client.get(f"/api/v1/reports/{report['id']}/markdown")).status_code == 410
+    assert (await client.get("/api/v1/reports", params={"user_id": "career-user"})).json() == []
+    export = await client.get("/api/v1/privacy/career-user/export")
+    assert export.json()["career_reports"] == []
 
 
 async def test_career_chat_returns_traceable_evidence(client):
@@ -101,7 +105,7 @@ async def test_career_chat_returns_traceable_evidence(client):
     assert result["intent"] == "evidence_explanation"
     assert result["evidence"]
     assert result["retrieval"]["backend"] == "local"
-    assert result["retrieval"]["fallback"] is True
+    assert result["retrieval"]["fallback"] is False
 
 
 async def test_chat_persists_history_across_turns(client):
@@ -131,6 +135,43 @@ async def test_chat_persists_history_across_turns(client):
     roles = [m["role"] for m in second_body["messages"]]
     assert roles == ["user", "assistant", "user", "assistant"]
     assert second_body["messages"][2]["content"] == "那我还需要补什么？"
+
+
+async def test_chat_resolves_simple_follow_up_and_clarifies_without_context(client):
+    await _seed_profile(client)
+    payload = {"user_id": "career-user", "message": "那这个呢？"}
+    clarification = await client.post("/api/v1/chat", json=payload)
+    assert clarification.json()["model"]["model"] == "clarification"
+    first = await client.post("/api/v1/chat", json={
+        **payload, "message": "为什么认为我会 LangGraph？",
+    })
+    follow_up = await client.post("/api/v1/chat", json={
+        **payload, "thread_id": first.json()["thread_id"],
+    })
+    assert follow_up.json()["intent"] == "evidence_explanation"
+    assert follow_up.json()["evidence"]
+
+
+async def test_structured_router_accepts_read_only_intents_and_rejects_write(monkeypatch):
+    from app.graph.career import understand_intent
+
+    class RouterModel:
+        diagnostics = {"provider": "fixture", "model": "classifier"}
+        intent = "evidence_explanation"
+
+        async def generate_json(self, **kwargs):
+            assert kwargs["operation"] == "chat_intent"
+            return {"intent": self.intent, "search_query": "Python résumé"}
+
+    model = RouterModel()
+    monkeypatch.setattr("app.graph.career.get_llm_provider", lambda _: model)
+    context = {"message": "Can you substantiate that?"}
+    predicted = await understand_intent(context)
+    assert predicted["intent"] == "evidence_explanation"
+    assert predicted["search_query"] == "Python résumé"
+    model.intent = "memory_update"
+    rejected = await understand_intent(context)
+    assert rejected["intent"] == "profile_question" and rejected["intent_method"] == "rule_fallback"
 
 
 async def test_chat_history_is_isolated_between_threads_and_users(client):

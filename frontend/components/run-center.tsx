@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  ApiError,
   BackgroundRun,
   RunEvent,
   cancelRun,
@@ -11,6 +12,7 @@ import {
   streamRun,
   terminalRun,
 } from "@/lib/api";
+import { RunEventProtocolError } from "@/lib/run-events";
 
 const operations: Record<BackgroundRun["operation"], string> = {
   file_import: "文档导入", media_import: "媒体解析", wiki_compile: "Wiki 编译",
@@ -41,6 +43,19 @@ const events: Record<string, string> = {
   "step.failed": "子步骤失败", "step.running": "子步骤执行中",
 };
 
+function pause(ms: number, signal: AbortSignal) {
+  if (signal.aborted) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    function finish() {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    }
+    const timer = setTimeout(finish, ms);
+    signal.addEventListener("abort", finish, { once: true });
+  });
+}
+
 export function RunCenter({ userId, latest, refresh, onOpen }: {
   userId: string;
   latest: BackgroundRun | null;
@@ -51,6 +66,7 @@ export function RunCenter({ userId, latest, refresh, onOpen }: {
   const [selection, setSelection] = useState("");
   const [eventLog, setEventLog] = useState<RunEvent[]>([]);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [reload, setReload] = useState(0);
   const [changing, setChanging] = useState(false);
   const selected = selection || (latest?.user_id === userId ? latest.id : "") || rows[0]?.id;
@@ -93,8 +109,13 @@ export function RunCenter({ userId, latest, refresh, onOpen }: {
     const consume = async () => {
       while (!controller.signal.aborted) {
         try {
-          await streamRun(userId, selected, cursor, controller.signal, (event) => {
-            if (event.run_id !== selected || event.seq <= cursor || controller.signal.aborted) return;
+          await streamRun(userId, selected, cursor, AbortSignal.any([
+            controller.signal, AbortSignal.timeout(55_000),
+          ]), (event) => {
+            if (controller.signal.aborted || event.seq <= cursor) return;
+            if (event.run_id !== selected || event.seq !== cursor + 1) {
+              throw new RunEventProtocolError("任务进度出现记录缺口。");
+            }
             cursor = event.seq;
             failures = 0;
             setEventLog((items) => {
@@ -109,12 +130,27 @@ export function RunCenter({ userId, latest, refresh, onOpen }: {
           if (terminalRun(snapshot.status)) return;
         } catch (failure) {
           if (controller.signal.aborted) return;
+          if (failure instanceof ApiError && [401, 403, 404, 410].includes(failure.status)) {
+            setError(failure.message);
+            return;
+          }
           if (++failures >= 4) {
-            setError(failure instanceof Error ? failure.message : "进度连接失败");
+            setError("进度暂时断开。可以刷新任务重连，当前仍会低频查询状态。");
+            while (!controller.signal.aborted) {
+              try {
+                if (terminalRun((await update()).status)) return;
+              } catch (error) {
+                if (error instanceof ApiError && [401, 403, 404, 410].includes(error.status)) {
+                  if (!controller.signal.aborted) setError(error.message);
+                  return;
+                }
+              }
+              await pause(15_000, controller.signal);
+            }
             return;
           }
         }
-        await new Promise((resolve) => setTimeout(resolve, Math.max(1, failures) * 750));
+        await pause(Math.min(8_000, 750 * 2 ** failures) + Math.random() * 250, controller.signal);
       }
     };
     void consume();
@@ -129,9 +165,13 @@ export function RunCenter({ userId, latest, refresh, onOpen }: {
     if (approve === undefined && !window.confirm("确认取消这个后台任务？")) return;
     setChanging(true);
     setError("");
+    setNotice("");
     try {
       const row = approve === undefined
         ? await cancelRun(userId, current.id) : await decideRun(userId, current.id, approve);
+      if (row.cancel_outcome === "already_terminal") {
+        setNotice("任务已进入终态，保留原有结果。");
+      }
       setRows((list) => list.some((item) => item.id === row.id)
         ? list.map((item) => item.id === row.id ? row : item) : [row, ...list]);
     } catch (failure) {
@@ -146,6 +186,7 @@ export function RunCenter({ userId, latest, refresh, onOpen }: {
       <p>前台关闭后仍会运行，回来查看进度与结果。</p></div>
     <button type="button" className="secondary" onClick={() => { setError(""); setReload(reload + 1); }}>刷新任务</button>
     {error && <p role="alert">{error}</p>}
+    {notice && <p role="status">{notice}</p>}
     {rows.length > 0 && <label>选择任务
       <select value={selected ?? ""} onChange={(event) => { setError(""); setSelection(event.target.value); }}>
         {rows.map((row) => <option key={row.id} value={row.id}>

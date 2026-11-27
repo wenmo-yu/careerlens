@@ -7,9 +7,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm import get_llm_provider
+from app.llm.provider import model_fallback
 from app.models.career_report import CareerReport
 from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
+from app.runtime.store import check_write_scope, read_scope
 from app.services.citations import validated_citations
 from app.services.jobs import job_analysis_is_current
 from app.services.profile import read_profile
@@ -44,7 +46,7 @@ async def _generate_narrative(context: dict[str, Any], allowed_ids: set[str]) ->
             "我的能力陈述均可回溯到项目或经历证据，同时会明确说明尚未补齐的能力。"
         ),
         "action_suggestions": context["actions"],
-        "cited_evidence_ids": sorted(allowed_ids),
+        "cited_evidence_ids": [],
     }
     diagnostics = provider.diagnostics
     if diagnostics["provider"] == "demo":
@@ -93,7 +95,7 @@ async def _generate_narrative(context: dict[str, Any], allowed_ids: set[str]) ->
             "cited_evidence_ids": cited,
         }, diagnostics
     except Exception as exc:
-        return fallback, {**diagnostics, "fallback": True, "reason": type(exc).__name__}
+        return fallback, model_fallback(provider, exc, "career_report")
 
 
 def _render_markdown(title: str, version: int, content: dict[str, Any]) -> str:
@@ -165,10 +167,12 @@ def _render_markdown(title: str, version: int, content: dict[str, Any]) -> str:
 async def generate_report(
     session: AsyncSession, *, user_id: str, job_analysis_id: str
 ) -> CareerReport:
+    generation = await read_scope(session, user_id)
     context, content, title = await report_inputs(
         session, user_id=user_id, job_analysis_id=job_analysis_id
     )
     narrative, diagnostics = await _generate_narrative(context, set(context["evidence_ids"]))
+    await check_write_scope(session, user_id, expected=generation)
     record = await persist_report(
         session, user_id=user_id, job_analysis_id=job_analysis_id, title=title,
         content=report_content(content, narrative), diagnostics=diagnostics,
@@ -224,7 +228,7 @@ async def report_inputs(
                 "evidence_ids": sorted(set(item.evidence_ids) & evidence_by_id.keys()),
             }
             for item in profile
-            if item.category in {"skill", "role"}
+            if item.category in {"skill", "experience"}
         ],
         "evidence_catalog": [
             {
@@ -237,6 +241,7 @@ async def report_inputs(
         ],
         "career_direction": {
             "primary_role": analysis.title,
+            "profile_target_roles": grouped.get("target_role", []),
             "match_score": analysis.score,
             "recommendation": analysis.report["recommendation"],
         },
@@ -301,7 +306,7 @@ async def list_reports(
 ) -> list[CareerReport]:
     result = await session.scalars(
         select(CareerReport)
-        .where(CareerReport.user_id == user_id)
+        .where(CareerReport.user_id == user_id, CareerReport.privacy_redacted.is_(False))
         .order_by(CareerReport.created_at.desc(), CareerReport.version.desc())
         .limit(limit)
     )

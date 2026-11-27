@@ -137,6 +137,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Verify merged production Compose security baseline
+        env:
+          POSTGRES_PASSWORD: synthetic-ci-password
+          AUTH_TOKEN_PEPPER: synthetic-ci-pepper-at-least-32-chars
+          QDRANT_API_KEY: synthetic-ci-qdrant-key
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.production.yml \
+            config --format json | python3 scripts/verify_production_compose.py
       - name: Build and start the full stack
         run: docker compose up -d --build --scale worker=2
       - name: Run disposable end-to-end smoke test

@@ -1,7 +1,19 @@
+import asyncio
+from pathlib import Path
 from typing import Annotated
 
 from anyio import to_thread
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from pymupdf import FileDataError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,14 +21,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.database import get_session
 from app.ingestion.contract import source_fingerprint
-from app.ingestion.files import parse_document
-from app.ingestion.media import get_media_extractor, parse_media
+from app.ingestion.media import OptionalMultimodalExtractor, get_media_extractor, parse_media
 from app.models.evidence import Evidence
 from app.models.parsed_block import ParsedBlock
 from app.models.source_document import SourceDocument
 from app.retrieval.service import search_evidence
 from app.runtime.index_outbox import enqueue_index, try_index_now
-from app.runtime.store import scope
+from app.runtime.operations import ParserUnavailable, parse_in_process
+from app.runtime.parse_input import parse_upload
+from app.runtime.store import DELETION, StaleInput, read_scope, scope
 from app.schemas.evidence import EvidenceBatchRead, EvidenceRead, EvidenceTextCreate
 from app.security import authorize_user
 from app.services.evidence import create_evidence_chunks, get_evidence, list_evidence
@@ -124,14 +137,22 @@ async def ingest_file(
         session, user_id=user_id, authorization=authorization, required_scope="write"
     )
     settings = get_settings()
-    content = await upload.read(settings.upload_max_bytes + 1)
+    epoch = await read_scope(session, user_id, DELETION)
+    try:
+        content = await upload.read(settings.upload_max_bytes + 1)
+    finally:
+        await upload.close()
     if len(content) > settings.upload_max_bytes:
         raise HTTPException(status_code=413, detail="File is too large")
 
     filename = upload.filename or "upload"
     source_hash = source_fingerprint(content)
     try:
-        parsed = await to_thread.run_sync(parse_document, filename, content)
+        if Path(filename).suffix.lower() in {".docx", ".xlsx", ".pdf", ".zip"}:
+            async with asyncio.timeout(30):
+                parsed = await parse_in_process("file_import", filename, content)
+        else:
+            parsed = await to_thread.run_sync(parse_upload, "file_import", filename, content)
         records = await ingest_source_document(
             session,
             user_id=user_id,
@@ -141,7 +162,12 @@ async def ingest_file(
             file_size=len(content),
             source_hash=source_hash,
             parsed=parsed,
+            expected_deletion=epoch,
         )
+    except StaleInput as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except TimeoutError as exc:
+        raise HTTPException(504, "Document parsing exceeded its time limit") from exc
     except (ValueError, FileDataError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return await _document_import_result(session, user_id, source_hash, records)
@@ -159,14 +185,22 @@ async def ingest_media(
         session, user_id=user_id, authorization=authorization, required_scope="write"
     )
     settings = get_settings()
-    content = await upload.read(settings.media_upload_max_bytes + 1)
+    epoch = await read_scope(session, user_id, DELETION)
+    try:
+        content = await upload.read(settings.media_upload_max_bytes + 1)
+    finally:
+        await upload.close()
     if len(content) > settings.media_upload_max_bytes:
         raise HTTPException(status_code=413, detail="Media file is too large")
     filename = upload.filename or "media-upload"
     source_hash = source_fingerprint(content)
     try:
         extractor = get_media_extractor()
-        parsed = await to_thread.run_sync(parse_media, extractor, filename, content)
+        async with asyncio.timeout(settings.run_timeout_seconds):
+            if isinstance(extractor, OptionalMultimodalExtractor):
+                parsed = await parse_in_process("media_import", filename, content)
+            else:
+                parsed = await to_thread.run_sync(parse_media, extractor, filename, content)
         records = await ingest_source_document(
             session,
             user_id=user_id,
@@ -176,7 +210,14 @@ async def ingest_media(
             file_size=len(content),
             source_hash=source_hash,
             parsed=parsed,
+            expected_deletion=epoch,
         )
+    except StaleInput as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ParserUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Media parser is unavailable") from exc
+    except TimeoutError as exc:
+        raise HTTPException(504, "Media parsing exceeded its time limit") from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -217,11 +258,10 @@ async def search_user_evidence(
     await authorize_user(
         session, user_id=user_id, authorization=authorization, required_scope="read"
     )
-    result = await session.scalars(select(Evidence).where(Evidence.user_id == user_id))
     items, diagnostics = await search_evidence(
         user_id=user_id,
         query=query,
-        evidence=list(result),
+        session=session,
         limit=limit,
     )
     return {"items": items, "count": len(items), "retrieval": diagnostics}
@@ -270,7 +310,7 @@ async def read_evidence(
 
 @router.delete("/{evidence_id}")
 async def delete_evidence(
-    evidence_id: str, session: Session, authorization: Authorization = None
+    evidence_id: str, session: Session, authorization: Authorization = None,
 ) -> dict:
     record = await get_evidence(session, evidence_id)
     if record is None:

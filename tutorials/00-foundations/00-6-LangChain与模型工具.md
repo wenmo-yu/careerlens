@@ -6,7 +6,7 @@
 
 LangChain 是用来接模型、组织消息和调用工具的开源框架。学会它，你会得到一套**通用词汇**：以后读官方文档、看别人的 Agent 代码、甚至换一个框架，都能认出「这是模型层，这是提示词模板，这是工具调用」。
 
-CareerLens 用 `langgraph` 编排对话图，用 `langgraph-checkpoint-postgres` 支持数据库检查点，对话模型则通过项目自己的 Provider 调用。第 3 章的 MCP 跟做还会用到 `langchain-core` 的 `@tool`。本页涉及的 `init_chat_model` 和 `create_agent` 来自完整的 `langchain` 包，选做时单独安装。 [项目依赖](../../backend/pyproject.toml) · [项目的模型 Provider](../../backend/app/llm/provider.py) · [MCP 工具调用练习](../01-agent-design/lab/mcp_tool_check.py)
+CareerLens 用 `langgraph` 编排对话图，模型由项目自己的 Provider 调用。当前会话上下文来自 SQL 消息表。`langgraph-checkpoint-postgres` 用于清理旧版的数据库快照。第 3 章的 MCP 跟做会用到 `langchain-core` 的 `@tool`。本页的 `init_chat_model` 和 `create_agent` 来自完整的 `langchain` 包，选做时单独安装。 [项目依赖](../../backend/pyproject.toml) · [模型 Provider](../../backend/app/llm/provider.py) · [MCP 工具调用练习](../01-agent-design/lab/mcp_tool_check.py)
 
 这几组积木在后面的源码课里都用得上。
 
@@ -352,7 +352,7 @@ for config in (same, other):
     print(config["configurable"]["thread_id"], result["messages"][-1].text)
 ```
 
-预期 `session-1` 的回答能提到「林澈」，`session-2` 的回答表示未知。这个实验请放在同一次脚本运行内。CareerLens 的 checkpointer 保留图的执行快照，消息表提供界面历史，长期画像用单独的草案与确认接口更新。项目默认用内存 saver，配置持久化后端后使用数据库 saver。 [00-5 的三份数据](00-5-LangGraph与工作流.md) · [检查点源码](../../backend/app/graph/checkpoint.py)
+预期 `session-1` 的回答能提到「林澈」，`session-2` 的回答表示未知。两轮放在同一次脚本运行内。这个例子用内存 saver 展示框架的续跑能力。CareerLens 的聊天图在本次请求内结束，SQL 消息表供用户回看并为下一轮提供上下文，长期画像经草案确认后更新。 [00-5 的状态模型](00-5-LangGraph与工作流.md) · [真实会话入口](../../backend/app/api/routes/chat.py)
 
 ## 第 9 块：检索组件 —— 把外部资料变成上下文
 
@@ -416,7 +416,7 @@ Agent 跑起来后，「它为什么这么答」很难靠猜。LangChain 提供 
 | LCEL 链 | LangGraph 的节点与条件边 | 需要分支、暂停、续跑，流程图比管道更合适 |
 | 工具 `@tool` | MCP 跟做用 `langchain_core.tools.tool`，对话图调用应用内检索函数 | 对照客户端登记和后端检索的调用方式 |
 | Agent `create_agent` | 有限状态的对话图 + 后台角色子图 | 流程固定、结论要能核对 |
-| checkpointer / thread | `InMemorySaver` → `AsyncPostgresSaver`；`thread_id` | 与消息表、长期画像分层管理 |
+| checkpointer / thread | 单独练习用 `InMemorySaver`，项目用 SQL `thread_id` 续接 | 分开观察一次执行和多轮消息 |
 | Retriever / RAG | Qdrant 混合检索（Dense + Sparse + RRF）或本地回退 | 精确词与语义都要，且要能回查原文 |
 
 一句话总结这一章：**LangChain 给你一套积木的通用名字，LangGraph 给你一种把它们排成可暂停流程图的方法，CareerLens 在这个基础上把模型、检索和业务规则写成自己的薄层，以保证每一步都能核对。** 三句话讲的是同一件事的不同侧面，不冲突。

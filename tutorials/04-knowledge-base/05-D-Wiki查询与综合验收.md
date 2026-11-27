@@ -172,7 +172,7 @@ async def search_wiki_pages(
 
 </details>
 
-`retrieval_method="wiki_page_hybrid"` 是给诊断看的——和上节课本地证据的 `local_dense_sparse_fallback` 区分开。上层看到这个值就知道命中来自 Wiki 页评分，而不是证据检索。
+`retrieval_method="wiki_page_hybrid"` 是给诊断看的——和上节课本地证据的 `local_lexical_rrf_v1` 区分开。上层看到这个值就知道命中来自 Wiki 页评分，而不是证据检索。
 
 ```bash
 python tutorials/04-knowledge-base/lab/kb_practice.py check wiki-query
@@ -231,7 +231,7 @@ python tutorials/04-knowledge-base/lab/kb_practice.py serve
 | `wiki` | `retrieval.mode=wiki`，`rag_count=0`，命中 `source_kind=wiki` | 用 `slug` 查 `GET /api/v1/wiki/{slug}`，再取 `chunk_refs` |
 | `hybrid` | `retrieval.knowledge_fusion=rank_interleave`，同时出现 `rag` 和 `wiki` | 各选一条。两个不同的入口都能追回 E |
 
-RAG 的后端诊断中可以看到 `fusion=weighted_score`——那是 04-A 本地路的输出，和这里的 `knowledge_fusion` 是两个不同层级的字段。Wiki 查询只执行主题页评分，因此 `retrieval` 里主要看 `mode`、两路数量和 `source_kinds`。默认 Demo 的答复文字会随意图而不同，实验以顶层 `evidence` 和实际原文作为记录。空 Wiki 先用 `GET /api/v1/wiki` 核对是否已为当前账号编页，再看页标题和正文里的查询词。忘了建画像时，聊天会先返回 422 和 `Build the user profile before chatting`——这是第三章见过的门槛，不会因为是第四章就跳过。
+RAG 的后端诊断中可以看到 `fusion=local_lexical_rrf_v1`——那是 04-A 本地路的输出，和这里的 `knowledge_fusion` 是两个不同层级的字段。Wiki 查询只执行主题页评分，因此 `retrieval` 里主要看 `mode`、两路数量和 `source_kinds`。默认 Demo 的答复文字会随意图而不同，实验以顶层 `evidence` 和实际原文作为记录。空 Wiki 先用 `GET /api/v1/wiki` 核对是否已为当前账号编页，再看页标题和正文里的查询词。忘了建画像时，聊天会先返回 422 和 `Build the user profile before chatting`——这是第三章见过的门槛，不会因为是第四章就跳过。
 
 ### 综合回溯：从 Wiki 命中回到两个文件
 

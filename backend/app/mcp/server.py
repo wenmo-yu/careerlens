@@ -19,7 +19,7 @@ from app.models.evidence import Evidence
 from app.models.job_analysis import JobAnalysis
 from app.retrieval.service import search_evidence as run_evidence_search
 from app.security import Principal
-from app.security.auth import verify_access_token
+from app.security.auth import account_was_deleted, verify_access_token
 from app.services.audit import add_audit_event
 from app.services.evidence import create_evidence_chunks
 from app.services.jobs import analyze_job
@@ -35,8 +35,10 @@ class CareerLensTokenVerifier(TokenVerifier):
 
     async def verify_token(self, token: str) -> MCPAccessToken | None:
         async with SessionFactory() as session:
-            record = await verify_access_token(session, token)
-            if record is None:
+            record = await verify_access_token(
+                session, token, audience="mcp", settings=self.settings,
+            )
+            if record is None or await account_was_deleted(session, record.user_id):
                 return None
             record.last_used_at = datetime.now(UTC)
             await session.commit()
@@ -45,7 +47,9 @@ class CareerLensTokenVerifier(TokenVerifier):
                 client_id=record.id,
                 scopes=list(record.scopes),
                 subject=record.user_id,
-                resource=self.settings.mcp_resource_server_url,
+                resource=record.resource,
+                expires_at=int(record.expires_at.replace(tzinfo=UTC).timestamp())
+                if record.expires_at.tzinfo is None else int(record.expires_at.timestamp()),
             )
 
 
@@ -83,13 +87,24 @@ def build_mcp_server(settings: Settings | None = None) -> MCPServer:
 
 
 mcp = build_mcp_server()
+_active_transport: str | None = None
 
 
-def _authorized_principal(user_id: str, required_scope: str) -> Principal:
+async def _authorized_principal(user_id: str, required_scope: str) -> Principal:
+    settings = get_settings()
     token = get_access_token()
+    transport = _active_transport or settings.mcp_transport
     if token is None:
-        # stdio is a local, process-boundary transport. HTTP deployments must enable auth.
-        return Principal(user_id=user_id, token_id=None, scopes=("*",))
+        if transport == "stdio" and settings.app_env != "production":
+            if settings.mcp_stdio_token:
+                token = await CareerLensTokenVerifier(settings).verify_token(
+                    settings.mcp_stdio_token
+                )
+            elif settings.auth_mode == settings.mcp_auth_mode == "disabled":
+                if user_id == settings.mcp_stdio_user_id:
+                    return Principal(user_id=user_id, token_id=None, scopes=("*",))
+        if token is None:
+            raise ToolError("A verified MCP identity is required")
     if token.subject != user_id:
         raise ToolError("The access token cannot access another user")
     scopes = tuple(token.scopes)
@@ -164,12 +179,12 @@ async def _commit_audit(
 @mcp.tool()
 async def list_user_content(user_id: str, ctx: Context, limit: int = 50) -> list[dict]:
     """List a user's imported evidence with source metadata. Requires read scope."""
-    principal = _authorized_principal(user_id, "read")
+    principal = await _authorized_principal(user_id, "read")
     async with SessionFactory() as session:
         result = await session.scalars(
             select(Evidence)
             .where(Evidence.user_id == user_id)
-            .order_by(Evidence.created_at.desc(), Evidence.chunk_index)
+            .order_by(Evidence.created_at.desc(), Evidence.chunk_index, Evidence.id)
             .limit(min(max(limit, 1), 200))
         )
         items = [_evidence_payload(item) for item in result]
@@ -186,7 +201,7 @@ async def list_user_content(user_id: str, ctx: Context, limit: int = 50) -> list
 @mcp.tool()
 async def get_evidence(user_id: str, evidence_id: str, ctx: Context) -> dict:
     """Read one Evidence record by ID. Requires read scope."""
-    principal = _authorized_principal(user_id, "read")
+    principal = await _authorized_principal(user_id, "read")
     async with SessionFactory() as session:
         item = await session.get(Evidence, evidence_id)
         if item is None or item.user_id != user_id:
@@ -210,7 +225,7 @@ async def import_text_evidence(
     source_type: str = "mcp_import",
 ) -> list[dict]:
     """Import plain text as chunked Evidence. Requires write scope."""
-    principal = _authorized_principal(user_id, "write")
+    principal = await _authorized_principal(user_id, "write")
     async with SessionFactory() as session:
         try:
             records = await create_evidence_chunks(
@@ -236,13 +251,12 @@ async def import_text_evidence(
 @mcp.tool()
 async def search_evidence(user_id: str, query: str, ctx: Context, limit: int = 5) -> dict:
     """Search evidence supporting a career claim or job requirement. Requires read scope."""
-    principal = _authorized_principal(user_id, "read")
+    principal = await _authorized_principal(user_id, "read")
     async with SessionFactory() as session:
-        result = await session.scalars(select(Evidence).where(Evidence.user_id == user_id))
         items, diagnostics = await run_evidence_search(
             user_id=user_id,
             query=query,
-            evidence=list(result),
+            session=session,
             limit=min(max(limit, 1), 20),
         )
         await _commit_audit(
@@ -250,7 +264,7 @@ async def search_evidence(user_id: str, query: str, ctx: Context, limit: int = 5
             principal=principal,
             action="evidence.search",
             resource_type="evidence",
-            details={"query": query, "count": len(items)},
+            details={"count": len(items)},
         )
         return {"items": items, "retrieval": diagnostics}
 
@@ -258,7 +272,7 @@ async def search_evidence(user_id: str, query: str, ctx: Context, limit: int = 5
 @mcp.tool()
 async def get_user_profile(user_id: str, ctx: Context) -> list[dict]:
     """Get structured profile items and their supporting Evidence IDs. Requires read scope."""
-    principal = _authorized_principal(user_id, "read")
+    principal = await _authorized_principal(user_id, "read")
     async with SessionFactory() as session:
         records = await read_profile(session, user_id)
         items = [
@@ -286,15 +300,18 @@ async def get_user_profile(user_id: str, ctx: Context) -> list[dict]:
 @mcp.tool()
 async def list_job_analyses(user_id: str, ctx: Context, limit: int = 20) -> list[dict]:
     """List saved JD analyses for a user. Requires read scope."""
-    principal = _authorized_principal(user_id, "read")
+    principal = await _authorized_principal(user_id, "read")
     async with SessionFactory() as session:
         result = await session.scalars(
             select(JobAnalysis)
-            .where(JobAnalysis.user_id == user_id)
+            .where(
+                JobAnalysis.user_id == user_id,
+                JobAnalysis.report["privacy_redacted"].as_boolean().is_distinct_from(True),
+            )
             .order_by(JobAnalysis.created_at.desc())
             .limit(min(max(limit, 1), 100))
         )
-        items = [_analysis_payload(item) for item in result]
+        items = [_analysis_payload(item) for item in result if not item.privacy_redacted]
         await _commit_audit(
             session,
             principal=principal,
@@ -314,7 +331,7 @@ async def analyze_job_description(
     weekly_hours: int = 10,
 ) -> dict:
     """Analyze a JD against the evidence-backed profile. Requires write scope."""
-    principal = _authorized_principal(user_id, "write")
+    principal = await _authorized_principal(user_id, "write")
     async with SessionFactory() as session:
         try:
             record = await analyze_job(
@@ -339,7 +356,7 @@ async def analyze_job_description(
 @mcp.tool()
 async def generate_career_report(user_id: str, job_analysis_id: str, ctx: Context) -> dict:
     """Generate a versioned career report from one JD analysis. Requires write scope."""
-    principal = _authorized_principal(user_id, "write")
+    principal = await _authorized_principal(user_id, "write")
     async with SessionFactory() as session:
         try:
             record = await generate_report(
@@ -360,7 +377,7 @@ async def generate_career_report(user_id: str, job_analysis_id: str, ctx: Contex
 @mcp.tool()
 async def list_career_reports(user_id: str, ctx: Context, limit: int = 20) -> list[dict]:
     """List versioned career reports. Requires read scope."""
-    principal = _authorized_principal(user_id, "read")
+    principal = await _authorized_principal(user_id, "read")
     async with SessionFactory() as session:
         records = await list_reports(
             session, user_id=user_id, limit=min(max(limit, 1), 100)
@@ -379,10 +396,10 @@ async def list_career_reports(user_id: str, ctx: Context, limit: int = 20) -> li
 @mcp.tool()
 async def get_career_report(user_id: str, report_id: str, ctx: Context) -> dict:
     """Read a generated career report, including Markdown. Requires read scope."""
-    principal = _authorized_principal(user_id, "read")
+    principal = await _authorized_principal(user_id, "read")
     async with SessionFactory() as session:
         record = await session.get(CareerReport, report_id)
-        if record is None or record.user_id != user_id:
+        if record is None or record.user_id != user_id or record.privacy_redacted:
             raise ToolError("Career report not found for this user")
         await _commit_audit(
             session,
@@ -466,9 +483,19 @@ def _parser(settings: Settings) -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    global _active_transport
     settings = get_settings()
     args = _parser(settings).parse_args()
+    settings.validate_security("mcp")
+    _active_transport = args.transport
     if args.transport == "stdio":
+        if settings.app_env == "production":
+            raise RuntimeError("Production MCP uses the authenticated HTTP transport")
+        if (
+            not settings.mcp_stdio_token
+            and (settings.mcp_auth_mode == "required" or settings.auth_mode != "disabled")
+        ):
+            raise RuntimeError("Configured stdio auth requires MCP_STDIO_TOKEN")
         mcp.run(transport="stdio")
         return
     if args.host not in {"127.0.0.1", "localhost", "::1"} and settings.mcp_auth_mode != "required":

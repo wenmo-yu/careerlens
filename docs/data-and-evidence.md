@@ -16,7 +16,7 @@ flowchart LR
   E --> W[WikiPage 引用]
   E --> Q[Qdrant 索引]
   U --> T[ConversationThread]
-  T --> C[LangGraph checkpoint]
+  T --> C[ConversationMessage]
   U --> PP[ProfileUpdateProposal]
 ```
 
@@ -29,8 +29,8 @@ flowchart LR
 | `JobAnalysis` | JD 文本、要求、匹配项、缺口、学习路径、报告 JSON | 一次岗位决策的结构化快照 |
 | `CareerReport` | 版本、Markdown、结构化内容、诊断、`is_stale` | 独立报告版本，不覆盖旧报告 |
 | `ProfileUpdateProposal` | 待批准的画像变更 | 将用户聊天中的纠正与长期资料写入分开 |
-| `ConversationThread` | 对话线程与用户归属 | 限定 checkpoint 会话的访问边界 |
-| `ConversationMessage` | 每条对话的 role、正文、intent、thread_id、微秒级时间 | 持久化的多轮对话事实，供上下文装配与界面渲染；与可重建的 checkpoint 状态不同 |
+| `ConversationThread` | 对话线程与用户归属 | 限定历史会话的访问范围 |
+| `ConversationMessage` | 角色、正文、意图、会话 ID、时间和引用来源 | 保存多轮上下文，支持删除证据时清理受影响的回复 |
 | `AccessToken` / `AuditEvent` | Token 哈希/Scope、操作审计 | 权限与隐私操作追踪；不存明文 Token |
 
 除核心对象外，隐私导出与账号删除还统一覆盖下列扩展数据；引用字段与数据库关系以 [`backend/app/models/`](../backend/app/models/) 为准，导出范围见 [`services/privacy.py`](../backend/app/services/privacy.py)：
@@ -43,7 +43,7 @@ flowchart LR
 | `DimensionDefinition` / `ProfileExtension` | 用户自定义维度与扩展画像字段 | 与内置画像条目分开存储 |
 | `AssessmentResult` | 自陈量表结果与元数据 | `source=self_report`，单独保存，不进入事实画像或匹配分 |
 
-画像条目的 `confidence` 是内部启发式分数：默认规则抽取器根据证据数量和来源数计算，启用模型时还可能合并模型返回值。它没有用真实标签做概率校准，**不能解读成“某项能力真实存在的概率”**；判断依据仍是可回看的 Evidence。
+画像条目的 `confidence` 是规则排序值。规则抽取会合并同一个来源文档的切块。模型候选须附能在证据中找到的引文，候选值不采用模型报出的熟练度和置信度。判断能力仍需读原文并核对支持范围。
 
 ## 写入与派生
 
@@ -57,11 +57,11 @@ flowchart LR
 
 用户在对话中说“我现在更希望去做后端”时，不应把这句话自动当成确认事实。系统会先生成 `ProfileUpdateProposal`；批准后在同一数据库事务内写入修正 Evidence、更新画像并把草案标记为已批准，任一步失败都会整体回滚，拒绝则不改变长期画像。画像重建会保留已经确认的更新项，但当前实现并不是通用的冲突消解或事实版本系统：如果原始资料仍支持旧条目，删除型修正后续仍需检查重建结果。
 
-删除单条 Evidence 会尝试清理索引和画像引用，并将引用它的历史报告标为 `is_stale`；旧报告不会被静默重写。整账号清理覆盖关系数据（含对话线程及其全部消息）、Token、向量和 checkpoint，并返回匿名回执。跨 PostgreSQL、Qdrant 和 checkpoint 的删除属于多步骤操作，生产环境还需定义备份中的保留/清理策略与失败补偿，不能将本地接口视为端到端合规保证。详见[接入、MCP 与安全](integrations-and-security.md)。
+删除 Evidence 会清除受影响的历史报告正文、分析结果及聊天回复。普通过期的历史报告可以继续查阅。整账号删除提交后停用账号并撤销全部 Token，回执报告向量和旧检查点清理进度。部署侧的备份和外部服务保留期使用各自的清理机制。 [接入、MCP 与安全](integrations-and-security.md)
 
 ## 可复现性与检查点
 
 - 数据库 schema 由 [Alembic 迁移](../backend/migrations/)管理；Docker 的独立 migration job 先于 API/MCP 启动。
 - Qdrant 索引是派生状态；变更 Embedding 维度或模型后，应使用新 collection 或重建索引，避免混合不同向量空间。
-- 对话状态分两类：`ConversationMessage` 保存可回看的消息事实（界面渲染与下一轮上下文来源），LangGraph checkpoint 保存图的执行状态。消息表是权威历史，checkpoint 只服务执行续跑。
+- `ConversationMessage` 是对话历史的来源。LangGraph 在本次请求中运行，旧版保存的 checkpoint 由隐私清理任务处理。
 - 想检查某项岗位结论，按 `JobAnalysis → ProfileItem → evidence_ids → Evidence` 路径验证。想检查对话答案，则直接展开回答中引用的 Evidence 并查看检索诊断。

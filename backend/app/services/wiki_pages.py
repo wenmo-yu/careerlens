@@ -154,7 +154,9 @@ async def update_page(
         source_refs is not None and source_refs != page.source_refs
         or chunk_refs is not None and chunk_refs != page.chunk_refs
     )
-    snapshot = _snapshot(page) if changed or provenance_changed else None
+    snapshot = None
+    if (changed or provenance_changed) and not page.privacy_redacted:
+        snapshot = _snapshot(page)
     updates = {**visible, "updated_at": datetime.now(UTC)}
     for field, value in (
         ("source_refs", source_refs), ("chunk_refs", chunk_refs),
@@ -162,8 +164,10 @@ async def update_page(
     ):
         if value is not None:
             updates[field] = value
-    if snapshot is not None:
-        updates.update(version=page.version + 1, last_edit_source=edit_source)
+    if changed or provenance_changed or page.privacy_redacted:
+        updates.update(
+            version=page.version + 1, last_edit_source=edit_source, privacy_redacted=False,
+        )
     updated = await session.scalar(
         update(WikiPage)
         .where(WikiPage.id == page.id, WikiPage.version == page.version)
@@ -195,7 +199,10 @@ async def revert_page(
     )
     if revision is None:
         raise WikiRevisionNotFound(f"no revision {target_version} for page {page.id}")
-    if revision.source_refs is None or revision.chunk_refs is None:
+    if (
+        not isinstance(revision.source_refs, list) or not isinstance(revision.chunk_refs, list)
+        or not all(isinstance(ref, str) for ref in revision.source_refs + revision.chunk_refs)
+    ):
         raise WikiRevisionNotFound("this legacy revision has no verifiable source lineage")
     source_ids = set(revision.source_refs + revision.chunk_refs)
     if source_ids:
@@ -241,8 +248,8 @@ async def list_pages(
 ) -> list[WikiPage]:
     result = await session.scalars(
         select(WikiPage)
-        .where(WikiPage.user_id == user_id)
-        .order_by(WikiPage.updated_at.desc())
+        .where(WikiPage.user_id == user_id, WikiPage.privacy_redacted.is_(False))
+        .order_by(WikiPage.updated_at.desc(), WikiPage.id)
         .limit(limit)
     )
     return list(result)
@@ -256,7 +263,11 @@ async def list_revisions(
         .where(WikiRevision.user_id == user_id, WikiRevision.page_id == page_id)
         .order_by(WikiRevision.version.desc())
     )
-    return list(result)
+    return [
+        item for item in result
+        if isinstance(item.source_refs, list) and isinstance(item.chunk_refs, list)
+        and all(isinstance(ref, str) for ref in item.source_refs + item.chunk_refs)
+    ]
 
 
 async def revision_count(session: AsyncSession, *, page_id: str) -> int:

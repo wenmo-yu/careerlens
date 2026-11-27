@@ -36,9 +36,22 @@ async def search_wiki_pages(
             select(WikiPage).where(
                 WikiPage.user_id == user_id,
                 WikiPage.status == "published",
+                WikiPage.privacy_redacted.is_(False),
             )
         )
     )
+    if not pages:
+        return []
+
+    # A redacted page, or one whose lineage is no longer a well-formed list of
+    # stable ids, must not surface in retrieval. Deletion marks those pages via
+    # privacy_redacted / emptied refs; we do not require the referenced ids to
+    # still exist because wiki pages may legitimately cite archived sources.
+    def verifiable(page: WikiPage) -> bool:
+        refs = list(page.source_refs or []) + list(page.chunk_refs or [])
+        return all(isinstance(ref, str) for ref in refs)
+
+    pages = [page for page in pages if verifiable(page)]
     if not pages:
         return []
 

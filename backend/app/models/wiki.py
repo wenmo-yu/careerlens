@@ -17,7 +17,7 @@ replaced — mirroring WeKnora's wiki_page.go semantics:
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -47,6 +47,7 @@ class WikiPage(Base):
     out_links: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     in_links: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="published")
+    privacy_redacted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -6,13 +6,14 @@ for autogenerate comparison and legacy schema adoption.
 """
 
 from app.models.access_token import AccessToken
-from app.models.account_deletion import AccountDeletionReceipt
+from app.models.account_deletion import AccountDeletionReceipt, DeletionWork
 from app.models.assessment import AssessmentResult, UserConstraint
 from app.models.audit import AuditEvent
 from app.models.career_report import CareerReport
 from app.models.conversation import ConversationMessage, ConversationThread
 from app.models.evaluation import EvaluationRun
 from app.models.evidence import Evidence
+from app.models.index_generation import IndexGeneration
 from app.models.job_analysis import JobAnalysis
 from app.models.learning import LearningProgress, SavedJob
 from app.models.parsed_block import ParsedBlock
@@ -28,6 +29,7 @@ __all__ = [
     "AccessToken",
     "AgentRun",
     "AccountDeletionReceipt",
+    "DeletionWork",
     "AssessmentResult",
     "UserConstraint",
     "DimensionDefinition",
@@ -39,6 +41,7 @@ __all__ = [
     "EvaluationRun",
     "Evidence",
     "EvidenceIndexWork",
+    "IndexGeneration",
     "JobAnalysis",
     "LearningProgress",
     "SavedJob",

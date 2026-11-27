@@ -5,9 +5,8 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.graph.career import delete_career_threads
 from app.models.access_token import AccessToken
-from app.models.account_deletion import AccountDeletionReceipt
+from app.models.account_deletion import AccountDeletionReceipt, DeletionWork
 from app.models.assessment import AssessmentResult, UserConstraint
 from app.models.audit import AuditEvent
 from app.models.career_report import CareerReport
@@ -23,10 +22,11 @@ from app.models.profile_update import ProfileUpdateProposal
 from app.models.run import AgentRun, EvidenceIndexWork, RunEvent, RunScope, RunStep
 from app.models.source_document import SourceDocument
 from app.models.wiki import WikiPage, WikiRevision
-from app.retrieval.service import delete_user_index
+from app.retrieval.generations import cleanup_collections
 from app.runtime.index_outbox import enqueue_index, try_index_now
-from app.runtime.store import DELETION, scope
+from app.runtime.store import DELETION, INPUT, scope
 from app.security import Principal
+from app.security.auth import DELETED_ACCOUNT
 from app.services.audit import add_audit_event
 
 
@@ -36,6 +36,95 @@ def _serialize(record, fields: tuple[str, ...]) -> dict:
         value = getattr(record, field)
         result[field] = value.isoformat() if isinstance(value, datetime) else value
     return result
+
+
+def _valid_refs(value) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def _report_depends_on(content, evidence_id: str) -> bool:
+    if not isinstance(content, dict) or not _valid_refs(content.get("referenced_evidence_ids")):
+        return True
+    if evidence_id in content["referenced_evidence_ids"]:
+        return True
+    catalog = content.get("evidence_catalog", [])
+    if not isinstance(catalog, list):
+        return True
+    return (
+        any(
+            not isinstance(entry, dict) or not isinstance(entry.get("id"), str)
+            or entry["id"] == evidence_id for entry in catalog
+        )
+        or _rows_depend_on(content.get("job_matching"), evidence_id)
+        or _rows_depend_on(content.get("core_capabilities"), evidence_id)
+    )
+
+
+def _rows_depend_on(rows, evidence_id: str) -> bool:
+    return not isinstance(rows, list) or any(
+        not isinstance(entry, dict) or not _valid_refs(entry.get("evidence_ids"))
+        or evidence_id in entry["evidence_ids"] for entry in rows
+    )
+
+
+async def _redact_derived_data(session: AsyncSession, record: Evidence) -> set[str]:
+    user_id, evidence_id = record.user_id, record.id
+    affected_analyses = set()
+    for item in await session.scalars(select(JobAnalysis).where(JobAnalysis.user_id == user_id)):
+        if not item.privacy_redacted and not _rows_depend_on(item.matches, evidence_id):
+            continue
+        affected_analyses.add(item.id)
+        item.matches, item.gaps, item.learning_path = [], [], []
+        item.score = 0.0  # Database placeholder, unavailable at every public reader.
+        item.report = {"privacy_redacted": True}
+
+    for item in await session.scalars(
+        select(LearningProgress).where(LearningProgress.user_id == user_id)
+    ):
+        refs = item.evidence_ids
+        if _valid_refs(refs) and evidence_id not in refs:
+            continue
+        item.evidence_ids = (
+            [value for value in refs if value != evidence_id] if _valid_refs(refs) else []
+        )
+        item.note = ""
+
+    for item in await session.scalars(
+        select(ProfileExtension).where(ProfileExtension.user_id == user_id)
+    ):
+        if not _valid_refs(item.evidence_ids) or evidence_id in item.evidence_ids:
+            await session.delete(item)
+
+    metadata = record.source_metadata
+    proposal_id = metadata.get("proposal_id") if isinstance(metadata, dict) else None
+    if isinstance(proposal_id, str):
+        await session.execute(delete(ProfileUpdateProposal).where(
+            ProfileUpdateProposal.user_id == user_id, ProfileUpdateProposal.id == proposal_id,
+        ))
+    return affected_analyses
+
+
+async def _redact_conversation_references(
+    session: AsyncSession, *, user_id: str, evidence_id: str, original: str,
+) -> int:
+    threads = set(await session.scalars(
+        select(ConversationThread.thread_id).where(ConversationThread.user_id == user_id)
+    ))
+    for item in await session.scalars(
+        select(ConversationMessage).where(ConversationMessage.user_id == user_id)
+    ):
+        threads.add(item.thread_id)
+        refs = item.evidence_ids
+        if (
+            (item.role == "assistant" and (not _valid_refs(refs) or evidence_id in refs))
+            or (original.strip() and original.strip() in item.content)
+        ):
+            item.content = "[内容已随关联证据清除]"
+            item.evidence_ids = []
+    if get_settings().uses_postgres_checkpoint:
+        session.add_all(DeletionWork(kind="checkpoint", subject=thread) for thread in threads)
+        return len(threads)
+    return 0
 
 
 async def export_user_data(
@@ -55,7 +144,9 @@ async def export_user_data(
         await session.scalars(select(JobAnalysis).where(JobAnalysis.user_id == user_id))
     )
     reports = list(
-        await session.scalars(select(CareerReport).where(CareerReport.user_id == user_id))
+        await session.scalars(select(CareerReport).where(
+            CareerReport.user_id == user_id, CareerReport.privacy_redacted.is_(False),
+        ))
     )
     proposals = list(
         await session.scalars(
@@ -72,11 +163,15 @@ async def export_user_data(
         await session.scalars(select(ParsedBlock).where(ParsedBlock.user_id == user_id))
     )
     wiki_pages = list(
-        await session.scalars(select(WikiPage).where(WikiPage.user_id == user_id))
+        await session.scalars(select(WikiPage).where(
+            WikiPage.user_id == user_id, WikiPage.privacy_redacted.is_(False),
+        ))
     )
-    wiki_revisions = list(
-        await session.scalars(select(WikiRevision).where(WikiRevision.user_id == user_id))
-    )
+    wiki_revisions = [
+        item for item in await session.scalars(
+            select(WikiRevision).where(WikiRevision.user_id == user_id)
+        ) if _valid_refs(item.source_refs) and _valid_refs(item.chunk_refs)
+    ]
     saved_jobs = list(
         await session.scalars(select(SavedJob).where(SavedJob.user_id == user_id))
     )
@@ -173,7 +268,7 @@ async def export_user_data(
                     "created_at",
                 ),
             )
-            for item in jobs
+            for item in jobs if not item.privacy_redacted
         ],
         "career_reports": [
             _serialize(
@@ -392,18 +487,25 @@ async def delete_evidence_record(
     removed_profile_items = 0
     updated_profile_items = 0
     for item in profile_items:
+        if not _valid_refs(item.evidence_ids):
+            await session.delete(item)
+            removed_profile_items += 1
+            continue
         if record.id not in item.evidence_ids:
             continue
         remaining = [value for value in item.evidence_ids if value != record.id]
         if remaining:
             item.evidence_ids = remaining
+            # Retain only the lower bounds justified without the original source bundle.
+            item.level = min(item.level, 2)
+            item.confidence = min(item.confidence, 0.55)
             updated_profile_items += 1
         else:
             await session.delete(item)
             removed_profile_items += 1
     source_type = record.source_type
-    source_name = record.source_name
     evidence_id = record.id
+    affected_analyses = await _redact_derived_data(session, record)
     reports = list(
         await session.scalars(
             select(CareerReport).where(CareerReport.user_id == record.user_id)
@@ -411,16 +513,20 @@ async def delete_evidence_record(
     )
     stale_reports = 0
     for report in reports:
-        referenced = report.content.get("referenced_evidence_ids", [])
-        catalog_ids = [item.get("id") for item in report.content.get("evidence_catalog", [])]
-        matching_ids = {
-            item_id
-            for match in report.content.get("job_matching", [])
-            for item_id in match.get("evidence_ids", [])
-        }
-        if evidence_id in referenced or evidence_id in catalog_ids or evidence_id in matching_ids:
+        if not report.privacy_redacted and (
+            report.job_analysis_id in affected_analyses
+            or _report_depends_on(report.content, evidence_id)
+        ):
             report.is_stale = True
+            report.privacy_redacted = True
+            report.title = "已清除的报告"
+            report.content = {}
+            report.markdown = ""
+            report.model_diagnostics = {}
             stale_reports += 1
+    checkpoint_count = await _redact_conversation_references(
+        session, user_id=record.user_id, evidence_id=evidence_id, original=record.content,
+    )
     await session.execute(
         delete(ParsedBlock).where(
             ParsedBlock.user_id == record.user_id, ParsedBlock.evidence_id == evidence_id
@@ -433,26 +539,45 @@ async def delete_evidence_record(
     removed_pages = {
         page.id
         for page in pages
-        if evidence_id in page.source_refs or evidence_id in page.chunk_refs
+        if (
+            not page.privacy_redacted and (
+                not _valid_refs(page.source_refs) or not _valid_refs(page.chunk_refs)
+                or evidence_id in page.source_refs or evidence_id in page.chunk_refs
+            )
+        )
     }
-    for page in pages:
-        if page.id in removed_pages:
-            await session.delete(page)
+    surviving_history = set()
     revisions = await session.scalars(
         select(WikiRevision).where(WikiRevision.user_id == record.user_id)
     )
     for revision in revisions:
         if (
-            revision.page_id in removed_pages
-            or revision.source_refs is None
-            or revision.chunk_refs is None
+            not _valid_refs(revision.source_refs)
+            or not _valid_refs(revision.chunk_refs)
             or evidence_id in revision.source_refs
             or evidence_id in revision.chunk_refs
         ):
             await session.delete(revision)
+        else:
+            surviving_history.add(revision.page_id)
+    for page in pages:
+        if page.id not in removed_pages:
+            continue
+        if page.id not in surviving_history:
+            await session.delete(page)
+            continue
+        page.privacy_redacted = True
+        page.status = "archived"
+        page.content = ""
+        page.title = "已清除的页面"
+        page.summary = None
+        page.source_refs = []
+        page.chunk_refs = []
+        page.in_links = []
+        page.out_links = []
     await session.delete(record)
     await enqueue_index(session, record.user_id, [evidence_id], action="delete")
-    vector = {"status": "skipped" if get_settings().retrieval_backend == "local" else "queued"}
+    vector = {"status": "queued"}
     add_audit_event(
         session,
         principal=principal,
@@ -461,7 +586,6 @@ async def delete_evidence_record(
         resource_id=evidence_id,
         details={
             "source_type": source_type,
-            "source_name": source_name,
             "updated_profile_items": updated_profile_items,
             "removed_profile_items": removed_profile_items,
             "vector_index": vector,
@@ -470,13 +594,17 @@ async def delete_evidence_record(
         },
     )
     await session.commit()
+    checkpoint = {"status": "queued" if checkpoint_count else "deleted", "deleted": 0}
     await try_index_now(session, [evidence_id])
+    if await session.get(EvidenceIndexWork, evidence_id) is None:
+        vector.update(status="deleted", backend="qdrant")
     return {
         "deleted": True,
         "evidence_id": evidence_id,
         "updated_profile_items": updated_profile_items,
         "removed_profile_items": removed_profile_items,
         "vector_index": vector,
+        "checkpoint_result": checkpoint,
         "stale_reports": stale_reports,
         "removed_wiki_pages": len(removed_pages),
     }
@@ -493,12 +621,59 @@ async def _count_user_records(
     )
 
 
+async def deletion_receipt(session: AsyncSession, receipt: AccountDeletionReceipt) -> dict:
+    work = list(await session.scalars(select(DeletionWork).where(
+        DeletionWork.receipt_id == receipt.id,
+    )))
+    vectors = [item for item in work if item.kind == "vector_user"]
+    checkpoints = [item for item in work if item.kind == "checkpoint"]
+
+    def status(items, default: str) -> str:
+        states = {item.status for item in items}
+        if "failed" in states:
+            return "failed"
+        if "pending" in states:
+            return "queued"
+        return "deleted" if states else default
+
+    # No registered collection means the local/hash backend has no external
+    # vectors to clean; that is a completed cleanup, not an unknown one.
+    vector_status = status(vectors, "deleted")
+    checkpoint_status = status(
+        checkpoints, receipt.vector_result.get("checkpoint_status", "deleted"),
+    )
+    statuses = {vector_status, checkpoint_status}
+    cleanup_status = (
+        "failed" if statuses & {"failed", "unavailable"} else "pending" if "queued" in statuses
+        else "completed" if statuses == {"deleted"} else "unknown"
+    )
+    return {
+        "deleted": True,
+        "receipt_id": receipt.id,
+        "deleted_counts": receipt.deleted_counts,
+        "vector_result": {"status": vector_status, "backend": "qdrant"},
+        "checkpoint_result": {
+            "status": checkpoint_status,
+            "deleted": sum(item.status == "completed" for item in checkpoints)
+            if checkpoints else receipt.vector_result.get("checkpoint_count", 0),
+        },
+        "cleanup_status": cleanup_status,
+        "pending_targets": sum(item.status == "pending" for item in work),
+        "completed_targets": sum(item.status == "completed" for item in work),
+        "failed_targets": sum(item.status == "failed" for item in work),
+        "cleanup_attempts": sum(item.attempts for item in work),
+        "last_error_codes": sorted({item.last_error for item in work if item.last_error}),
+        "created_at": receipt.created_at,
+    }
+
+
 async def delete_user_account(
-    session: AsyncSession, *, principal: Principal
+    session: AsyncSession, *, principal: Principal,
 ) -> dict:
     user_id = principal.user_id
-    await scope(session, user_id)
-    await scope(session, user_id, DELETION)
+    await scope(session, user_id, bump=True)
+    await scope(session, user_id, DELETION, bump=True)
+    await scope(session, user_id, DELETED_ACCOUNT, bump=True)
     await session.scalars(
         select(AgentRun.id).where(AgentRun.user_id == user_id)
         .order_by(AgentRun.id).with_for_update()
@@ -510,6 +685,13 @@ async def delete_user_account(
             )
         )
     )
+    settings = get_settings()
+    checkpoint_threads = set(thread_ids)
+    if settings.uses_postgres_checkpoint:
+        checkpoint_threads.update(await session.scalars(
+            select(ConversationMessage.thread_id)
+            .where(ConversationMessage.user_id == user_id).distinct()
+        ))
     deleted_counts = {
         "evidence": await _count_user_records(session, Evidence, user_id),
         "profile_items": await _count_user_records(session, ProfileItem, user_id),
@@ -547,20 +729,13 @@ async def delete_user_account(
         sorted_ids = sorted(pending_ids)
         for offset in range(0, len(sorted_ids), 500):
             await enqueue_index(session, user_id, sorted_ids[offset:offset + 500], action="delete")
-    try:
-        vector_result = await delete_user_index(user_id)
-    except Exception:
-        vector_result = {"status": "fallback", "backend": "local"}
-    if vector_result["status"] != "fallback":
-        await session.execute(delete(EvidenceIndexWork).where(EvidenceIndexWork.user_id == user_id))
-    elif pending_ids:
-        vector_result = {**vector_result, "status": "queued"}
-    checkpoint_result = await delete_career_threads(thread_ids)
+    await session.execute(delete(RunScope).where(
+        RunScope.user_id == user_id, RunScope.key.not_in((INPUT, DELETION, DELETED_ACCOUNT)),
+    ))
     for model in (
         RunEvent,
         RunStep,
         AgentRun,
-        RunScope,
         CareerReport,
         JobAnalysis,
         ProfileUpdateProposal,
@@ -584,7 +759,10 @@ async def delete_user_account(
     ):
         await session.execute(delete(model).where(model.user_id == user_id))
 
-    settings = get_settings()
+    vector_result = {"status": "queued", "backend": "qdrant"}
+    checkpoint_status = (
+        "queued" if settings.uses_postgres_checkpoint and checkpoint_threads else "deleted"
+    )
     subject_hash = hashlib.sha256(
         f"{settings.auth_token_pepper}:deleted-user:{user_id}".encode()
     ).hexdigest()
@@ -593,18 +771,23 @@ async def delete_user_account(
         deleted_counts=deleted_counts,
         vector_result={
             **vector_result,
-            "checkpoint_status": checkpoint_result["status"],
-            "checkpoint_count": checkpoint_result["deleted"],
+            "checkpoint_status": checkpoint_status,
+            "checkpoint_count": 0,
         },
     )
     session.add(receipt)
+    await session.flush()
+    session.add_all(
+        DeletionWork(
+            receipt_id=receipt.id, kind="vector_user", subject=user_id, collection=collection,
+        )
+        for collection in await cleanup_collections(session)
+    )
+    if settings.uses_postgres_checkpoint:
+        session.add_all(
+            DeletionWork(receipt_id=receipt.id, kind="checkpoint", subject=thread)
+            for thread in checkpoint_threads
+        )
     await session.commit()
     await session.refresh(receipt)
-    return {
-        "deleted": True,
-        "receipt_id": receipt.id,
-        "deleted_counts": deleted_counts,
-        "vector_result": vector_result,
-        "checkpoint_result": checkpoint_result,
-        "created_at": receipt.created_at,
-    }
+    return await deletion_receipt(session, receipt)

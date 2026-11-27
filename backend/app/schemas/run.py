@@ -78,6 +78,10 @@ class RunRead(BaseModel):
     created_at: datetime
 
 
+class RunCancelRead(RunRead):
+    cancel_outcome: Literal["cancelled", "already_cancelled", "already_terminal"]
+
+
 class StepRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

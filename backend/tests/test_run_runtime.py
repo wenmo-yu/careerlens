@@ -19,6 +19,7 @@ from app.models.run import AgentRun, EvidenceIndexWork, RunEvent, RunScope, RunS
 from app.models.wiki import WikiPage
 from app.runtime import index_outbox, store, worker
 from app.runtime.operations import parse_in_process
+from app.security.auth import DELETED_ACCOUNT
 
 JOB = {
     "operation": "job_analysis",
@@ -353,9 +354,10 @@ async def test_account_deletion_erases_runs_steps_events_and_fences_worker(runti
     for model in (AgentRun, RunEvent, RunStep):
         assert await count(factory, model) == 0
     async with factory() as session:
-        assert await session.scalar(
-            select(RunScope).where(RunScope.user_id == OWNER)
-        ) is None
+        keys = set(await session.scalars(
+            select(RunScope.key).where(RunScope.user_id == OWNER)
+        ))
+        assert keys == {store.INPUT, store.DELETION, DELETED_ACCOUNT}
     with pytest.raises(store.LeaseLost):
         await worker.execute(factory, old)
 
@@ -461,7 +463,7 @@ async def test_index_outbox_retries_and_delete_supersedes_upsert(runtime, monkey
         attempted.append(("upsert", records[0].id))
         raise RuntimeError
 
-    async def deleted(evidence_id, *, strict=False):
+    async def deleted(evidence_id, *, strict=False, collections=None):
         attempted.append(("delete", evidence_id))
         return {"status": "deleted"}
 

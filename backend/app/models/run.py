@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -52,6 +53,14 @@ class AgentRun(Base):
             "status IN ('queued','running','waiting_confirmation','succeeded',"
             "'failed','cancelled','interrupted')",
             name="ck_run_status",
+        ),
+        CheckConstraint(
+            "status <> 'running' OR (lease_owner IS NOT NULL AND lease_until IS NOT NULL)",
+            name="ck_running_has_lease",
+        ),
+        Index(
+            "uq_running_run_user", "user_id", unique=True,
+            sqlite_where=text("status = 'running'"), postgresql_where=text("status = 'running'"),
         ),
         Index("ix_run_queue", "status", "created_at", "id"),
         Index("ix_run_leases", "status", "lease_until"),

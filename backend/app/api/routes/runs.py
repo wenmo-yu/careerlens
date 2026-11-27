@@ -24,7 +24,15 @@ from app.core.database import get_session
 from app.ingestion.contract import source_fingerprint
 from app.models.run import TERMINAL, AgentRun, RunEvent, RunStep
 from app.runtime import store
-from app.schemas.run import EventRead, RunCreate, RunDecision, RunRead, StartWiki, StepRead
+from app.schemas.run import (
+    EventRead,
+    RunCancelRead,
+    RunCreate,
+    RunDecision,
+    RunRead,
+    StartWiki,
+    StepRead,
+)
 from app.security import authorize_user
 
 router = APIRouter()
@@ -32,6 +40,7 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 User = Annotated[str, Query(min_length=1, max_length=128)]
 Authorization = Annotated[str | None, Header()]
 Idempotency = Annotated[str | None, Header(min_length=1, max_length=128)]
+SUBMISSION_REJECTED = {"X-Submission-Outcome": "rejected"}
 
 
 async def _authorize(session: AsyncSession, user_id: str, authorization: str | None, scope: str):
@@ -40,15 +49,23 @@ async def _authorize(session: AsyncSession, user_id: str, authorization: str | N
     )
 
 
+async def _authorize_submission(session: AsyncSession, user_id: str, authorization: str | None):
+    try:
+        return await _authorize(session, user_id, authorization, "write")
+    except HTTPException as error:
+        error.headers = {**(error.headers or {}), **SUBMISSION_REJECTED}
+        raise
+
+
 async def _submit(session: AsyncSession, **values) -> JSONResponse:
     try:
         run, created = await store.submit(session, **values)
     except store.RunConflict as exc:
-        raise HTTPException(409, str(exc)) from exc
+        raise HTTPException(409, str(exc), headers=SUBMISSION_REJECTED) from exc
     except store.RunQuota as exc:
-        raise HTTPException(429, str(exc)) from exc
+        raise HTTPException(429, str(exc), headers=SUBMISSION_REJECTED) from exc
     except store.RunAccessRevoked as exc:
-        raise HTTPException(403, "Run permission was revoked") from exc
+        raise HTTPException(403, "Run permission was revoked", headers=SUBMISSION_REJECTED) from exc
     response = RunRead.model_validate(run)
     await session.commit()
     return JSONResponse(
@@ -61,7 +78,7 @@ async def start_run(
     payload: RunCreate, session: Session,
     authorization: Authorization = None, idempotency_key: Idempotency = None,
 ):
-    principal = await _authorize(session, payload.user_id, authorization, "write")
+    principal = await _authorize_submission(session, payload.user_id, authorization)
     target = f"wiki:{payload.input.slug}" if isinstance(payload, StartWiki) else None
     return await _submit(
         session, user_id=payload.user_id, token_id=principal.token_id,
@@ -81,7 +98,7 @@ async def upload_run(
     authorization: Authorization = None,
     idempotency_key: Idempotency = None,
 ):
-    principal = await _authorize(session, user_id, authorization, "write")
+    principal = await _authorize_submission(session, user_id, authorization)
     settings = get_settings()
     limit = min(
         settings.run_upload_max_bytes,
@@ -92,9 +109,9 @@ async def upload_run(
     finally:
         await upload.close()
     if not content:
-        raise HTTPException(422, "File is empty")
+        raise HTTPException(422, "File is empty", headers=SUBMISSION_REJECTED)
     if len(content) > limit:
-        raise HTTPException(413, "File exceeds the background upload limit")
+        raise HTTPException(413, "File exceeds the upload limit", headers=SUBMISSION_REJECTED)
     filename = (upload.filename or "upload").replace("\\", "/").rsplit("/", 1)[-1][-255:]
     fingerprint = source_fingerprint(content)
     return await _submit(
@@ -223,16 +240,16 @@ async def stream_events(
     )
 
 
-@router.post("/{run_id}/cancel", response_model=RunRead)
+@router.post("/{run_id}/cancel", response_model=RunCancelRead)
 async def cancel_run(
     run_id: str, session: Session, user_id: User, authorization: Authorization = None,
 ):
     await _authorize(session, user_id, authorization, "write")
-    run = await store.cancel(session, user_id, run_id)
+    run, outcome = await store.cancel(session, user_id, run_id)
     if run is None:
         raise HTTPException(404, "Run not found")
     await session.commit()
-    return run
+    return {**RunRead.model_validate(run).model_dump(), "cancel_outcome": outcome}
 
 
 @router.post("/{run_id}/decision", response_model=RunRead)

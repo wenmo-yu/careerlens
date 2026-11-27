@@ -48,9 +48,8 @@ def run_migrations(database_url: str | None = None) -> None:
     alembic_config = Config(str(config_path))
     alembic_config.attributes["database_url"] = selected_url
     if adopted_legacy:
-        command.stamp(alembic_config, "head")
-    else:
-        command.upgrade(alembic_config, "head")
+        command.stamp(alembic_config, "d0e1f2a3b4c5")
+    command.upgrade(alembic_config, "head")
 
 
 if __name__ == "__main__":

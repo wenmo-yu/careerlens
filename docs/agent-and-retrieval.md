@@ -26,7 +26,7 @@ flowchart LR
 
 图在 [`graph/career.py`](../backend/app/graph/career.py)；[`api/routes/chat.py`](../backend/app/api/routes/chat.py) 管理会话与岗位分析的用户归属，并在每次请求前加载该线程的 `ConversationMessage` 历史，把 `{role, content}` 列表作为 `history` 传入图，使追问能解析指代并保留先前约束。回答生成后，本轮 user 与 assistant 消息在同一事务内持久化，响应中的 `messages` 返回该线程的完整历史供前端渲染。
 
-多轮上下文来自持久化的消息表，而不是 checkpoint：checkpoint 保存图的执行状态，消息表是可供回看与上下文装配的权威对话事实。模型失败、超时、JSON 不合法或正文包含不属于当前检索结果的 Evidence 引用时，回退到可解释的确定性回答；报告叙述也执行同样的引用校验。画像修正仍通过独立 API 人工确认，并非 LangGraph 自动提交。引用 ID 校验不代表语义事实核验已经完成。
+每轮从持久化消息表装配近期历史，图状态存活到本次请求结束。识别不出的问法可走结构化只读分类，指代不明时会请用户补充名称。画像修正经独立 API 确认。答案和报告校验引用 ID，画像中的模型候选还要核对引文的位置。`AI_FAILURE_POLICY` 决定模型调用失败时返回错误还是降级结果。
 
 ## Evidence 混合检索
 
@@ -35,7 +35,9 @@ flowchart LR
 1. Dense：默认是确定性 Hash Embedding（384 维），也可配置 Qwen3 Embedding。Hash 方案便于无模型启动，不应称为真实语义 Embedding。
 2. Sparse：项目构建哈希 token 频次稀疏向量，并使用 Qdrant 的 IDF modifier。它**不是完整的 BM25 实现**。
 3. Qdrant 对两路候选执行 RRF 融合，同时过滤 `user_id`，防止返回其他用户的证据。
-4. 二阶段重排默认是词法相似度实现；配置 Qwen CrossEncoder 后可用模型重排。检索响应带实际 backend、fusion、reranker、fallback 等诊断信息。
+4. 查询先取得候选 ID，由 SQL 按租户查回当前原文，再交给重排器。响应包含实际后端、融合方法、候选数量、有效数量和重排降级阶段。
+
+本地路径在有界 SQL 语料上用词频余弦、稀有词权重和完整短语三份榜单做 RRF。响应中 `partial_coverage=true` 表示达到扫描预算。Qdrant 路径的集合记录模型及向量配置指纹，切换模型时需先重建和对账。 [索引换代操作](api-and-configuration.md#检索模式)
 
 `RETRIEVAL_BACKEND=auto` 优先走 Qdrant；异常或已有记录但 Qdrant 为空时，转到基于数据库记录的本地混合检索。强制 `qdrant` 模式会将故障暴露出来。**降级检索与 Qdrant RRF 的打分机制不同**，不能把本地回退结果写成相同的线上检索效果。索引缺失应调用 `POST /api/v1/evidence/reindex/{user_id}` 修复，而非长期依赖 fallback。
 

@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ChatRequest(BaseModel):
@@ -9,6 +9,13 @@ class ChatRequest(BaseModel):
     thread_id: str | None = Field(default=None, max_length=128)
     job_analysis_id: str | None = None
     mode: str = Field(default="rag", pattern="^(rag|wiki|hybrid)$")
+
+    @field_validator("message")
+    @classmethod
+    def nonempty_message(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Message must contain visible text")
+        return value
 
 
 class ChatMessage(BaseModel):

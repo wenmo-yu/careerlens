@@ -15,8 +15,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm import get_llm_provider
+from app.llm.provider import model_fallback
 from app.models.evidence import Evidence
 from app.models.wiki import WikiPage
+from app.runtime.store import check_write_scope, read_scope
 from app.services.wiki_pages import (
     StaleWikiWriteError,
     create_compiled_page,
@@ -106,10 +108,10 @@ async def _generate(
             "summary": raw.get("summary"),
             "citations": [str(h) for h in raw.get("citations", [])],
         }
-    except Exception:
+    except Exception as exc:
         # A model failure degrades to a deterministic, still traceable page.
         page = _deterministic_page(title, sources, handles)
-        diagnostics = {**diagnostics, "fallback": True}
+        diagnostics = model_fallback(provider, exc, "wiki_compile")
     return page, diagnostics
 
 
@@ -133,8 +135,10 @@ async def compile_page(
     """
     source_ids = list(dict.fromkeys(source["evidence_id"] for source in sources))
     refs = source_ids if source_refs is None else source_refs
+    generation = await read_scope(session, user_id)
     await check_page_version(session, user_id, slug, base_version)
     values, chunk_refs, diagnostics = await prepare_page(title, sources)
+    await check_write_scope(session, user_id, expected=generation)
     page = await persist_page(
         session, user_id=user_id, slug=slug, values=values, base_version=base_version,
         edit_source=edit_source, source_refs=refs, chunk_refs=chunk_refs,
@@ -171,10 +175,13 @@ async def prepare_page(title: str, sources: list[dict[str, Any]]) -> tuple[dict,
     chunk_refs = resolve_citations(generated["citations"], handles)
     content = handles.strip_inline_citations(generated["content"])
     if not content or not chunk_refs:
+        if diagnostics["provider"] != "demo":
+            diagnostics = model_fallback(
+                get_llm_provider("wiki"), ValueError("Missing citations"), "wiki_compile",
+            )
         generated = _deterministic_page(title, sources, handles)
         chunk_refs = source_ids
         content = handles.strip_inline_citations(generated["content"])
-        diagnostics = {**diagnostics, "fallback": True}
 
     # Guard: no source table rows may silently vanish in the rewrite.
     try:

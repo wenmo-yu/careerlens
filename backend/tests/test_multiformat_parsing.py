@@ -113,7 +113,8 @@ def test_media_extractor_default_extract_blocks_degrades_gracefully():
 
 def test_optional_extractor_structure_dispatch_uses_extract_blocks():
     class SpyExtractor(OptionalMultimodalExtractor):
-        def _ocr_blocks(self, content):
+        def _ocr_blocks(self, content, suffix):
+            assert suffix == ".png"
             return [
                 {
                     "content": "行一",

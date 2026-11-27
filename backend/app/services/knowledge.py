@@ -38,7 +38,7 @@ async def search_knowledge(
     user_id: str,
     query: str,
     mode: str,
-    evidence: list[Evidence],
+    evidence: list[Evidence] | None = None,
     limit: int = 5,
 ) -> tuple[list[dict], dict[str, Any]]:
     if mode not in VALID_MODES:
@@ -50,7 +50,7 @@ async def search_knowledge(
 
     if mode in ("rag", "hybrid"):
         rag_results, rag_diag = await search_evidence(
-            user_id=user_id, query=query, evidence=evidence, limit=limit
+            user_id=user_id, query=query, evidence=evidence, session=session, limit=limit
         )
         rag_hits = _rag_hits(rag_results)
 

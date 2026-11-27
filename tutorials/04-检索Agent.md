@@ -124,9 +124,9 @@ python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
 }
 ```
 
-用共同正文的 E 在响应的 `evidence` 查原文。记录 `retrieval.backend`、`retrieval.fusion` 和 `retrieval.reason`。启动器固定用本地检索，所以此处可以看到 `backend=local`、`fusion=weighted_score`、`reason=configured_local`。现在完成 `rag` 这一组就可以继续读。待 Wiki 编好后，综合课会用同一句问题对比三组响应。
+用共同正文的 E 在响应的 `evidence` 查原文。记录 `retrieval.backend`、`retrieval.fusion` 和 `retrieval.reason`。启动器固定用本地检索，所以此处可以看到 `backend=local`、`fusion=local_lexical_rrf_v1`、`reason=configured_local`。现在完成 `rag` 这一组就可以继续读。待 Wiki 编好后，综合课会用同一句问题对比三组响应。
 
-- `retrieval.backend` / `retrieval.fusion`：Qdrant 成功时是 `qdrant` / `rrf`；本地回退时是 `local` / `weighted_score`，且 `fallback: true`、`reason` 说明原因。**本机回退不走 RRF**——这正是环节一公式和真实链路要分开看的地方。
+- `retrieval.backend` / `retrieval.fusion`：Qdrant 成功时是 `qdrant` / `rrf`；本地回退时是 `local` / `local_lexical_rrf_v1`，且 `fallback: true`、`reason` 说明原因。本地融合词法榜单，Qdrant 融合向量榜单。
 - `evidence[*].source_kind`：`rag` 或 `wiki`。`wiki` 模式不查证据检索器，所以它的诊断里**没有** `backend`/`fusion`/`reranker` 键——不是 bug，是它根本没走那条链。
 - `retrieval.knowledge_fusion`：只有 `hybrid` 出现 `rank_interleave`（RAG 与 Wiki 名次交错），与 Dense+Sparse 的融合不是一回事。
 
@@ -214,7 +214,7 @@ python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
 
 - [ ] 能手算两张榜的 RRF 分数，解释为什么「两榜都中」会赢过「一榜榜首」
 - [ ] 改一个变量后，能说清排名怎么变、为什么变
-- [ ] 能分清名次交错（`rank_interleave`）和分数融合（RRF / `weighted_score`）是两回事
+- [ ] 能分清名次交错（`rank_interleave`）和分数融合（Qdrant 两路 RRF / 本地词法 RRF）是两回事
 - [ ] 能说明 Qdrant 回退到本地时不走 RRF，诊断里 `backend`/`fusion` 会变
 - [ ] 能说出 `wiki` 模式诊断为什么没有 `backend`/`reranker`
 - [ ] 能分清检索候选、引用合法、事实支持，并对一条榜首材料写「证据不足」
@@ -230,4 +230,4 @@ python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
 
 ## 下一步
 
-到 [04-A 写本地检索与索引回查](./04-knowledge-base/04-A-检索源码与诊断.md)。把这次响应里的 `weighted_score` 拆成三项，亲手写出它怎样挑候选。
+到 [04-A 写本地检索与索引回查](./04-knowledge-base/04-A-检索源码与诊断.md)。把本地的 RRF 拆成三份榜单，亲手写出它怎样挑候选。

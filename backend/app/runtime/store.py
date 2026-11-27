@@ -4,14 +4,14 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.models.access_token import AccessToken
 from app.models.run import TERMINAL, AgentRun, RunEvent, RunScope, RunStep
+from app.security.auth import account_was_deleted, load_run_token
 
 INPUT = "input"
 DELETION = "deletion"
@@ -75,16 +75,13 @@ async def check_inputs(
 
 
 async def require_run_actor(session: AsyncSession, user_id: str, token_id: str | None) -> None:
+    if await account_was_deleted(session, user_id):
+        raise RunAccessRevoked
     if token_id is None:
         if get_settings().auth_mode.lower() != "required":
             return
     else:
-        token = await session.scalar(
-            select(AccessToken).where(
-                AccessToken.id == token_id, AccessToken.user_id == user_id,
-                AccessToken.active.is_(True),
-            )
-        )
+        token = await load_run_token(session, token_id, user_id)
         if token is not None and set(token.scopes).intersection({"write", "manage"}):
             return
     raise RunAccessRevoked
@@ -104,6 +101,29 @@ async def scope(
         .values(generation=RunScope.generation + int(bump))
         .returning(RunScope.generation)
     )
+
+
+async def read_scope(session: AsyncSession, user_id: str, key: str = INPUT) -> int:
+    return (await session.scalar(select(RunScope.generation).where(
+        RunScope.user_id == user_id, RunScope.key == key,
+    ))) or 0
+
+
+async def check_write_scope(
+    session: AsyncSession, user_id: str, *, expected: int | None = None,
+    expected_deletion: int | None = None, bump: bool = False,
+) -> None:
+    generation = await scope(session, user_id)
+    if await account_was_deleted(session, user_id):
+        raise StaleInput("This account has been deleted")
+    if expected is not None and generation != expected:
+        raise StaleInput("Inputs changed while processing; retry with current data")
+    if expected_deletion is not None and (
+        await scope(session, user_id, DELETION) != expected_deletion
+    ):
+        raise StaleInput("Evidence was deleted while processing; retry with current data")
+    if bump:
+        await scope(session, user_id, bump=True)
 
 
 async def event(session: AsyncSession, run: AgentRun, kind: str, **data: Any) -> None:
@@ -247,11 +267,14 @@ async def decide(session: AsyncSession, user_id: str, run_id: str, approve: bool
 
 async def cancel(session: AsyncSession, user_id: str, run_id: str):
     run = await get_run(session, user_id, run_id, lock=True)
-    if run is not None and run.status not in TERMINAL:
-        await close_running_steps(session, run, "cancelled")
-        run.fencing_token += 1
-        await end(session, run, "cancelled", reason="cancelled_by_user")
-    return run
+    if run is None:
+        return None, None
+    if run.status in TERMINAL:
+        return run, "already_cancelled" if run.status == "cancelled" else "already_terminal"
+    await close_running_steps(session, run, "cancelled")
+    run.fencing_token += 1
+    await end(session, run, "cancelled", reason="cancelled_by_user")
+    return run, "cancelled"
 
 
 async def close_running_steps(session: AsyncSession, run: AgentRun, status: str) -> None:
@@ -280,7 +303,10 @@ async def claim_next(session: AsyncSession, owner: str) -> Claim | None:
         await end(session, run, "failed", reason="run_expired")
     expired = list(await session.scalars(
         select(AgentRun)
-        .where(AgentRun.status == "running", AgentRun.lease_until <= now)
+        .where(AgentRun.status == "running", or_(
+            AgentRun.lease_owner.is_(None), AgentRun.lease_until.is_(None),
+            AgentRun.lease_until <= now,
+        ))
         .order_by(AgentRun.lease_until)
         .limit(settings.run_global_concurrency)
         .with_for_update(skip_locked=True)
@@ -290,9 +316,10 @@ async def claim_next(session: AsyncSession, owner: str) -> Claim | None:
     await session.flush()
 
     active_query = select(AgentRun.user_id).where(AgentRun.status == "running")
-    active_users = set(await session.scalars(active_query))
-    if len(active_users) >= settings.run_global_concurrency:
+    active_runs = list(await session.scalars(active_query))
+    if len(active_runs) >= settings.run_global_concurrency:
         return None
+    active_users = set(active_runs)
     query = select(AgentRun).where(AgentRun.status.in_(ACTIVE_QUEUE))
     if active_users:
         query = query.where(AgentRun.user_id.not_in(active_users))
