@@ -86,8 +86,14 @@ async def chat(
             )
         )
         if thread is None:
-            raise HTTPException(status_code=404, detail="Conversation thread not found")
-        if thread.user_id != payload.user_id:
+            # A caller may start a conversation with a chosen thread id. Create
+            # the thread on first turn; only an existing thread owned by
+            # someone else is a conflict.
+            thread = ConversationThread(
+                user_id=payload.user_id, thread_id=payload.thread_id
+            )
+            session.add(thread)
+        elif thread.user_id != payload.user_id:
             raise HTTPException(status_code=403, detail="Thread belongs to another user")
         turn_version = await read_scope(session, payload.user_id, f"chat:{thread.thread_id}")
 

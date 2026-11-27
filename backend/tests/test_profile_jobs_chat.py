@@ -137,6 +137,34 @@ async def test_chat_persists_history_across_turns(client):
     assert second_body["messages"][2]["content"] == "那我还需要补什么？"
 
 
+async def test_chat_accepts_caller_supplied_new_thread_id(client):
+    """A client may choose a thread id for the first turn (docker smoke flow)."""
+    await _seed_profile(client)
+    thread_id = "caller-chosen-thread"
+    first = await client.post(
+        "/api/v1/chat",
+        json={
+            "user_id": "career-user",
+            "message": "我适合什么方向？",
+            "thread_id": thread_id,
+        },
+    )
+    assert first.status_code == 200
+    assert first.json()["thread_id"] == thread_id
+    second = await client.post(
+        "/api/v1/chat",
+        json={
+            "user_id": "career-user",
+            "message": "那我还需要补什么？",
+            "thread_id": thread_id,
+        },
+    )
+    assert second.status_code == 200
+    assert [m["role"] for m in second.json()["messages"]] == [
+        "user", "assistant", "user", "assistant",
+    ]
+
+
 async def test_chat_resolves_simple_follow_up_and_clarifies_without_context(client):
     await _seed_profile(client)
     payload = {"user_id": "career-user", "message": "那这个呢？"}
