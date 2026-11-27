@@ -198,3 +198,41 @@ test("M3: contract JSON and runtime registry stay in sync", () => {
     assert.equal(RETRYABLE[entry.code as keyof typeof RETRYABLE], entry.retryable, entry.code);
   }
 });
+
+test("M3: run.start from an older runtime_generation is rejected as stale_generation", async () => {
+  const { input, frames, running } = build();
+  send(input, {
+    v: 1,
+    type: "request",
+    id: "s-1",
+    method: "run.start",
+    params: { run_id: "r2", runtime_generation: 2 },
+  });
+  await waitFor(() => response(frames, "s-1") !== undefined);
+  assert.equal(response(frames, "s-1")?.ok, true);
+
+  send(input, {
+    v: 1,
+    type: "request",
+    id: "s-2",
+    method: "run.start",
+    params: { run_id: "r1", runtime_generation: 1 },
+  });
+  await waitFor(() => response(frames, "s-2") !== undefined);
+  const stale = response(frames, "s-2");
+  assert.equal(stale?.ok, false);
+  assert.equal(stale?.error?.code, "stale_generation");
+  assert.deepEqual(stale?.error?.details, { requested: 1, highest: 2 });
+
+  send(input, {
+    v: 1,
+    type: "request",
+    id: "s-3",
+    method: "run.start",
+    params: { run_id: "r3", runtime_generation: 3 },
+  });
+  await waitFor(() => response(frames, "s-3") !== undefined);
+  assert.equal(response(frames, "s-3")?.ok, true);
+  input.end();
+  await running;
+});

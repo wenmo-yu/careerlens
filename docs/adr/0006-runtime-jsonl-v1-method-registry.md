@@ -36,6 +36,7 @@ v1 冻结以下五个方法，超出集合的方法名一律按 `unknown_method`
 - 请求级失败会产生响应：`invalid_id_space`、`unknown_method`、`invalid_params`（带 `details.missing`）、`duplicate_request`、`run_busy`、`handler_error`。
 - `runtime_closed` 表示 stdin 关闭时仍有未返回的 CLI 请求，不可假定成功。
 - `run_busy` 是唯一默认可重试的请求级错误：同一 CLI 在已有活动 Run 时再次 `run.start` 会被拒，调度器应等结算或先 cancel。
+- `stale_generation` 用于旧代拒绝：`run.start` 可带 `runtime_generation`，低于本 CLI 已见最高代际的请求被拒，`details` 返回 `{requested, highest}`。CLI 不因旧代请求改变当前状态。
 
 ### 3. 校验顺序
 
@@ -46,7 +47,8 @@ v1 冻结以下五个方法，超出集合的方法名一律按 `unknown_method`
 3. 方法是否存在 → `unknown_method`
 4. 必填参数 → `invalid_params`
 5. 活动 Run 冲突 → `run_busy`
-6. 执行处理器 → 成功或 `handler_error`
+6. 代际检查：`run.start` 的 `runtime_generation` 低于已见最高代际 → `stale_generation`
+7. 执行处理器 → 成功或 `handler_error`
 
 重复 id 在进入处理器之前就被拒绝，因此不会产生第二次副作用；追踪表有上限（默认 512 条，先进先出），长会话不会无界增长。
 
@@ -54,7 +56,7 @@ v1 冻结以下五个方法，超出集合的方法名一律按 `unknown_method`
 
 - 契约：`contracts/runtime-jsonl-v1.methods.json`（唯一对外发布版本）。
 - 执行点：`agent-runtime/src/protocol/methods.ts`，`runtime-host.ts` 只调用注册表。
-- 测试：`agent-runtime/tests/methods.test.ts`，5 项覆盖未知方法、缺参、重复 id、ping 的绑定状态、`run_busy` 与取消后可重入。
+- 测试：`agent-runtime/tests/methods.test.ts`，7 项覆盖未知方法、缺参、重复 id、ping 的绑定状态、`run_busy` 与取消后可重入、契约一致性、旧代拒绝。
 
 ## 替代方案与取舍
 
@@ -72,5 +74,5 @@ v1 冻结以下五个方法，超出集合的方法名一律按 `unknown_method`
 
 ## 验证与回滚
 
-- 本机 `node --test tests/*.test.ts`：20 项全部通过（含 6 项新增 M3 契约测试，其中 1 项校验契约 JSON 与运行时注册表一致）。
+- 本机 `node --test tests/*.test.ts`：21 项全部通过（含 7 项新增 M3 契约测试，其中 1 项校验契约 JSON 与运行时注册表一致）。
 - 回滚：删除 `contracts/runtime-jsonl-v1.methods.json`、`methods.ts`、`methods.test.ts`，`runtime-host.ts` 恢复为 M0-04 的分支实现即可；因为方法集只增不减，回滚不会破坏已发布帧格式。

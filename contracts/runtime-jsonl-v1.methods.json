@@ -21,24 +21,46 @@
       "name": "runtime.bind",
       "direction": "scheduler_to_runtime",
       "id_space": "s",
-      "required_params": ["session_id"],
+      "required_params": [
+        "session_id"
+      ],
       "optional_params": [],
       "params_schema": {
         "type": "object",
-        "required": ["session_id"],
+        "required": [
+          "session_id"
+        ],
         "properties": {
-          "session_id": { "type": "string", "minLength": 1, "maxLength": 128 },
-          "run_id": { "type": "string", "maxLength": 128 }
+          "session_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "run_id": {
+            "type": "string",
+            "maxLength": 128
+          }
         },
         "additionalProperties": true
       },
       "result_schema": {
         "type": "object",
-        "required": ["sessionId"],
-        "properties": { "sessionId": { "type": "string", "minLength": 1 } }
+        "required": [
+          "sessionId"
+        ],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
       },
       "idempotent": true,
-      "errors": ["invalid_params", "duplicate_request", "handler_error"]
+      "errors": [
+        "invalid_params",
+        "duplicate_request",
+        "handler_error"
+      ]
     },
     {
       "name": "runtime.ping",
@@ -46,14 +68,28 @@
       "id_space": "s",
       "required_params": [],
       "optional_params": [],
-      "params_schema": { "type": "object", "additionalProperties": true },
+      "params_schema": {
+        "type": "object",
+        "additionalProperties": true
+      },
       "result_schema": {
         "type": "object",
-        "required": ["pong", "ping_seq", "bound"],
+        "required": [
+          "pong",
+          "ping_seq",
+          "bound"
+        ],
         "properties": {
-          "pong": { "const": true },
-          "ping_seq": { "type": "integer", "minimum": 1 },
-          "bound": { "type": "boolean" }
+          "pong": {
+            "const": true
+          },
+          "ping_seq": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "bound": {
+            "type": "boolean"
+          }
         }
       },
       "idempotent": true,
@@ -63,64 +99,134 @@
       "name": "run.start",
       "direction": "scheduler_to_runtime",
       "id_space": "s",
-      "required_params": ["run_id"],
-      "optional_params": ["attempt", "runtime_generation", "goal"],
+      "required_params": [
+        "run_id"
+      ],
+      "optional_params": [
+        "attempt",
+        "runtime_generation",
+        "goal"
+      ],
       "params_schema": {
         "type": "object",
-        "required": ["run_id"],
+        "required": [
+          "run_id"
+        ],
         "properties": {
-          "run_id": { "type": "string", "minLength": 1, "maxLength": 128 },
-          "attempt": { "type": "integer", "minimum": 1 },
-          "runtime_generation": { "type": "integer", "minimum": 1 },
-          "goal": { "type": "string", "maxLength": 4000 }
+          "run_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "runtime_generation": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "goal": {
+            "type": "string",
+            "maxLength": 4000
+          }
         },
         "additionalProperties": true
       },
-      "result_schema": { "type": "object", "additionalProperties": true },
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": true
+      },
       "idempotent": false,
-      "errors": ["invalid_params", "run_busy", "duplicate_request", "handler_error"]
+      "errors": [
+        "invalid_params",
+        "stale_generation",
+        "run_busy",
+        "duplicate_request",
+        "handler_error"
+      ],
+      "generation_rule": "可选参数 runtime_generation 必须 >= 本 CLI 已见最高代际；低于最高代际返回 stale_generation，高于则更新最高代际。"
     },
     {
       "name": "run.cancel",
       "direction": "scheduler_to_runtime",
       "id_space": "s",
       "required_params": [],
-      "optional_params": ["run_id"],
+      "optional_params": [
+        "run_id"
+      ],
       "params_schema": {
         "type": "object",
-        "properties": { "run_id": { "type": "string", "maxLength": 128 } },
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
         "additionalProperties": true
       },
       "result_schema": {
         "type": "object",
-        "required": ["cancelled", "hadActiveRun"],
+        "required": [
+          "cancelled",
+          "hadActiveRun"
+        ],
         "properties": {
-          "cancelled": { "type": "boolean" },
-          "hadActiveRun": { "type": "boolean" }
+          "cancelled": {
+            "type": "boolean"
+          },
+          "hadActiveRun": {
+            "type": "boolean"
+          }
         }
       },
       "idempotent": true,
-      "errors": ["duplicate_request", "handler_error"]
+      "errors": [
+        "duplicate_request",
+        "handler_error"
+      ]
     },
     {
       "name": "gateway.invoke",
       "direction": "runtime_to_scheduler",
       "id_space": "c",
-      "required_params": ["tool"],
-      "optional_params": ["run_id", "args"],
+      "required_params": [
+        "tool"
+      ],
+      "optional_params": [
+        "run_id",
+        "args"
+      ],
       "params_schema": {
         "type": "object",
-        "required": ["tool"],
+        "required": [
+          "tool"
+        ],
         "properties": {
-          "tool": { "type": "string", "minLength": 1, "maxLength": 128 },
-          "run_id": { "type": "string", "maxLength": 128 },
-          "args": { "type": "object" }
+          "tool": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "run_id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "args": {
+            "type": "object"
+          }
         },
         "additionalProperties": true
       },
-      "result_schema": { "type": "object", "additionalProperties": true },
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": true
+      },
       "idempotent": false,
-      "errors": ["invalid_params", "handler_error"]
+      "errors": [
+        "invalid_params",
+        "handler_error"
+      ]
     }
   ],
   "error_codes": [
@@ -177,6 +283,12 @@
       "emits_response": true,
       "retryable": true,
       "meaning": "已有活动 Run 时再次 run.start。调度器应等待当前 Run 结算或先 cancel。"
+    },
+    {
+      "code": "stale_generation",
+      "emits_response": true,
+      "retryable": false,
+      "meaning": "run.start 携带的 runtime_generation 低于本 CLI 已见过的最高代际。旧代必须被拒绝，不能覆盖或续跑新代。"
     },
     {
       "code": "handler_error",

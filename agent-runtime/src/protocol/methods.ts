@@ -16,6 +16,7 @@ export type ErrorCode =
   | "invalid_params"
   | "duplicate_request"
   | "run_busy"
+  | "stale_generation"
   | "handler_error"
   | "runtime_closed";
 
@@ -92,6 +93,7 @@ export const RETRYABLE: Readonly<Record<ErrorCode, boolean>> = {
   invalid_params: false,
   duplicate_request: false,
   run_busy: true,
+  stale_generation: false,
   handler_error: false,
   runtime_closed: true,
 };

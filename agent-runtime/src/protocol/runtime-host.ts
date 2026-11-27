@@ -51,6 +51,7 @@ export class RuntimeHost {
   private session: Record<string, unknown> | undefined;
   private seen = new SeenRequestIds();
   private pingSeq = 0;
+  private highestGeneration = 0;
 
   constructor(input: Readable, output: Writable, handlers: RuntimeHandlers) {
     this.input = input;
@@ -156,6 +157,19 @@ export class RuntimeHost {
       );
       return;
     }
+    if (frame.method === "run.start") {
+      const generation = frame.params.runtime_generation;
+      if (typeof generation === "number" && generation < this.highestGeneration) {
+        this.writeError(
+          frame.id,
+          runtimeError("stale_generation", "runtime_generation is behind the highest seen generation", {
+            requested: generation,
+            highest: this.highestGeneration,
+          }),
+        );
+        return;
+      }
+    }
     if (frame.method === "run.start" && this.activeRun()) {
       this.writeError(
         frame.id,
@@ -174,6 +188,10 @@ export class RuntimeHost {
           this.pingSeq += 1;
           result = { pong: true, ping_seq: this.pingSeq, bound: Boolean(this.session) };
         } else if (frame.method === "run.start") {
+          const generation = frame.params.runtime_generation;
+          if (typeof generation === "number" && generation > this.highestGeneration) {
+            this.highestGeneration = generation;
+          }
           const controller = new AbortController();
           this.controller = controller;
           try {
