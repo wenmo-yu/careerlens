@@ -87,3 +87,4 @@
     - [0002 API 兼容基线](docs/adr/0002-api-compatibility-baseline.md)
     - [0003 Runtime JSONL v1](docs/adr/0003-runtime-jsonl-protocol-v1.md)
     - [0004 M0 自研 Runner 原型](docs/adr/0004-m0-scripted-runner-prototype.md)
+    - [0005 M0 静态导出与打包](docs/adr/0005-m0-static-export-packaging-and-job-object.md)

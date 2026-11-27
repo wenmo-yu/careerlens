@@ -8,6 +8,7 @@
 | [0002](0002-api-compatibility-baseline.md) | API 兼容基线 | Accepted（当前 API 快照） | M0–M3 |
 | [0003](0003-runtime-jsonl-protocol-v1.md) | Runtime JSONL v1 自定义协议 | Proposed（帧格式已由 M0 原型验证；方法注册表待 M3） | M0、M3、M4 |
 | [0004](0004-m0-scripted-runner-prototype.md) | M0 自研 Runner 原型与验证边界 | Accepted（仅原型结论） | M0、M3 |
+| [0005](0005-m0-static-export-packaging-and-job-object.md) | M0 静态导出、Python 打包与 Job Object 边界 | Accepted（仅原型证据） | M0 |
 
 ## 优先级
 

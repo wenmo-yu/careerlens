@@ -330,6 +330,7 @@ HTTP/MCP 请求
 | `docs/showcase.md` | 页面截图展示 |
 | `docs/adr/README.md` | V4 决策索引：进程拓扑、API 基线、JSONL 协议、M0 原型边界 |
 | `docs/adr/0004-m0-scripted-runner-prototype.md` | 自研 Runner 原型的验证结论、测试 ID 与未做项 |
+| `docs/adr/0005-m0-static-export-packaging-and-job-object.md` | Next.js 静态导出、PyInstaller 启动与 Job Object 原型的已验证边界 |
 | `docs/assets/*.jpg` | 23 张新版截图：页面总览、工作台各分区（导入/画像/匹配/报告/Copilot/测评/质量/数据）与公开页 |
 
 ---

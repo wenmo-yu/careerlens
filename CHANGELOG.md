@@ -20,6 +20,7 @@ All notable changes to CareerLens are documented here.
 ### Added
 
 - V4 M0 原型：新增 `agent-runtime/` 自研 Agent Core 与 Runtime JSONL v1 双向 RPC 原型，用 ScriptedModel 验证模型→工具→回灌、审批屏障、取消和安全断点恢复；14 项本机测试通过，不接入真实模型、业务库或 OS 沙箱。结论见 `docs/adr/0004-m0-scripted-runner-prototype.md`，Quality Gate 增加对应 job。
+- V4 M0 原型证据：Next.js 静态导出成功生成 7 个静态路由且资源引用齐全；PyInstaller onefile 后端入口能启动 uvicorn 并返回 `/health/live` 200；Windows Job Object 原型观察到进程数限制与关闭 job 终止子进程。边界与未验证项见 `docs/adr/0005-m0-static-export-packaging-and-job-object.md`。
 - 补充轮：三份带许可说明的本地量表（四维工作偏好 32 题、RIASEC 48 题、大五 20 题），题库为项目自写或仅参照公有领域构念，JSON 内记录未采用的 MBTI®/OEJTS/O*NET 等来源；确定性计分（80% 作答门槛、双极接近中点提示、RIASEC 代码一致性与分化度、大五反向题与分档），结果页给出方法说明与免责声明。
 - 补充轮：`GET /assessments/instruments`、`GET /assessments/instruments/{id}`、`POST /assessments/instruments/{id}/submit`；画像概览新增 `assessments` 回显最近一次自陈结果，仍不进入事实画像与匹配分。
 - 补充轮：GitHub 自备只读令牌导入（`POST /connectors/github/import`）：读仓库元数据与 README，令牌只在本次请求使用、不落库；注册表新增「自备只读令牌」等级并附最小权限创建教程。
