@@ -8,6 +8,7 @@
 | [`api-baseline-v0.4.0.json`](api-baseline-v0.4.0.json) | baseline schema 1 | 路径、方法、operationId、标签和兼容规则清单 |
 | [`runtime-jsonl-v1.schema.json`](runtime-jsonl-v1.schema.json) | Runtime JSONL v1 | Scheduler ↔ CLI 的双向 RPC 帧契约 |
 | [`runtime-jsonl-v1.examples.jsonl`](runtime-jsonl-v1.examples.jsonl) | Runtime JSONL v1 | request、response、event 的边界样例 |
+| [`runtime-jsonl-v1.methods.json`](runtime-jsonl-v1.methods.json) | Runtime JSONL v1 | 方法注册表、方向与 id 空间、错误码与可重试位 |
 
 ## 当前基线事实
 
@@ -20,7 +21,7 @@
 
 1. 在 M0–M9 中，现有 API method/path、必填请求字段、成功状态码和 Run SSE 游标语义只可新增兼容字段，不可静默改变。
 2. 破坏性 API 变化必须先提 ADR、提升 API 版本并更新本目录快照；前端和 Desktop 不允许根据假接口先行开发。
-3. Runtime 帧采用 `v` 字段版本化。v1 只定义帧 envelope、请求/响应关联和事件字段；方法注册表、消息上限、超时与背压参数仍属待测项。
+3. Runtime 帧采用 `v` 字段版本化。v1 已冻结帧 envelope、请求/响应关联、事件字段与方法注册表（见 `runtime-jsonl-v1.methods.json`）；能力协商、消息上限、超时与背压参数仍属待测项。
 4. 请求 ACK 只表示接收，`settled` 表示 Core 产生结果，只有业务库事务提交后的 `committed` 才是 UI 最终成功。
 
 ## 重新生成 API 快照

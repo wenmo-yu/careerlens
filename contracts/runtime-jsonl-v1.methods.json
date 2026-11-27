@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wenmo-yu/careerlens/blob/main/contracts/runtime-jsonl-v1.methods.json",
+  "title": "CareerLens Runtime JSONL v1 Method Registry",
+  "description": "Runtime JSONL v1 的方法注册表与错误码表。帧格式由 runtime-jsonl-v1.schema.json 定义；本文件只定义方法名、方向、参数与错误码，是 CLI 与调度器之间的机器可读契约。非 ACP、非 Pi。",
+  "protocol": "runtime-jsonl",
+  "version": 1,
+  "id_space": {
+    "scheduler_to_runtime": "s-<n>",
+    "runtime_to_scheduler": "c-<n>",
+    "rule": "两个方向各自递增，互不复用；收到不属于本方向前缀的 id 立即以 invalid_id_space 拒绝，且不执行任何副作用。"
+  },
+  "transport": {
+    "framing": "每行一条 JSON，LF 分帧，禁止 CR",
+    "max_frame_bytes": 65536,
+    "stdout": "只允许协议帧",
+    "stderr": "只允许诊断日志，不参与协议"
+  },
+  "methods": [
+    {
+      "name": "runtime.bind",
+      "direction": "scheduler_to_runtime",
+      "id_space": "s",
+      "required_params": ["session_id"],
+      "optional_params": [],
+      "params_schema": {
+        "type": "object",
+        "required": ["session_id"],
+        "properties": {
+          "session_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "run_id": { "type": "string", "maxLength": 128 }
+        },
+        "additionalProperties": true
+      },
+      "result_schema": {
+        "type": "object",
+        "required": ["sessionId"],
+        "properties": { "sessionId": { "type": "string", "minLength": 1 } }
+      },
+      "idempotent": true,
+      "errors": ["invalid_params", "duplicate_request", "handler_error"]
+    },
+    {
+      "name": "runtime.ping",
+      "direction": "scheduler_to_runtime",
+      "id_space": "s",
+      "required_params": [],
+      "optional_params": [],
+      "params_schema": { "type": "object", "additionalProperties": true },
+      "result_schema": {
+        "type": "object",
+        "required": ["pong", "ping_seq", "bound"],
+        "properties": {
+          "pong": { "const": true },
+          "ping_seq": { "type": "integer", "minimum": 1 },
+          "bound": { "type": "boolean" }
+        }
+      },
+      "idempotent": true,
+      "errors": []
+    },
+    {
+      "name": "run.start",
+      "direction": "scheduler_to_runtime",
+      "id_space": "s",
+      "required_params": ["run_id"],
+      "optional_params": ["attempt", "runtime_generation", "goal"],
+      "params_schema": {
+        "type": "object",
+        "required": ["run_id"],
+        "properties": {
+          "run_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "attempt": { "type": "integer", "minimum": 1 },
+          "runtime_generation": { "type": "integer", "minimum": 1 },
+          "goal": { "type": "string", "maxLength": 4000 }
+        },
+        "additionalProperties": true
+      },
+      "result_schema": { "type": "object", "additionalProperties": true },
+      "idempotent": false,
+      "errors": ["invalid_params", "run_busy", "duplicate_request", "handler_error"]
+    },
+    {
+      "name": "run.cancel",
+      "direction": "scheduler_to_runtime",
+      "id_space": "s",
+      "required_params": [],
+      "optional_params": ["run_id"],
+      "params_schema": {
+        "type": "object",
+        "properties": { "run_id": { "type": "string", "maxLength": 128 } },
+        "additionalProperties": true
+      },
+      "result_schema": {
+        "type": "object",
+        "required": ["cancelled", "hadActiveRun"],
+        "properties": {
+          "cancelled": { "type": "boolean" },
+          "hadActiveRun": { "type": "boolean" }
+        }
+      },
+      "idempotent": true,
+      "errors": ["duplicate_request", "handler_error"]
+    },
+    {
+      "name": "gateway.invoke",
+      "direction": "runtime_to_scheduler",
+      "id_space": "c",
+      "required_params": ["tool"],
+      "optional_params": ["run_id", "args"],
+      "params_schema": {
+        "type": "object",
+        "required": ["tool"],
+        "properties": {
+          "tool": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "run_id": { "type": "string", "maxLength": 128 },
+          "args": { "type": "object" }
+        },
+        "additionalProperties": true
+      },
+      "result_schema": { "type": "object", "additionalProperties": true },
+      "idempotent": false,
+      "errors": ["invalid_params", "handler_error"]
+    }
+  ],
+  "error_codes": [
+    {
+      "code": "invalid_frame",
+      "emits_response": false,
+      "retryable": false,
+      "meaning": "帧信封不合法（缺字段、类型错、含 CR）。整行丢弃，不产生任何副作用。"
+    },
+    {
+      "code": "invalid_json",
+      "emits_response": false,
+      "retryable": false,
+      "meaning": "整行不是合法 JSON。整行丢弃，不产生任何副作用。"
+    },
+    {
+      "code": "frame_too_large",
+      "emits_response": false,
+      "retryable": false,
+      "meaning": "单帧超过 65536 字节。整行丢弃，不产生任何副作用。"
+    },
+    {
+      "code": "unknown_type",
+      "emits_response": false,
+      "retryable": false,
+      "meaning": "type 不属于 request/response/event。整行丢弃。"
+    },
+    {
+      "code": "invalid_id_space",
+      "emits_response": true,
+      "retryable": false,
+      "meaning": "请求 id 前缀不属于接收方方向。拒绝且不执行。"
+    },
+    {
+      "code": "unknown_method",
+      "emits_response": true,
+      "retryable": false,
+      "meaning": "方法名不在本注册表内。拒绝且不执行，便于版本不匹配时快速定位。"
+    },
+    {
+      "code": "invalid_params",
+      "emits_response": true,
+      "retryable": false,
+      "meaning": "缺少必填参数。details.missing 列出缺失字段名。"
+    },
+    {
+      "code": "duplicate_request",
+      "emits_response": true,
+      "retryable": false,
+      "meaning": "同一方向的同一请求 id 被重复使用。第二个请求被拒绝，不产生第二次副作用。"
+    },
+    {
+      "code": "run_busy",
+      "emits_response": true,
+      "retryable": true,
+      "meaning": "已有活动 Run 时再次 run.start。调度器应等待当前 Run 结算或先 cancel。"
+    },
+    {
+      "code": "handler_error",
+      "emits_response": true,
+      "retryable": false,
+      "meaning": "方法已在注册表内但处理失败。message 只放可公开摘要，不含提示词或证据正文。"
+    },
+    {
+      "code": "runtime_closed",
+      "emits_response": false,
+      "retryable": true,
+      "meaning": "stdin 关闭时仍有未返回的 CLI 请求。调度器按未确认处理，不得假定成功。"
+    }
+  ],
+  "lifecycle": {
+    "ordering": "调度器可以并发发送请求，但 run.start 的响应不保证先于 run.cancel 的响应返回；调用方必须以 id 配对，不得依赖到达顺序。",
+    "settlement": "run.settled 事件是 CLI 视角的结算信号，不等于业务库已提交；业务事实以 FastAPI 事务为准。",
+    "reconnect": "断线后调度器必须先 runtime.bind 再 run.start；CLI 不持有跨会话状态。"
+  }
+}

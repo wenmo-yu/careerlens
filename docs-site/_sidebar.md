@@ -88,3 +88,4 @@
     - [0003 Runtime JSONL v1](docs/adr/0003-runtime-jsonl-protocol-v1.md)
     - [0004 M0 自研 Runner 原型](docs/adr/0004-m0-scripted-runner-prototype.md)
     - [0005 M0 静态导出与打包](docs/adr/0005-m0-static-export-packaging-and-job-object.md)
+    - [0006 Runtime 方法注册表](docs/adr/0006-runtime-jsonl-v1-method-registry.md)

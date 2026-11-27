@@ -19,6 +19,8 @@ All notable changes to CareerLens are documented here.
 
 ### Added
 
+- V4 M0 原型证据更新：打包产物上跑通完整业务链路（注册→证据→画像→chat→Run SSE，16 条事件，Run `succeeded`）与业务级审批两条路径；AppContainer 受限进程可启动，并观察到「宿主可写路径在容器内被拒、系统文件仍可读」的差异。单 exe 只跑 API 会让 Run 永远 `queued`，桌面启动器必须同时拉起 API 与 worker。见 `docs/adr/0005-m0-static-export-packaging-and-job-object.md`。
+- V4 Runtime 契约：新增 `contracts/runtime-jsonl-v1.methods.json`，冻结 v1 五个方法与 11 个错误码（含可重试位、校验顺序、重复 id 上限），并在 `agent-runtime` 实现与测试；本机 20 项测试通过。见 `docs/adr/0006-runtime-jsonl-v1-method-registry.md`。
 - V4 M0 原型：新增 `agent-runtime/` 自研 Agent Core 与 Runtime JSONL v1 双向 RPC 原型，用 ScriptedModel 验证模型→工具→回灌、审批屏障、取消和安全断点恢复；14 项本机测试通过，不接入真实模型、业务库或 OS 沙箱。结论见 `docs/adr/0004-m0-scripted-runner-prototype.md`，Quality Gate 增加对应 job。
 - V4 M0 原型证据：Next.js 静态导出成功生成 7 个静态路由且资源引用齐全；最小 Tauri 2 宿主编译启动成功，WebView origin 为 `http://tauri.localhost`、16 个静态资源 200，跨源 API 需显式把该 origin 加入 CORS；PyInstaller onefile 后端入口能启动 uvicorn、返回 `/health/live` 200 并完成文本/文件基础解析；Windows Job Object 原型观察到进程数限制与关闭 job 终止子进程，AppContainer profile 可创建并删除。边界与未验证项见 `docs/adr/0005-m0-static-export-packaging-and-job-object.md`。
 - 补充轮：三份带许可说明的本地量表（四维工作偏好 32 题、RIASEC 48 题、大五 20 题），题库为项目自写或仅参照公有领域构念，JSON 内记录未采用的 MBTI®/OEJTS/O*NET 等来源；确定性计分（80% 作答门槛、双极接近中点提示、RIASEC 代码一致性与分化度、大五反向题与分档），结果页给出方法说明与免责声明。

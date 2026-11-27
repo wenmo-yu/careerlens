@@ -21,9 +21,11 @@ M0 除自研 Runner 外，还需要证明 Web 前端能被静态导出、后端�
 - 构建后配置已恢复为 `standalone`，仓库树保持干净。
 - 在仓库外搭了最小 Tauri 2 宿主（tauri 2.12.7、wry 0.57.4、webview2-com 0.39.1），用 MSVC 工具链编译成功；首次失败仅因缺少 `icons/icon.ico`，补最小图标后 `cargo build --release` 通过，exe 能启动并创建 WebView 窗口。
 - WebView 内实测 origin 为 `http://tauri.localhost`；页面引用的 16 个静态资源请求全部返回 200。绝对路径 `/_next/...` 在该 origin 下可解析。
-- **CORS 是 Desktop 必须处理的真实问题**：默认 `CORS_ORIGINS` 不含 `http://tauri.localhost` 时，WebView 内 `/health/live`、证据导入和 chat 请求全部失败；把该 origin 加入后端 `CORS_ORIGINS` 后，health 返回 200、`POST /api/v1/evidence/text` 返回 201、chat 请求到达业务层并返回 422「Build the user profile before chatting」。这说明网络链路已打通，chat 后续需要真实画像；Run SSE 的完整持久流仍未验证。
+- **CORS 是 Desktop 必须处理的真实问题**：默认 `CORS_ORIGINS` 不含 `http://tauri.localhost` 时，WebView 内 `/health/live`、证据导入和 chat 请求全部失败；把该 origin 加入后端 `CORS_ORIGINS` 后，health 返回 200、`POST /api/v1/evidence/text` 返回 201、chat 请求到达业务层并返回 422「Build the user profile before chatting」。这说明网络链路已打通，当时缺的是业务画像。
+- **补齐画像后，完整业务链路在打包产物上跑通**（同一个 PyInstaller exe 起 API，同时起 worker）：注册 200 → 文本证据 201 → `POST /api/v1/profiles/{user_id}/rebuild` 200 → chat 200（`intent=skill_gap`，返回证据引用）→ `POST /api/v1/runs` 202 → `GET /api/v1/runs/{run_id}/stream` 200，收到 16 条 SSE 事件（`run.queued`、`run.started`、3 个 `step.*`、5 个 `step.succeeded`、`run.succeeded`）→ `GET /api/v1/runs/{run_id}` 返回 `status=succeeded` 与 `result.job_analysis_id`；`GET /runs/{run_id}/steps` 返回 3 个成功后置。
+- **业务级审批门禁两条路径都验证**：`requires_confirmation=true` 时 Run 先停在 `waiting_confirmation`；`POST /runs/{run_id}/decision` 传 `approve=true` 后转 `queued` 并经 worker 执行到 `succeeded`；传 `approve=false` 后 Run 直接 `cancelled`、`error_code=rejected`。中途一次 `failed/invalid_input` 经查是该用户没有画像，属业务前置条件，不是链路缺陷。
 
-结论：ADR 0001 的首选 Tauri 路线通过 M0 原型，不启用"共享 UI + Vite 桌面入口"回退。实现 PR 必须显式配置 Desktop origin（或改走 Tauri IPC 代理），不能依赖浏览器默认 CORS。
+结论：ADR 0001 的首选 Tauri 路线通过 M0 原型，不启用"共享 UI + Vite 桌面入口"回退。实现 PR 必须显式配置 Desktop origin（或改走 Tauri IPC 代理），不能依赖浏览器默认 CORS；Desktop 启动器必须同时拉起 API 与 worker。
 
 ### 2. Python 后端可打包为可启动 exe，但依赖来源需固定
 
@@ -32,9 +34,10 @@ M0 除自研 Runner 外，还需要证明 Web 前端能被静态导出、后端�
 - 加入服务模式后，打包 exe 启动 uvicorn 于 `127.0.0.1:8123`，`GET /health/live` 返回 HTTP 200 `{"status":"ok"}`。
 - 本机依赖来自 `pip install -e ".[dev]"`（与当前 CI 相同），不是 `backend/uv.lock`；原型环境打印的 `app.version` 为 `0.0.0`，与项目 `0.4.0` 不同，说明版本注入方式必须在实现 PR 中固定。
 - 在同一个打包 exe 上实测：`POST /api/v1/evidence/text` 成功写入 self_statement 证据；`POST /api/v1/evidence/file` 上传合成 `.txt` 后返回 `parse_status=parsed`、`readable_count=1`、`source_document_id`。基础文本与文件解析链在打包产物中可用。
+- **单 exe 只跑 API 会留下永远 `queued` 的 Run**：Run 队列由独立进程 `app.runtime.worker` 消费。给打包入口加 `CAREERLENS_PROBE_WORKER=1` 模式、与 API 共用同一 SQLite 库后，Run 才从 `queued` 走到 `succeeded`。这是桌面启动器的结构性要求，不是测试脚本的细节。
 - PDF/DOCX/XLSX、OCR/ASR、真实模型以及依赖锁定版本没有在打包产物中验证，不能据此宣称完整 Desktop 后端可用。
 
-结论：M0-03 的"打包、启动 API、基础解析"通过；"全格式解析、真实依赖锁定与真实模型"仍待验证。
+结论：M0-03 的"打包、启动 API、基础解析、Run 队列消费"通过；"全格式解析、真实依赖锁定与真实模型"仍待验证。
 
 ### 3. Windows Job Object 只证明两项进程约束
 
@@ -43,7 +46,19 @@ M0 除自研 Runner 外，还需要证明 Web 前端能被静态导出、后端�
 - `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`：关闭 job 句柄后，受管子进程被终止。
 - `JOB_OBJECT_LIMIT_ACTIVE_PROCESS=1`：受管子进程尝试再生子进程时，观察到 CreateProcess 失败，判定为 `spawn_blocked`。
 - 边界：子进程自身以异常码退出，说明这是"限制被触发"的证据，不是完整攻击矩阵；没有证明文件、网络、命名管道隔离，也没有验证嵌套 job、句柄继承或宿主已在一个 job 中的失败路径。
-- AppContainer 前置检查：本机可调用 `userenv.dll` 的 profile API，创建 SID 成功（HRESULT 0），`FreeSid` 与删除 profile 也成功（HRESULT 0）。这仅是 profile 生命周期验证；没有启动受限进程，也没有验证文件/网络能力边界。
+
+### 3b. AppContainer 已能启动受限进程，并观察到写拒绝/读允许的差异
+
+- 用 `userenv!CreateAppContainerProfile` + `DeriveAppContainerSidFromAppContainerName` 建立 profile 与 SID（两者 HRESULT 0）。
+- 用 `STARTUPINFOEXW` + `PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES` + `CreateProcessW(EXTENDED_STARTUPINFO_PRESENT)` 直接在 AppContainer 内启动 `cmd.exe`，进程创建成功。
+- 差异对照（同一路径、同一次运行）：
+  - 宿主 Python 直接写 `D:/work/career/.cache/.../appcontainer-write.txt` 成功；
+  - AppContainer 内 `cmd.exe /c echo ... > 同一路径` 退出码 1，文件未生成（写被拒）；
+  - AppContainer 内 `cmd.exe /c type C:\Windows\win.ini >nul` 退出码 0（读系统文件仍允许，说明进程确实起来了，不是启动失败）。
+- 早期用 `%LOCALAPPDATA%` 做目标时宿主写也失败，结论无效，已弃用该次结果；`CreateAppContainerToken` 在本机 `userenv.dll` 中不存在，因此改用属性列表方式，而非复制他人的 token 方案。
+- 边界：只验证了 `cmd.exe` 子进程的文件写/读，不含 Node、Python 运行时、命名管道、回环网络与模型流的兼容性；没有验证能力（capability）授权、`CapabilityCount>0`、嵌套容器或完整攻击矩阵。
+
+结论：AppContainer 具备"能启动 + 至少阻断一处宿主可写路径"的原型证据，但距离可作为沙箱验收仍缺网络/管道/运行时兼容性验证；高风险工具在补齐前仍按低权限默认拒绝。
 
 结论：高风险工具仍必须经过 Tool Gateway 与能力门；Job Object 不能单独作为沙箱成立的依据。
 

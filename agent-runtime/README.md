@@ -10,7 +10,7 @@
 
 ```bash
 cd agent-runtime
-node --test tests/*.test.ts   # 14 项：引擎 8 + 协议 5 + CLI 1
+node --test tests/*.test.ts   # 20 项：引擎 8 + 协议(帧/取消) 4 + 方法契约 6 + CLI 1
 node src/cli.ts               # stdio JSONL 入口，等待 scheduler 帧
 ```
 
@@ -26,6 +26,7 @@ CLI 只向 stdout 写 JSONL 协议帧；诊断写 stderr。Scheduler → CLI 请
 | 预算跨轮累计后停止；断点 JSON 往返与旧版本拒绝 | `tests/engine.test.ts`（T36） |
 | 半行缓冲、CRLF/巨帧/非法 UTF-8 拒绝；取消请求不与长任务互相阻塞 | `tests/protocol.test.ts`（T32） |
 | `gateway.invoke` 双向配对；CLI 子进程 stdout 全是合法帧 | `tests/cli.test.ts` |
+| 未知方法、缺必填参、重复请求 id、活动 Run 冲突都有确定错误码；`runtime.ping` 返回绑定状态 | `tests/methods.test.ts`（T27） |
 
 ## 显式未做
 
@@ -34,4 +35,4 @@ CLI 只向 stdout 写 JSONL 协议帧；诊断写 stderr。Scheduler → CLI 请
 - 没有 Runtime Manager、预热池、daemon、Tauri Host 或 OS 沙箱。
 - 没有 token 精确计数、上下文压缩、Team/Task 多 Agent 和真实模型评测。
 
-结论与后续门禁见 [`docs/adr/0004-m0-scripted-runner-prototype.md`](../docs/adr/0004-m0-scripted-runner-prototype.md)。
+方法注册表与错误码冻结在 [`contracts/runtime-jsonl-v1.methods.json`](../contracts/runtime-jsonl-v1.methods.json)，设计理由见 [`docs/adr/0006-runtime-jsonl-v1-method-registry.md`](../docs/adr/0006-runtime-jsonl-v1-method-registry.md)；原型结论与后续门禁见 [`docs/adr/0004-m0-scripted-runner-prototype.md`](../docs/adr/0004-m0-scripted-runner-prototype.md)。

@@ -7,6 +7,13 @@ import {
   type ResponseFrame,
   type RuntimeFrame,
 } from "./jsonl.ts";
+import {
+  SeenRequestIds,
+  lookupMethod,
+  missingParams,
+  runtimeError,
+  type RuntimeErrorBody,
+} from "./methods.ts";
 
 export interface RuntimeHandlers {
   bind(params: Record<string, unknown>): Promise<unknown> | unknown;
@@ -42,6 +49,8 @@ export class RuntimeHost {
   private cliSeq = 0;
   private controller: AbortController | undefined;
   private session: Record<string, unknown> | undefined;
+  private seen = new SeenRequestIds();
+  private pingSeq = 0;
 
   constructor(input: Readable, output: Writable, handlers: RuntimeHandlers) {
     this.input = input;
@@ -119,23 +128,61 @@ export class RuntimeHost {
 
   private dispatch(frame: RequestFrame): void {
     if (!/^s-[0-9]+$/.test(frame.id)) {
-      this.writeResponse(frame.id, false, undefined, {
-        code: "invalid_id_space",
-        message: "scheduler request must use an s-<n> id",
-      });
+      this.writeError(
+        frame.id,
+        runtimeError("invalid_id_space", "scheduler request must use an s-<n> id"),
+      );
       return;
     }
+    if (this.seen.has(frame.id)) {
+      this.writeError(
+        frame.id,
+        runtimeError("duplicate_request", `request id already used: ${frame.id}`, {
+          request_id: frame.id,
+        }),
+      );
+      return;
+    }
+    const spec = lookupMethod(frame.method);
+    if (!spec) {
+      this.writeError(frame.id, runtimeError("unknown_method", `unknown method: ${frame.method}`));
+      return;
+    }
+    const missing = missingParams(spec, frame.params);
+    if (missing.length > 0) {
+      this.writeError(
+        frame.id,
+        runtimeError("invalid_params", `missing required params for ${frame.method}`, { missing }),
+      );
+      return;
+    }
+    if (frame.method === "run.start" && this.activeRun()) {
+      this.writeError(
+        frame.id,
+        runtimeError("run_busy", "a run is already active in this runtime", { active: true }),
+      );
+      return;
+    }
+    this.seen.add(frame.id);
     const task = (async () => {
       try {
         let result: unknown;
         if (frame.method === "runtime.bind") {
           this.session = { ...frame.params };
           result = await this.handlers.bind(frame.params);
+        } else if (frame.method === "runtime.ping") {
+          this.pingSeq += 1;
+          result = { pong: true, ping_seq: this.pingSeq, bound: Boolean(this.session) };
         } else if (frame.method === "run.start") {
-          this.controller = new AbortController();
-          result = await this.handlers.start(frame.params, this.controller.signal, this);
+          const controller = new AbortController();
+          this.controller = controller;
+          try {
+            result = await this.handlers.start(frame.params, controller.signal, this);
+          } finally {
+            if (this.controller === controller) this.controller = undefined;
+          }
         } else if (frame.method === "run.cancel") {
-          const hadActiveRun = Boolean(this.controller);
+          const hadActiveRun = Boolean(this.activeRun());
           this.controller?.abort();
           result = { ...(await this.handlers.cancel(frame.params)), hadActiveRun };
         } else if (frame.method === "gateway.invoke") {
@@ -143,18 +190,22 @@ export class RuntimeHost {
             ? await this.handlers.invoke(frame.params)
             : { error: "gateway_not_available" };
         } else {
-          throw new Error(`unknown method: ${frame.method}`);
+          throw new Error(`unreachable method: ${frame.method}`);
         }
         this.writeResponse(frame.id, true, result);
       } catch (error) {
-        this.writeResponse(frame.id, false, undefined, {
-          code: "handler_error",
-          message: error instanceof Error ? error.message : String(error),
-        });
+        this.writeError(
+          frame.id,
+          runtimeError("handler_error", error instanceof Error ? error.message : String(error)),
+        );
       }
     })();
     this.pending.add(task);
     void task.finally(() => this.pending.delete(task));
+  }
+
+  private activeRun(): AbortController | undefined {
+    return this.controller && !this.controller.signal.aborted ? this.controller : undefined;
   }
 
   private resolve(frame: ResponseFrame): void {
@@ -172,15 +223,13 @@ export class RuntimeHost {
     waiter.resolve(frame);
   }
 
-  private writeResponse(
-    id: string,
-    ok: boolean,
-    result?: unknown,
-    error?: { code: string; message: string },
-  ): void {
-    const frame: ResponseFrame = ok
-      ? { v: 1, type: "response", id, ok: true, result }
-      : { v: 1, type: "response", id, ok: false, error };
+  private writeResponse(id: string, ok: boolean, result?: unknown): void {
+    const frame: ResponseFrame = { v: 1, type: "response", id, ok, result };
+    this.write(frame);
+  }
+
+  private writeError(id: string, error: RuntimeErrorBody): void {
+    const frame: ResponseFrame = { v: 1, type: "response", id, ok: false, error };
     this.write(frame);
   }
 
