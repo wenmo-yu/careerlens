@@ -70,6 +70,17 @@ jobs:
           node --check ../browser-helper/popup.js
       - run: pnpm build
 
+  agent-runtime-m0:
+    name: Agent Core M0 prototype
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run self-developed Runner and JSONL protocol tests
+        run: node --test agent-runtime/tests/*.test.ts
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20

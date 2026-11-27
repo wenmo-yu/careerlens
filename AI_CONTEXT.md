@@ -80,7 +80,9 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/` | FastAPI + SQLAlchemy + Alembic 后端 | 几乎所有业务机制 |
 | `frontend/` | Next.js 工作台与公开页 | 界面、交互、SSE、截图 |
 | `docs-site/` | Docsify 教程站壳、侧栏、构建脚本 | 改教程站、发布 Pages、链接/锚点 |
-| `docs/` | 公开技术文档 | 架构、数据、Agent/检索、运维口径 |
+| `docs/` | 公开技术文档 | 架构、数据、Agent/检索、运维口径；`docs/adr/` 是 V4 决策记录 |
+| `contracts/` | V4 版本化机器可读契约：OpenAPI 快照、API 基线、Runtime JSONL v1 | 改跨端/跨进程接口前先读；不要把 JSONL 日志当业务事实 |
+| `agent-runtime/` | 自研 Agent Core M0 原型：ScriptedModel、内存端口、JSONL 双向 RPC | 只用于验证状态机/协议；不要当生产运行时或安全边界 |
 | `tutorials/` | 零基础课程正文与练习 | 教学、概念解释、源码导读 |
 | `examples/` | 跟做脚本和合成夹具 | 验证课程练习是否可复跑 |
 | `eval/` | 评测数据集与基线 | 评测口径、回归基线 |
@@ -326,6 +328,8 @@ HTTP/MCP 请求
 | `docs/evaluation-and-operations.md` | 评测口径、本地验收、故障定位 |
 | `docs/api-and-configuration.md` | 完整接口、非 Docker 启动、迁移、真实模型与生产配置 |
 | `docs/showcase.md` | 页面截图展示 |
+| `docs/adr/README.md` | V4 决策索引：进程拓扑、API 基线、JSONL 协议、M0 原型边界 |
+| `docs/adr/0004-m0-scripted-runner-prototype.md` | 自研 Runner 原型的验证结论、测试 ID 与未做项 |
 | `docs/assets/*.jpg` | 23 张新版截图：页面总览、工作台各分区（导入/画像/匹配/报告/Copilot/测评/质量/数据）与公开页 |
 
 ---

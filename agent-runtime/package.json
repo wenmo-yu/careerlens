@@ -1,0 +1,11 @@
+{
+  "name": "careerlens-agent-runtime-m0",
+  "version": "0.0.0-m0",
+  "private": true,
+  "type": "module",
+  "description": "CareerLens M0 prototype of the self-developed Agent Core and Runtime JSONL v1 adapter. Not a production runtime.",
+  "scripts": {
+    "test": "node --test tests/*.test.ts",
+    "start": "node src/cli.ts"
+  }
+}
