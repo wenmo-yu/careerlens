@@ -40,8 +40,10 @@ ADR 0007 的 daemon 原型证明了拓扑可行，但代码在仓库外，不能
 
 ## 验证
 
-- 单元测试 31 项（`tests/test_daemon_contract.py`、`test_daemon_supervisor.py`、`test_daemon_control.py`）：契约与内置副本一致、版本不匹配拒绝、退避与上限、熔断开合、窗口过期、单角色重启、停止语义、握手/未握手/未知命令/未知角色/未就绪。
+- 跨平台单元测试 41 项（`tests/test_daemon_contract.py`、`test_daemon_supervisor.py`、`test_daemon_control.py`、`test_daemon_lifecycle.py`）：契约与内置副本一致、版本不匹配拒绝、退避与上限、熔断开合、窗口过期、单角色重启、停止语义、握手/未握手/未知命令/未知角色/未就绪、单实例锁、spawner 环境、健康探测与就绪等待。
+- Windows 专属测试 4 项（`tests/test_daemon_windows.py`）：互斥量独占与释放、Job Object 自加入、管道 DACL 建立后的命令分发、同一连接内 hello→status 的真实往返。CI 新增 `daemon-windows` job（windows-latest）专门跑这一组，避免平台专属代码只在某台机器上手工验过。
 - `ruff check` 通过（E/F/I/UP/B，line-length 100）。
+- 后端全量测试 300 passed、覆盖率 78.65%（CI 阈值 78%）；`ruff` 通过。
 - 真实集成（本机，Windows）：用 `python -m app.runtime.daemon` 监督打包 exe，`status` 返回 `version=0.2.0-m2` 与两个子进程；`taskkill` 掉 API 后自动重启并 `restarts=1`；第二个实例退出码 3；经该 daemon 跑完整业务链路（注册→证据→画像→chat→Run SSE 16 事件→`succeeded`）；`stop` 后 daemon 与两个子进程全部退出，无孤儿。
 
 ## 替代方案与取舍
