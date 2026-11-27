@@ -12,7 +12,17 @@
 
 把问句「林澈用过 Python 吗？」交给证据库，系统可以先找一小批候选。这一步叫**召回**。一条路线可按向量相似度找正文，另一条可以偏重共享的术语。两套方法有各自的分数。**排名融合**可以只取它们各自的名次，先做一份合并榜。**重排**再用同一套规则细排候选，查回事实仍需要打开对应原文。
 
-在 `backend/app/retrieval/qdrant_store.py` 打开 `QdrantEvidenceStore.search`。这里有两个 `models.Prefetch`，各通过 `using` 选择 `dense` 和 `sparse`，再在 `query` 里选择 `models.Fusion.RRF`。返回的候选被交给 `reranker.score` 重排。接下来的手算先把自己放在两路榜单刚返回的那一步。 [候选融合与重排源码](../backend/app/retrieval/qdrant_store.py#L90-L140)
+真正的 Qdrant 路径在 `backend/app/retrieval/qdrant_store.py` 里先取两路候选，再交给重排器。下面这段去掉了过滤条件和分页细节，但保留了你会看到的关键名字：
+
+```python
+prefetch=[
+    models.Prefetch(query=embedder.embed_query(query), using="dense", ...),
+    models.Prefetch(query=sparse_vector(query), using="sparse", ...),
+],
+query=models.FusionQuery(fusion=models.Fusion.RRF),
+```
+
+`candidates` 返回候选后，`rank_with_trace` 调重排器并留下诊断。接下来的手算先把自己放在两路榜单刚返回的那一步。
 
 ## 环节一 · 先猜：两张榜融合，谁第一？（浏览器即可）
 
@@ -37,7 +47,7 @@
 
 </details>
 
-这是教学玩具榜单，不是真实用户数据或固定服务响应。真实 CareerLens 的融合由 Qdrant 服务端完成，源码里**没有显式指定 `k`**（`backend/app/retrieval/qdrant_store.py:107` 只传 `FusionQuery(fusion=Fusion.RRF)`）；Qdrant 1.15.4 的实现用零起始位置、内部默认常数。不同排名约定下常数不能直接套，别把这里的 `2/3` 当成服务分数。
+这是教学玩具榜单，不是真实用户数据或固定服务响应。真实 CareerLens 的融合由 Qdrant 服务端完成，源码里**没有显式指定 `k`**（上面片段只传 `FusionQuery(fusion=Fusion.RRF)`）；Qdrant 1.15.4 的实现用零起始位置、内部默认常数。不同排名约定下常数不能直接套，别把这里的 `2/3` 当成服务分数。
 
 ## 环节二 · 做与改：写个小函数，改一个变量看结果
 
@@ -89,7 +99,17 @@ def fuse(*lists, k=2):
 <details>
 <summary>参考答案与提示</summary>
 
-名次交错（`rank_interleave`）是 `hybrid` 模式合并 RAG 与 Wiki 两路的方式（`backend/app/services/knowledge.py:66-69`），它和 RRF 分数融合是**两件不同的事**——前者按名次轮流取，后者按倒数名次累加分。脚本里两种都算了，就是让你看清它们的依据不同。
+名次交错（`rank_interleave`）是 `hybrid` 模式合并 RAG 与 Wiki 两路的方式，对应 `search_knowledge` 里的这段代码：
+
+```python
+hits = [
+    hit for pair in zip_longest(rag_hits, wiki_hits)
+    for hit in pair if hit is not None
+][:limit]
+diagnostics["knowledge_fusion"] = "rank_interleave"
+```
+
+它和 RRF 分数融合是**两件不同的事**——前者按名次轮流取，后者按倒数名次累加分。脚本里两种都算了，就是让你看清它们的依据不同。
 
 </details>
 
@@ -130,7 +150,15 @@ python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
 - `evidence[*].source_kind`：`rag` 或 `wiki`。`wiki` 模式不查证据检索器，所以它的诊断里**没有** `backend`/`fusion`/`reranker` 键——不是 bug，是它根本没走那条链。
 - `retrieval.knowledge_fusion`：只有 `hybrid` 出现 `rank_interleave`（RAG 与 Wiki 名次交错），与 Dense+Sparse 的融合不是一回事。
 
-> **重排的诚实说明**：级联重排（粗排 Top15 → 精排 Top5）默认**关闭**（`backend/app/core/config.py:42`），默认只有单级词法重排 `lexical-v1`。开启两级后才是粗排 15 / 精排 5。别把「两级重排」说成默认路径。
+> **重排的诚实说明**：级联重排（粗排 Top15 → 精排 Top5）默认**关闭**。源码里的默认值就是下面这样：
+>
+> ```python
+> rerank_stages_enabled: bool = False
+> rerank_coarse_top_k: int = Field(default=15, ge=1)
+> rerank_fine_top_k: int = Field(default=5, ge=1)
+> ```
+>
+> 默认只有单级词法重排 `lexical-v1`；开启两级后才是粗排 15 / 精排 5。别把「两级重排」说成默认路径。
 
 ## 环节四 · 判错与迁移：榜首也可能不能支持结论
 
@@ -151,7 +179,7 @@ python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
 
 排序分高 ≠ 引用合法；引用合法 ≠ 事实支持。要把系统的检查和人的判断分开：**系统目前校验的是引用 ID 的合法性**（回答里的行内引用必须落在返回证据的 ID 范围内，未知 ID 会被拒绝），**它不做语义层面的事实核验**——一条合法 ID、能追到原文的「收藏教程」，照样能出现在回答里。所以「这条引用内容到底支不支持结论」这一步得由你来做，判不准就写「证据不足」。
 
-引用校验失败时，聊天生成节点会改用备用答复，响应仍可为 200，诊断中会有 `fallback=true` 和 `reason=ValueError`。编号合法的回答还要逐句看原文。这条兴趣记录可以支持「收藏过教程」，上线经历需要别的材料。 [聊天答复节点](../backend/app/graph/career.py#L158-L216) · [引用回归](../backend/tests/test_job_intelligence.py#L249)
+引用校验失败时，聊天生成节点会改用备用答复，响应仍可为 200，诊断中会有 `fallback=true` 和 `reason=ValueError`。编号合法的回答还要逐句看原文。这条兴趣记录可以支持「收藏过教程」，上线经历需要别的材料。 [聊天答复节点](../backend/app/graph/career.py#L158-L216) · [`validated_citations`](../backend/app/services/citations.py#L8-L23) · [引用回归](../backend/tests/test_job_intelligence.py#L249)
 
 </details>
 
@@ -163,7 +191,7 @@ python3 examples/tutorials/lesson-05-rrf/main.py --rankings "A,X,Y,B" "C,U,V,B"
 
 | 怎么触发 | 会看到什么 | 怎么确认 | 怎么恢复 |
 | --- | --- | --- | --- |
-| 没建画像直接 `POST /api/v1/chat` | HTTP **422** | 响应体提示缺画像；对照 `backend/app/api/routes/chat.py:50-52` 的前置检查 | 先按 [01](01-第一次跑起来.md) 导入合成资料并 `POST /api/v1/profiles/{user_id}/rebuild` |
+| 没建画像直接 `POST /api/v1/chat` | HTTP **422** | 响应体提示缺画像；前置检查在 [`chat`](../backend/app/api/routes/chat.py#L40-L54)：读不到画像就抛 422 | 先按 [01](01-第一次跑起来.md) 导入合成资料并 `POST /api/v1/profiles/{user_id}/rebuild` |
 | 还没编译 Wiki | `wiki` 可能没有候选。 `hybrid` 仍可返回 RAG 候选 | 看 `retrieval.wiki_count` 是否为 0，以及 `evidence[].source_kind` | 按 [05](05-Wiki知识组织.md) 编译一页相关 Wiki，再用原问句重跑 |
 | 第三章替身测试返回未知的行内引用 ID | 响应仍为 200，返回备用答复 | 查 `model.fallback` 与 `model.reason`，定位 `backend/app/services/citations.py` 的 `validated_citations` | 核对实际候选 ID，再按答复课预设有效引用重跑测试 |
 

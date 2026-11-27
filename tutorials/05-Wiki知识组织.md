@@ -98,26 +98,40 @@ flowchart LR
 
 一次编译请求穿过四层。按下面的顺序打开，能看到数据怎样从请求变成保存好的页。
 
-| 打开哪个文件 | 搜索什么 | 这一层在做什么 |
+按下面的函数名读源码。请求字段先看紧跟其后的片段，字段本身不需要跳转。
+
+| 要读的函数 | 在哪一层 | 这一层在做什么 |
 | --- | --- | --- |
-| `backend/app/schemas/wiki.py` | `WikiCompileRequest` | 校验请求字段：`evidence_ids` 上限 50，`base_version` 有值时至少为 1，`edit_source` 限四个值 |
-| `backend/app/api/routes/wiki.py` | `compile_wiki_page` | 按 `user_id` 查出原文，按请求顺序建 `sources`，不可用的证据返回 422 |
-| `backend/app/wiki/compiler.py` | `compile_page`、`prepare_page`、`persist_page` | 预检版本，生成和校验候选，保存前再看版本与来源 |
-| `backend/app/services/wiki_pages.py` | `create_compiled_page`、`update_page` | 新建或更新，使用唯一键和当前版本控制写入 |
+| `WikiCompileRequest` | `backend/app/schemas/wiki.py` | 校验请求字段：`evidence_ids` 上限 50，`base_version` 有值时至少为 1，`edit_source` 限四个值 |
+| [`compile_wiki_page`](../backend/app/api/routes/wiki.py#L31-L81) | API 路由 | 按 `user_id` 查出原文，按请求顺序建 `sources`，不可用的证据返回 422 |
+| [`compile_page`](../backend/app/wiki/compiler.py#L118-L150)、[`prepare_page`](../backend/app/wiki/compiler.py#L164-L204)、[`persist_page`](../backend/app/wiki/compiler.py#L206-L239) | 编译管线 | 预检版本，生成和校验候选，保存前再看版本与来源 |
+| [`create_compiled_page`](../backend/app/services/wiki_pages.py#L111-L125)、[`update_page`](../backend/app/services/wiki_pages.py#L127-L188) | 页面写入 | 新建或更新，使用唯一键和当前版本控制写入 |
 
 ### 请求校验：哪些输入会被挡在门外
 
-`WikiCompileRequest`（`schemas/wiki.py:7-13`）的字段约束：
+`WikiCompileRequest` 的请求字段就是下面这几行：
+
+```python
+class WikiCompileRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=128)
+    slug: str = Field(min_length=1, max_length=255)
+    title: str = Field(min_length=1, max_length=255)
+    evidence_ids: list[str] = Field(default_factory=list, max_length=50)
+    base_version: int | None = Field(default=None, ge=1)
+    edit_source: str = Field(default="pipeline", pattern="^(user|agent|pipeline|revert)$")
+```
+
+字段约束分三条：
 
 - `evidence_ids`：默认空，**最多 50 条**（`max_length=50`）。
 - `base_version`：`int | None`，默认 `None`，给了值就**至少为 1**（`ge=1`）。
 - `edit_source`：默认 `pipeline`，只能是 `user|agent|pipeline|revert` 四个值之一。
 
-路由层还会做一层语义校验（`wiki.py:48-62`）：把 `evidence_ids` 去重后，与数据库里该用户实际能查到的 Evidence 集合比较；只要有一个 ID 查不到或不属于这个用户，就返回 **422** `One or more evidence sources are unavailable`。这一层防的是「拿别人的证据 ID 来编译」和「拿已删除的 ID 来编译」。
+路由层 [`compile_wiki_page`](../backend/app/api/routes/wiki.py#L31-L81) 还会做一层语义校验：把 `evidence_ids` 去重后，与数据库里该用户实际能查到的 Evidence 集合比较；只要有一个 ID 查不到或不属于这个用户，就返回 **422** `One or more evidence sources are unavailable`。这一层防的是「拿别人的证据 ID 来编译」和「拿已删除的 ID 来编译」。
 
 ### 编译管线：为什么生成和写入要分开
 
-`compile_page`（`compiler.py:116-145`）的顺序值得逐行看：
+[`compile_page`](../backend/app/wiki/compiler.py#L118-L150) 的顺序值得逐行看：
 
 1. `source_ids = list(dict.fromkeys(...))` —— 去重且保序。用 `dict.fromkeys` 而不是 `set`，因为顺序会影响后面句柄的编号。
 2. `check_page_version(...)` —— **第一次查版本**。如果传了 `base_version`，它必须等于数据库当前版本。
@@ -139,7 +153,7 @@ flowchart LR
 
 ## 工作台做的也是这件事
 
-在工作台展开「从证据编译 Wiki 专题」。打开 `frontend/lib/use-workspace.ts` 的 `handleWikiCompile`，它读取选中的证据编号，调用 `createRun` 提交 `wiki_compile`。Worker 调用 `wiki_curator` 生成候选，再核验引用和保存，当前版本写入时的作者标记为 `agent`。这条路线可以看到任务 Run 与步骤。刚才的同步路线可以直接观察 201 响应和页面字段。 [工作台编译入口](../frontend/lib/use-workspace.ts#L288-L300) · [后台 Wiki 操作](../backend/app/runtime/operations.py#L132-L165)
+在工作台展开「从证据编译 Wiki 专题」。打开 [`handleWikiCompile`](../frontend/lib/use-workspace.ts#L311-L326)，它读取选中的证据编号，调用 `createRun` 提交 `wiki_compile`。Worker 调用 `wiki_curator` 生成候选，再核验引用和保存，当前版本写入时的作者标记为 `agent`。这条路线可以看到任务 Run 与步骤。 [后台 Wiki 操作](../backend/app/runtime/operations.py#L132-L165)
 
 **两个入口，一套产物。** 同步 `POST /api/v1/wiki/compile` 当场返回 201 和页面；工作台走 `POST /api/v1/runs` 提交后台任务，等 Run 成功后在任务中心点「打开结果」。两者最终创建的都是 `wiki_pages` 表里的同一类页面，共用 `prepare_page` → `persist_page` 的校验和写入逻辑。后台还会记录子 Agent 的步骤、重新核验所选材料、检查提交资格。两种入口复用同一套候选编译与页面写入代码。这条原则在第 07 课还会再遇到（岗位分析也是同步/后台两个入口、同一种产物）。
 
