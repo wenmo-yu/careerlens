@@ -92,3 +92,5 @@
     - [0007 M1 Daemon 原型](docs/adr/0007-m1-daemon-supervision-prototype.md)
     - [0008 Daemon 控制协议 v1](docs/adr/0008-daemon-control-protocol-v1.md)
     - [0009 Daemon 实装第一步](docs/adr/0009-daemon-implementation-step-one.md)
+    - [0010 M3 Agent 运行契约](docs/adr/0010-m3-agent-runtime-contract.md)
+    - [0011 M4 Runtime Manager](docs/adr/0011-m4-runtime-manager.md)

@@ -6,13 +6,15 @@
 | --- | --- | --- | --- |
 | [0001](0001-v4-process-topology-and-ownership.md) | 目标进程拓扑与唯一所有权 | Accepted（设计基线） | M0–M9 |
 | [0002](0002-api-compatibility-baseline.md) | API 兼容基线 | Accepted（当前 API 快照） | M0–M3 |
-| [0003](0003-runtime-jsonl-protocol-v1.md) | Runtime JSONL v1 自定义协议 | Proposed（帧格式已由 M0 原型验证；方法集见 0006） | M0、M3、M4 |
+| [0003](0003-runtime-jsonl-protocol-v1.md) | Runtime JSONL v1 自定义协议 | Accepted（帧格式与方法集已冻结，实装见 0010） | M0、M3、M4 |
 | [0004](0004-m0-scripted-runner-prototype.md) | M0 自研 Runner 原型与验证边界 | Accepted（仅原型结论） | M0、M3 |
 | [0005](0005-m0-static-export-packaging-and-job-object.md) | M0 静态导出、Python 打包与 Job Object 边界 | Accepted（仅原型证据） | M0 |
 | [0006](0006-runtime-jsonl-v1-method-registry.md) | Runtime JSONL v1 方法注册表与错误码 | Accepted（v1 方法集冻结） | M0、M3 |
-| [0007](0007-m1-daemon-supervision-prototype.md) | M1 用户级 Daemon 原型与进程监督边界 | Proposed（仅原型证据） | M1、M2 |
+| [0007](0007-m1-daemon-supervision-prototype.md) | M1 用户级 Daemon 原型与进程监督边界 | Accepted（原型证据；实装见 0009） | M1、M2 |
 | [0008](0008-daemon-control-protocol-v1.md) | Daemon 控制协议 v1（管道、握手、命令与错误码） | Accepted（v1 命令集冻结） | M2 |
 | [0009](0009-daemon-implementation-step-one.md) | Daemon 实装第一步：模块边界与可测性 | Accepted（已进入 `backend/`） | M2 |
+| [0010](0010-m3-agent-runtime-contract.md) | M3 持久 Agent 运行契约、capability 与只读工具 | Accepted（只读闭环；真实模型/写工具未开放） | M3 |
+| [0011](0011-m4-runtime-manager.md) | M4 预热池、租约、代际与准入 | Accepted（池与调度原型进入 `backend/`） | M4 |
 
 ## 优先级
 

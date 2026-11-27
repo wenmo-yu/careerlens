@@ -62,5 +62,6 @@ Desktop 与 Web 必须复用同一业务 API。V4 新增 `/runtime/capabilities`
 ## 验证与回滚
 
 - 每次 API 变更从当前应用重新导出 OpenAPI，与 `contracts/openapi-v0.4.0.json` 对比；差异必须进入本 ADR 和 API 基线 JSON。
+- M3/M4 新增的会话、审批与 runtime 诊断路径只增不改，清单见 [`agent-api-additions-v1.json`](../../contracts/agent-api-additions-v1.json)；内部网关路由不进入公开 schema。
 - M1 验证 Web/桌面同一主体与 Run ID；M3 验证新旧 chat 不双写；CI 保留现有 Web/API 回归。
 - 若发现破坏性变化，停止合并并回退调用方与 schema；不得通过改测试预期掩盖差异。

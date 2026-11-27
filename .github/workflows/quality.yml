@@ -102,6 +102,28 @@ jobs:
           tests/test_daemon_lifecycle.py
           tests/test_daemon_windows.py
 
+  agent-runtime-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - name: Run agent plane tests on Windows
+        run: >-
+          pytest -q
+          tests/test_agent_store.py
+          tests/test_agent_pool.py
+          tests/test_agent_gateway.py
+          tests/test_agent_api.py
+          tests/test_agent_scheduler.py
+          tests/test_agent_cli.py
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20

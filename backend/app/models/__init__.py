@@ -7,6 +7,7 @@ for autogenerate comparison and legacy schema adoption.
 
 from app.models.access_token import AccessToken
 from app.models.account_deletion import AccountDeletionReceipt, DeletionWork
+from app.models.agent import AgentApproval, AgentMessage, AgentRuntimeSlot, AgentSession
 from app.models.assessment import AssessmentResult, UserConstraint
 from app.models.audit import AuditEvent
 from app.models.career_report import CareerReport
@@ -27,7 +28,11 @@ from app.models.wiki import WikiPage, WikiRevision
 
 __all__ = [
     "AccessToken",
+    "AgentApproval",
+    "AgentMessage",
     "AgentRun",
+    "AgentRuntimeSlot",
+    "AgentSession",
     "AccountDeletionReceipt",
     "DeletionWork",
     "AssessmentResult",

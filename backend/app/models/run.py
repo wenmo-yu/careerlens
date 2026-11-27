@@ -27,6 +27,11 @@ class AgentRun(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     user_id: Mapped[str] = mapped_column(String(128), nullable=False)
     operation: Mapped[str] = mapped_column(String(32), nullable=False)
+    # workflow runs are consumed by the worker; agent runs by the scheduler.
+    executor_kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="workflow", server_default="workflow"
+    )
+    session_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     request_key: Mapped[str] = mapped_column(String(128), nullable=False)
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     actor_token_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
@@ -58,9 +63,15 @@ class AgentRun(Base):
             "status <> 'running' OR (lease_owner IS NOT NULL AND lease_until IS NOT NULL)",
             name="ck_running_has_lease",
         ),
+        CheckConstraint(
+            "executor_kind IN ('workflow','agent')", name="ck_run_executor_kind"
+        ),
+        # Workflow runs keep one running row per user. Agent runs are admitted
+        # per session by the scheduler instead, so they are excluded here.
         Index(
             "uq_running_run_user", "user_id", unique=True,
-            sqlite_where=text("status = 'running'"), postgresql_where=text("status = 'running'"),
+            sqlite_where=text("status = 'running' AND executor_kind = 'workflow'"),
+            postgresql_where=text("status = 'running' AND executor_kind = 'workflow'"),
         ),
         Index("ix_run_queue", "status", "created_at", "id"),
         Index("ix_run_leases", "status", "lease_until"),

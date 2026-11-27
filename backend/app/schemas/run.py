@@ -3,7 +3,9 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-RunOperation = Literal["job_analysis", "report", "wiki_compile", "file_import", "media_import"]
+RunOperation = Literal[
+    "job_analysis", "report", "wiki_compile", "file_import", "media_import", "agent_turn"
+]
 RunStatus = Literal[
     "queued", "running", "waiting_confirmation", "succeeded", "failed", "cancelled", "interrupted"
 ]
@@ -69,6 +71,8 @@ class RunRead(BaseModel):
     id: str
     user_id: str
     operation: RunOperation
+    executor_kind: Literal["workflow", "agent"] = "workflow"
+    session_id: str | None = None
     status: RunStatus
     confirmation: str
     attempts: int

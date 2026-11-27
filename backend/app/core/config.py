@@ -65,6 +65,24 @@ class Settings(BaseSettings):
     run_timeout_seconds: int = Field(default=300, ge=5, le=1800)
     run_upload_max_bytes: int = Field(default=20 * 1024 * 1024, ge=1, le=200 * 1024 * 1024)
     run_pending_hours: int = Field(default=24, ge=1, le=168)
+    # Agent plane (M3/M4). Disabled by default so existing deployments keep
+    # running only the workflow worker until the scheduler is started.
+    agent_runtime_enabled: bool = False
+    agent_max_running: int = Field(default=2, ge=1, le=8)
+    agent_warm_target: int = Field(default=1, ge=0, le=4)
+    agent_warm_max: int = Field(default=2, ge=0, le=6)
+    agent_total_cap: int = Field(default=6, ge=1, le=16)
+    agent_lease_seconds: int = Field(default=30, ge=5, le=300)
+    agent_warm_ttl_seconds: int = Field(default=600, ge=30, le=3600)
+    agent_idle_bound_seconds: int = Field(default=300, ge=30, le=3600)
+    agent_turn_timeout_seconds: int = Field(default=180, ge=5, le=900)
+    agent_max_turns: int = Field(default=6, ge=1, le=12)
+    agent_pending_per_user: int = Field(default=6, ge=1, le=50)
+    agent_cli_module: str = "app.runtime.agent.cli"
+    agent_model_provider: str = "demo"
+    agent_capability_ttl_seconds: int = Field(default=120, ge=10, le=900)
+    agent_api_base: str = "http://127.0.0.1:8000"
+    agent_scheduler_poll_seconds: float = Field(default=0.25, gt=0, le=5)
     auth_mode: str = "disabled"
     auth_token_pepper: str = Field(default="change-me-in-production", repr=False)
     auth_token_key_version: int = Field(default=1, ge=1)

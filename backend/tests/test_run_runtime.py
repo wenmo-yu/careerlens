@@ -496,3 +496,20 @@ async def test_index_outbox_replays_when_vector_store_recovers(runtime, monkeypa
         await session.execute(update(EvidenceIndexWork).values(ready_at=0))
         assert await index_outbox.process_index_work(session)
     assert await count(factory, EvidenceIndexWork) == 0
+
+
+async def test_workflow_claim_ignores_agent_runs(session_factory):
+    from app.runtime.agent import store as agent_store
+
+    async with session_factory.begin() as session:
+        record = await agent_store.create_session(session, user_id="agent-only")
+        await agent_store.submit_turn(
+            session,
+            user_id="agent-only",
+            session_id=record.id,
+            text="agent turn",
+            token_id=None,
+            request_key="agent-only-key",
+        )
+    async with session_factory.begin() as session:
+        assert await store.claim_next(session, "workflow-worker") is None

@@ -10,6 +10,8 @@
 | [`runtime-jsonl-v1.examples.jsonl`](runtime-jsonl-v1.examples.jsonl) | Runtime JSONL v1 | request、response、event 的边界样例 |
 | [`runtime-jsonl-v1.methods.json`](runtime-jsonl-v1.methods.json) | Runtime JSONL v1 | 方法注册表、方向与 id 空间、错误码与可重试位 |
 | [`daemon-control-v1.json`](daemon-control-v1.json) | Daemon Control v1 | 本机管道控制面：握手、命令、错误码与 ACL 要求 |
+| [`agent-runtime-v1.json`](agent-runtime-v1.json) | Agent Runtime v1 | 会话/Run 事件、ACK→settled→committed、capability、池状态与错误码 |
+| [`agent-api-additions-v1.json`](agent-api-additions-v1.json) | API additions v1 | M3/M4 新增的公开路径；对 v0.4.0 只增不改 |
 
 ## 当前基线事实
 

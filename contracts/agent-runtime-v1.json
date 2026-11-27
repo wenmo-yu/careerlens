@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "scope": "CareerLens agent plane (sessions, runs, scheduler, capability). CLI frame envelopes stay in runtime-jsonl-v1.methods.json.",
+  "capability": {
+    "transport": "X-Agent-Capability header over loopback HTTP",
+    "signature": "HMAC-SHA256(derived from AUTH_TOKEN_PEPPER, 'agent-capability|v1')",
+    "claims": ["sub", "sid", "rid", "att", "gen", "exp", "v"],
+    "rules": [
+      "Identity comes from the capability, never from model arguments.",
+      "A capability is rejected when the run is terminal or the attempt differs.",
+      "Capabilities expire and are reissued per attempt."
+    ]
+  },
+  "run_events": [
+    {"kind": "run.queued", "stage": "accepted", "meaning": "Run persisted; no executor has taken it."},
+    {"kind": "run.started", "stage": "accepted", "meaning": "Scheduler claimed the run with a fencing token."},
+    {"kind": "run.acknowledged", "stage": "accepted", "meaning": "CLI answered run.start; execution may begin. Not success."},
+    {"kind": "message.delta", "stage": "progress", "meaning": "Streamed model text. Persisted, so it owns a durable seq."},
+    {"kind": "message.completed", "stage": "progress", "meaning": "One model turn produced its final text."},
+    {"kind": "tool.requested", "stage": "progress", "meaning": "Tool intents were submitted; nothing executed yet."},
+    {"kind": "tool.completed", "stage": "progress", "meaning": "One invocation has a definite result."},
+    {"kind": "approval.requested", "stage": "waiting", "meaning": "Approval barrier; the run releases its lease."},
+    {"kind": "approval.resolved", "stage": "waiting", "meaning": "User decision recorded; approved runs are re-queued."},
+    {"kind": "run.settled", "stage": "settled", "meaning": "CLI finished the turn; still not an authoritative terminal state."},
+    {"kind": "run.committed", "stage": "committed", "meaning": "Business store validated and committed the outcome."},
+    {"kind": "run.interrupted", "stage": "terminal", "meaning": "Lease loss, crash or stale generation; retryable."},
+    {"kind": "run.failed", "stage": "terminal", "meaning": "Retries exhausted or a non-retryable failure."},
+    {"kind": "run.cancelled", "stage": "terminal", "meaning": "User rejection or explicit cancel."}
+  ],
+  "cli_events": [
+    "runtime.ready",
+    "message.delta",
+    "message.completed",
+    "tool.requested",
+    "tool.completed",
+    "approval.requested",
+    "run.settled"
+  ],
+  "settlement_order": [
+    "run.acknowledged",
+    "message.delta/tool.*/approval.requested",
+    "run.settled",
+    "run.committed",
+    "terminal status"
+  ],
+  "pool_states": [
+    "spawning",
+    "warm",
+    "binding",
+    "ready",
+    "running",
+    "waiting",
+    "draining",
+    "faulted",
+    "terminated"
+  ],
+  "pool_rules": [
+    "A warm shell has no session, history or credentials.",
+    "reserve is atomic and only takes a warm shell.",
+    "A bound shell is never returned to the pool; it is terminated.",
+    "Lost shells fault and are replaced with jittered backoff.",
+    "CLI total process cap counts spawning, warm and bound shells."
+  ],
+  "error_codes": [
+    "stale_generation",
+    "stale_claim",
+    "no_capacity",
+    "cli_timeout",
+    "cli_exit",
+    "cli_error",
+    "model_gateway_failed",
+    "unknown_tool",
+    "identity_in_args",
+    "approval_required",
+    "capability_expired",
+    "scheduler_restart"
+  ]
+}

@@ -84,6 +84,7 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `contracts/` | V4 版本化机器可读契约：OpenAPI 快照、API 基线、Runtime JSONL v1 | 改跨端/跨进程接口前先读；不要把 JSONL 日志当业务事实 |
 | `agent-runtime/` | 自研 Agent Core M0 原型：ScriptedModel、内存端口、JSONL 双向 RPC | 只用于验证状态机/协议；不要当生产运行时或安全边界 |
 | `backend/app/runtime/daemon/` | 用户级 daemon：单实例、进程监督、Job Object、管道控制面 | 只管进程；不持业务事实，不跑 Agent Loop |
+| `backend/app/runtime/agent/` | M3/M4 agent plane：会话存储、capability、CLI、预热池与调度器 | 不生成业务事实；Run/事件/审批的唯一权威仍是数据库 |
 | `tutorials/` | 零基础课程正文与练习 | 教学、概念解释、源码导读 |
 | `examples/` | 跟做脚本和合成夹具 | 验证课程练习是否可复跑 |
 | `eval/` | 评测数据集与基线 | 评测口径、回归基线 |
@@ -336,6 +337,8 @@ HTTP/MCP 请求
 | `docs/adr/0007-m1-daemon-supervision-prototype.md` | 用户级 daemon 原型的实例锁、Job Object、重启与管道控制面边界 |
 | `docs/adr/0008-daemon-control-protocol-v1.md` | Daemon 控制协议的传输、握手、命令集与错误码 |
 | `docs/adr/0009-daemon-implementation-step-one.md` | Daemon 在 `backend/` 的模块边界、契约加载与可测性 |
+| `docs/adr/0010-m3-agent-runtime-contract.md` | 会话/Run 持久契约、ACK/settled/committed、capability 与只读工具 |
+| `docs/adr/0011-m4-runtime-manager.md` | 预热池状态机、准入、租约、代际拒绝与诊断端点 |
 | `docs/assets/*.jpg` | 23 张新版截图：页面总览、工作台各分区（导入/画像/匹配/报告/Copilot/测评/质量/数据）与公开页 |
 
 ---

@@ -315,12 +315,16 @@ async def claim_next(session: AsyncSession, owner: str) -> Claim | None:
         await interrupt(session, run, "lease_expired")
     await session.flush()
 
-    active_query = select(AgentRun.user_id).where(AgentRun.status == "running")
+    active_query = select(AgentRun.user_id).where(
+        AgentRun.status == "running", AgentRun.executor_kind == "workflow"
+    )
     active_runs = list(await session.scalars(active_query))
     if len(active_runs) >= settings.run_global_concurrency:
         return None
     active_users = set(active_runs)
-    query = select(AgentRun).where(AgentRun.status.in_(ACTIVE_QUEUE))
+    query = select(AgentRun).where(
+        AgentRun.status.in_(ACTIVE_QUEUE), AgentRun.executor_kind == "workflow"
+    )
     if active_users:
         query = query.where(AgentRun.user_id.not_in(active_users))
     run = await session.scalar(

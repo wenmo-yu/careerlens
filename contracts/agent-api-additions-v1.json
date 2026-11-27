@@ -1,0 +1,77 @@
+{
+  "baseline": "api-baseline-v0.4.0.json",
+  "note": "Additive only: no existing v0.4.0 path changed. Internal gateway routes are excluded from the public schema.",
+  "version": 1,
+  "paths": {
+    "/api/v1/agent/approvals": {
+      "get": {
+        "operationId": "list_approvals_api_v1_agent_approvals_get",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/approvals/{run_id}/decision": {
+      "post": {
+        "operationId": "decide_approval_api_v1_agent_approvals__run_id__decision_post",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/sessions": {
+      "post": {
+        "operationId": "create_session_api_v1_agent_sessions_post",
+        "tags": [
+          "agent"
+        ]
+      },
+      "get": {
+        "operationId": "list_sessions_api_v1_agent_sessions_get",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/sessions/{session_id}": {
+      "get": {
+        "operationId": "read_session_api_v1_agent_sessions__session_id__get",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/sessions/{session_id}/messages": {
+      "get": {
+        "operationId": "read_messages_api_v1_agent_sessions__session_id__messages_get",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/sessions/{session_id}/runs": {
+      "post": {
+        "operationId": "submit_turn_api_v1_agent_sessions__session_id__runs_post",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/runtime/capabilities": {
+      "get": {
+        "operationId": "runtime_capabilities_api_v1_runtime_capabilities_get",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/runtime/status": {
+      "get": {
+        "operationId": "runtime_status_api_v1_runtime_status_get",
+        "tags": [
+          "agent"
+        ]
+      }
+    }
+  }
+}

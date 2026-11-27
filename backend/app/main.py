@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.router import router
+from app.api.routes.agent_internal import router as agent_internal_router
 from app.api.routes.health import router as health_router
 from app.api.routes.runs import SUBMISSION_REJECTED
 from app.core.config import get_settings
@@ -94,6 +95,7 @@ def create_app() -> FastAPI:
     application.add_middleware(PrometheusMiddleware)
     application.include_router(health_router, tags=["health"])
     application.include_router(router, prefix=settings.api_prefix)
+    application.include_router(agent_internal_router, include_in_schema=False)
     application.state.telemetry_provider = configure_telemetry(application, settings)
     return application
 
