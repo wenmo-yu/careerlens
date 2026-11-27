@@ -4,10 +4,12 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
 from sqlalchemy import select
 
 from app.models.agent import AgentMessage, AgentRuntimeSlot
 from app.models.run import TERMINAL, AgentRun, RunEvent
+from app.runtime.agent import scheduler as scheduler_module
 from app.runtime.agent import store
 from app.runtime.agent.scheduler import AgentScheduler, SchedulerConfig
 
@@ -211,3 +213,12 @@ async def test_long_task_times_out_and_exhausts_retries(session_factory, monkeyp
         assert rows[0].attempts == rows[0].max_attempts
     finally:
         await scheduler.shutdown()
+
+
+def test_scheduler_entry_requires_the_enable_flag(monkeypatch):
+    class Disabled:
+        agent_runtime_enabled = False
+
+    monkeypatch.setattr(scheduler_module, "get_settings", lambda: Disabled())
+    with pytest.raises(SystemExit):
+        scheduler_module.main()

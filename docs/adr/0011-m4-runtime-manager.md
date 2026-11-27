@@ -41,6 +41,10 @@
 
 `GET /api/v1/runtime/status` 从数据库聚合：slot 状态计数、agent Run 状态计数、待审批、过期租约；`GET /api/v1/runtime/capabilities` 返回协议、执行器类型、模型 provider 与池/租约上限。两者都不依赖 daemon IPC，API 与调度器可以分别重启。
 
+## 启动与默认关闭
+
+调度器入口 `python -m app.runtime.agent.scheduler` 要求 `AGENT_RUNTIME_ENABLED=true`，否则以退出码 1 拒绝启动，避免升级后在未配置的部署里悄悄多跑一个进程。API 与 worker 不受影响。
+
 ## 证据
 
 - 纯状态机测试：reserve 原子性、已绑定壳不可回池、总进程上限、非法迁移、warm/空闲绑定 TTL、退避序列与 16 秒封顶。

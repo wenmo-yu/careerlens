@@ -538,6 +538,11 @@ async def run_scheduler(factory: async_sessionmaker | None = None) -> None:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
+    settings = get_settings()
+    if not settings.agent_runtime_enabled:
+        raise SystemExit(
+            "Agent scheduler is disabled. Set AGENT_RUNTIME_ENABLED=true to run it."
+        )
     asyncio.run(run_scheduler())
 
 
