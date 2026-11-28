@@ -1256,3 +1256,23 @@
   background: var(--surface-2);
   font-size: .92em;
 }
+
+/* ---------- task tree + narrow window ---------- */
+/* Child tasks read as a tree without a canvas: an indent plus a rule is enough
+   to show parentage, and it survives a 760px window. */
+.skill-list article.task-child {
+  margin-left: 18px;
+  border-left: 2px solid var(--line);
+  grid-template-columns: 1fr;
+}
+.skill-list article.task-child strong { font-weight: 600; }
+/* Live event payloads are raw JSON and can be long; wrap instead of forcing the
+   panel wider than the viewport. */
+.skill-list article small {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .input-panel { padding: 16px; }
+  .input-panel button[role="switch"] { width: 100%; min-width: 0; }
+  .settings-command { max-height: 96px; }
+}

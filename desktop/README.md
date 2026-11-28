@@ -47,6 +47,15 @@ calls this: the user action is the only path.
 - Waking a sleeping machine is a separate Task Scheduler `WakeToRun` definition
   (`backend/app/runtime/windows_tasks.py`). It is never registered automatically.
 
+## Notifications
+
+`notify(title, body)` shows a Windows toast through WinRT. The XML is built and
+escaped in Rust; the helper script only receives it through an environment
+variable and an encoded command payload, and runs without a console window.
+Title/body are length-capped, control characters are stripped, and failures are
+returned to the caller instead of being swallowed. The AUMID is
+`com.careerlens.desktop`.
+
 ## Window and exit semantics
 
 - Closing the main window hides it to the tray; the daemon and API keep running.

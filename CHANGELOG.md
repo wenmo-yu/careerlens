@@ -34,6 +34,9 @@ All notable changes to CareerLens are documented here.
 - V4 M5 模型一致性服务器：本地 OpenAI 兼容服务器用真实 HTTP/SSE 覆盖增量、usage 缺失、工具分片、429 重试、5xx 与读超时，替代只靠 MockTransport 的验证；厂商端到端仍未验证。见 `docs/adr/0026-model-provider-conformance.md`。
 - V4 M2 本地运维：`logs.configure()` 按进程滚动日志（幂等、可回退 stdout）；`python -m app.runtime.backup` 用 `VACUUM INTO` 生成一致 SQLite 快照并 `verify` 完整性/迁移版本，PostgreSQL 明确拒绝。见 `docs/adr/0027-local-logs-and-backup.md`。
 - V4 M6 Agent 工作台完整化：提交后订阅 `/runs/{id}/stream` 显示实时事件与终态，新增计划、通知（可全部已读）与只读检索面板；轮询保留为断线兜底。见 `docs/adr/0028-agent-workbench-live-events.md`。
+- V4 M9 执行隔离：`AppContainer` 沙箱模块与 T14/T16 攻击矩阵。裸容器下读宿主秘密、写外部路径、外网、注册表、UNC 全部被 OS 拒绝，工作区写入与 loopback（需管理员豁免）放行；证据存 `docs/evidence/appcontainer-attack-matrix.json`。与 scheduler 的管道接线未做。见 `docs/adr/0029-appcontainer-sandbox.md`。
+- V4 M8 通知投递：Windows toast（WinRT，AUMID `com.careerlens.desktop`），XML 在 Rust 侧转义、文本限长、按 `fact_key` 去重，失败不影响应用内列表。见 `docs/adr/0030-desktop-notification-delivery.md`。
+- V4 M6 工作台补全：任务树（父子任务与预算/错误）、窄窗口断点、Ctrl/Cmd+Enter 提交、SSE 事件面板。
 - Daemon 控制面：单帧超过 64 KiB 返回 `frame_too_large` 并断开该连接，不再静默丢弃；契约同步错误码。
 - Tauri 2 桌面宿主骨架：`desktop/` 提供 daemon 自动启动、命名管道 v1 控制、托盘、关窗后台与 NSIS 打包；`frontend/next.desktop.config.ts` 独立静态导出，主 `next.config.ts` 不变。见 `docs/adr/0014-tauri-host-and-daemon-control.md`。签名、自动更新与真实安装验收未做。
 - Worker/Scheduler 心跳：`runtime_heartbeats` 由 worker 与 scheduler 每 5 秒写入，`runtime/status` 返回 `ok/stale/not_started`，不再把进程存在当成健康；`/health/ready` 的数据库/检索语义保持不变。见 `docs/adr/0018-runtime-heartbeat-health.md`。

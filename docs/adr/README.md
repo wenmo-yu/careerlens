@@ -32,6 +32,9 @@
 | [0026](0026-model-provider-conformance.md) | 模型网关一致性服务器 | Accepted（真实 HTTP/SSE 已验证；厂商语义仍未验证） | M5 |
 | [0027](0027-local-logs-and-backup.md) | 本地日志滚动与数据库备份 | Accepted（SQLite 已验证；PostgreSQL 明确拒绝） | M2 |
 | [0028](0028-agent-workbench-live-events.md) | Agent 工作台实时事件与计划/通知视图 | Accepted（SSE + 轮询兜底；仍非完整三栏 UI） | M6 |
+| [0029](0029-appcontainer-sandbox.md) | Agent CLI 的 AppContainer 执行边界 | Accepted（攻击矩阵实测通过；与 scheduler 管道接线未做） | M9 |
+| [0030](0030-desktop-notification-delivery.md) | 桌面通知投递 | Accepted（Windows toast；无通知中心与跳转） | M8 |
+
 
 
 ## 优先级

@@ -64,3 +64,19 @@ export async function setAutostart(enabled: boolean): Promise<AutostartStatus | 
     return null;
   }
 }
+
+/**
+ * Show a Windows toast. Returns false outside the desktop shell or when the
+ * helper fails; callers must not treat a failed toast as a lost notification —
+ * the in-app list is still the source of truth.
+ */
+export async function notify(title: string, body: string): Promise<boolean> {
+  const invoke = bridge();
+  if (!invoke) return false;
+  try {
+    await invoke("notify", { title, body });
+    return true;
+  } catch {
+    return false;
+  }
+}

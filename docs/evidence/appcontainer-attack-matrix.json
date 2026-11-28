@@ -1,0 +1,62 @@
+{
+  "supported": true,
+  "sid": "<redacted: per-user AppContainer SID>",
+  "exit_code": 0,
+  "timed_out": false,
+  "stderr": "",
+  "checks": [
+    {
+      "name": "read_host_secret",
+      "ok": false,
+      "detail": "UnauthorizedAccessException"
+    },
+    {
+      "name": "write_outside",
+      "ok": false,
+      "detail": "UnauthorizedAccessException"
+    },
+    {
+      "name": "write_workspace",
+      "ok": true,
+      "detail": "wrote"
+    },
+    {
+      "name": "network_external",
+      "ok": false,
+      "detail": "MethodInvocationException"
+    },
+    {
+      "name": "network_loopback",
+      "ok": true,
+      "detail": "connected"
+    },
+    {
+      "name": "registry_write",
+      "ok": false,
+      "detail": "UnauthorizedAccessException"
+    },
+    {
+      "name": "unc_read",
+      "ok": false,
+      "detail": "ItemNotFoundException"
+    },
+    {
+      "name": "env_leak",
+      "ok": true,
+      "detail": "AI_API_KEY checked"
+    },
+    {
+      "name": "child_process",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "violations": [],
+  "passed": true,
+  "host": {
+    "os": "Windows 11",
+    "elevated": true,
+    "note": "loopback exemption needs elevation"
+  },
+  "matrix_version": 1
+}

@@ -1,5 +1,6 @@
 mod autostart;
 mod daemon;
+mod notifications;
 mod tray;
 
 use daemon::DaemonState;
@@ -14,7 +15,8 @@ fn main() {
             daemon::daemon_restart,
             daemon::daemon_stop,
             autostart::autostart_status,
-            autostart::autostart_set
+            autostart::autostart_set,
+            notifications::notify
         ])
         .setup(move |app| {
             app.state::<DaemonState>().spawn_if_configured();

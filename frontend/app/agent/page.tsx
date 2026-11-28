@@ -12,6 +12,7 @@ import {
   listAgentNotifications,
   listAgentSchedules,
   listAgentSessions,
+  listTeamTasks,
   markAgentNotificationsRead,
   searchAgentFacts,
   streamRun,
@@ -23,11 +24,13 @@ import {
   type AgentSchedule,
   type AgentSearchResult,
   type AgentSession,
+  type AgentTask,
   type RunEvent,
   type RunStatus,
   type RuntimeCapabilities,
   type RuntimeStatus,
 } from "@/lib/api";
+import { desktopAvailable, notify } from "@/lib/desktop";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 export default function AgentPage() {
@@ -50,6 +53,8 @@ export default function AgentPage() {
   const [notifications, setNotifications] = useState<AgentNotification[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResult, setSearchResult] = useState<AgentSearchResult | null>(null);
+  const [teamId, setTeamId] = useState("");
+  const [tasks, setTasks] = useState<AgentTask[]>([]);
   const liveCursor = useRef(0);
 
   const refresh = useCallback(async (id: string) => {
@@ -101,6 +106,23 @@ export default function AgentPage() {
   // Live events for the run just submitted. The SSE endpoint replays from
   // Last-Event-ID, so a reconnect does not lose or duplicate frames; the
   // database stays the authority and the poll above still reconciles.
+  // Deliver one OS toast per new unread notification. The in-app list stays the
+  // source of truth; a failed toast is not retried in a loop.
+  useEffect(() => {
+    if (!desktopAvailable() || !notifications.length) return;
+    const seen = new Set(
+      JSON.parse(window.localStorage.getItem("careerlens-toast-seen") ?? "[]") as string[],
+    );
+    const fresh = notifications.find((item) => !item.read && !seen.has(item.fact_key));
+    if (!fresh) return;
+    seen.add(fresh.fact_key);
+    window.localStorage.setItem(
+      "careerlens-toast-seen",
+      JSON.stringify([...seen].slice(-200)),
+    );
+    void notify(fresh.title, fresh.detail);
+  }, [notifications]);
+
   useEffect(() => {
     if (!liveRunId || !userId) return;
     const controller = new AbortController();
@@ -193,6 +215,17 @@ export default function AgentPage() {
     }
   }
 
+  async function loadTasks(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (!teamId.trim()) return;
+    try {
+      setTasks(await listTeamTasks(userId, teamId.trim()));
+      setError("");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "读取任务树失败。");
+    }
+  }
+
   async function markAllRead() {
     const unread = notifications.filter((item) => !item.read).map((item) => item.fact_key);
     if (!unread.length) return;
@@ -240,8 +273,23 @@ export default function AgentPage() {
         <div className="two-column">
           <form className="input-panel" onSubmit={send}>
             <div className="panel-title"><h3>发送消息</h3><span>{selectedId.slice(0, 8) || "未选择"}</span></div>
-            <label>消息<textarea value={input} rows={5} maxLength={20000}
-              onChange={(e) => setInput(e.target.value)} placeholder="向 Agent 提问或让它整理证据…" /></label>
+            <label>
+              消息
+              <textarea
+                value={input}
+                rows={5}
+                maxLength={20000}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(event) => {
+                  // Ctrl/Cmd+Enter submits; plain Enter keeps newline semantics.
+                  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }
+                }}
+                placeholder="向 Agent 提问或让它整理证据…（Ctrl+Enter 提交）"
+              />
+            </label>
             <button type="submit" disabled={busy || !selectedId || !input.trim()}>提交一轮</button>
           </form>
 
@@ -332,6 +380,43 @@ export default function AgentPage() {
         </div>
 
         <div className="two-column">
+          <form className="input-panel" onSubmit={loadTasks}>
+            <div className="panel-title">
+              <h3>任务树</h3>
+              <span>{tasks.length}</span>
+            </div>
+            <label>
+              团队 ID
+              <input
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+                placeholder="从检索结果里选一个团队的 id"
+              />
+            </label>
+            <button type="submit" disabled={!teamId.trim()}>读取任务树</button>
+            <div className="skill-list">
+              {tasks
+                .filter((task) => !task.parent_id)
+                .map((parent) => (
+                  <article key={parent.id}>
+                    <strong>{parent.title || parent.id.slice(0, 8)}</strong>
+                    <small>{parent.role} · {parent.status} · 预算 {String(parent.budget?.attempts ?? 0)} 次尝试</small>
+                    <small>Run {parent.run_id ? parent.run_id.slice(0, 8) : "未绑定"}</small>
+                  </article>
+                ))}
+              {tasks
+                .filter((task) => task.parent_id)
+                .map((child) => (
+                  <article key={child.id} className="task-child">
+                    <strong>↳ {child.title || child.id.slice(0, 8)}</strong>
+                    <small>{child.role} · {child.status}</small>
+                    <small>{child.error ? `错误：${child.error}` : "无错误"}</small>
+                  </article>
+                ))}
+              {!tasks.length && <p>输入团队 ID 后显示父子任务与各自状态；任务结果仍以任务详情为准。</p>}
+            </div>
+          </form>
+
           <div className="input-panel">
             <div className="panel-title">
               <h3>通知</h3>
@@ -374,7 +459,7 @@ export default function AgentPage() {
                 {searchResult.tasks.map((item) => (
                   <article key={`t-${item.id}`}>
                     <strong>{item.title || item.id.slice(0, 8)}</strong>
-                    <small>任务 · {item.status}</small>
+                    <small>任务 · {item.status} · 团队 {item.team_id.slice(0, 8)}</small>
                   </article>
                 ))}
                 {searchResult.schedules.map((item) => (

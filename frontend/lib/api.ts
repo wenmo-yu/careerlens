@@ -1195,3 +1195,23 @@ export function searchAgentFacts(userId: string, query: string) {
   const params = new URLSearchParams({ user_id: userId, q: query });
   return request<AgentSearchResult>(`/agent/search?${params}`);
 }
+
+export type AgentTask = {
+  id: string;
+  team_id: string;
+  parent_id: string | null;
+  role: string;
+  title: string;
+  status: string;
+  budget: Record<string, unknown>;
+  result: Record<string, unknown>;
+  run_id: string | null;
+  error: string | null;
+};
+
+export function listTeamTasks(userId: string, teamId: string) {
+  const params = new URLSearchParams({ user_id: userId });
+  return request<AgentTask[]>(
+    `/agent/teams/${encodeURIComponent(teamId)}/tasks?${params}`,
+  );
+}
