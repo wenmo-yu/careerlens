@@ -88,6 +88,8 @@ def upgrade() -> None:
             sa.Column("input_tokens", sa.Integer(), nullable=False, server_default="0"),
             sa.Column("output_tokens", sa.Integer(), nullable=False, server_default="0"),
             sa.Column("estimated_cost_usd", sa.Float(), nullable=False, server_default="0.0"),
+            sa.Column("last_run_id", sa.String(36), nullable=True),
+            sa.Column("last_attempt", sa.Integer(), nullable=False, server_default="0"),
             sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
             sa.ForeignKeyConstraint(["task_id"], ["agent_tasks.id"], ondelete="CASCADE"),
         )

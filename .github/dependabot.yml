@@ -26,6 +26,23 @@ updates:
       - dependency-name: mcp
         update-types: [version-update:semver-major]
 
+  # Tauri/Rust host dependencies. Tauri major upgrades need a desktop smoke
+  # test and a signed installer, not an automatic merge.
+  - package-ecosystem: cargo
+    directory: /desktop/src-tauri
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      desktop-patch:
+        applies-to: version-updates
+        update-types: [patch]
+    ignore:
+      - dependency-name: tauri
+        update-types: [version-update:semver-major]
+      - dependency-name: tauri-build
+        update-types: [version-update:semver-major]
+
   - package-ecosystem: npm
     directory: /frontend
     schedule:

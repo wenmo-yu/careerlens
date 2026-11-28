@@ -535,6 +535,13 @@ class AgentScheduler:
                     ],
                     "usage": result.get("usage") or {},
                 }
+                await multi.record_budget(
+                    session,
+                    task_id=task.id,
+                    run_id=run.id,
+                    attempt=run.attempts,
+                    usage=result.get("usage") or {},
+                )
             if task.parent_id:
                 await multi.refresh_parent(
                     session, user_id=claim.user_id, parent_id=task.parent_id

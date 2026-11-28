@@ -25,7 +25,7 @@
 
 ### 5. 预算与取消
 
-`agent_task_budget_use` 按任务累计 attempts、input/output tokens 和估算成本；重启不会重置。取消父任务会级联取消子任务及它们尚未终态的 Run，并写 `run.cancelled` 事件。父任务在所有子任务终态时才投影结果，等待者不占模型 slot，因此不会死锁。
+`agent_task_budget_use` 按任务累计 attempts、input/output tokens 和估算成本；重启不会重置。`(last_run_id,last_attempt)` 让同一 Run/attempt 的重复同步只记一次，避免 scheduler 重试把预算翻倍。取消父任务会级联取消子任务及它们尚未终态的 Run，并写 `run.cancelled` 事件。父任务在所有子任务终态时才投影结果，等待者不占模型 slot，因此不会死锁。
 
 ## 未做与边界
 

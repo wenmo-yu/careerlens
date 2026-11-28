@@ -24,7 +24,7 @@ All notable changes to CareerLens are documented here.
 - V4 M6 多任务树：团队父任务与最多三个独立子任务、角色工具范围、结果投影与引用核验、团队邮箱 `(team_id, message_key)` 去重、父取消级联；新增 `agent_tasks` / `agent_team_messages` / `agent_task_budget_use`。见 `docs/adr/0015-m6-multi-agent-task-tree.md`。
 - V4 M8 持久计划：`agent_schedules` / `agent_schedule_occurrences`，`(schedule_id,due_at)` 幂等、`skip/run_once` 错过策略、禁用/撤销令牌拒绝触发，并接入调度器 tick 内部触发。见 `docs/adr/0016-m8-durable-schedules.md`。
 - Tauri 2 桌面宿主骨架：`desktop/` 提供 daemon 自动启动、命名管道 v1 控制、托盘、关窗后台与 NSIS 打包；`frontend/next.desktop.config.ts` 独立静态导出，主 `next.config.ts` 不变。见 `docs/adr/0014-tauri-host-and-daemon-control.md`。签名、自动更新与真实安装验收未做。
-- T27 依赖门禁：`scripts/verify_agent_runtime_dependencies.py` 在 CI 检查 Pi / OpenAI Agents SDK 依赖与 vendored 目录；Quality Gate 的 `agent-runtime-windows` 增加 M6/M8 测试。
+- T27 依赖门禁：`scripts/verify_agent_runtime_dependencies.py` 在 CI 检查 Pi / OpenAI Agents SDK 依赖与 vendored 目录；Quality Gate 的 `agent-runtime-windows` 增加 M6/M8 测试；Dependabot 增加 `desktop/src-tauri` 的 Cargo 月度更新，Tauri major 不自动合并。
 - 公开 Agent API：`GET /agent/artifacts`、`GET /agent/artifacts/{id}`、团队任务/邮箱与计划任务端点；OpenAPI 快照更新为 99 路径、111 操作、94 schema。
 
 - V4 M3 持久 Agent 运行契约：`agent_sessions`/`agent_session_messages`/`agent_runtime_slots`/`agent_approvals` 与 `agent_runs.executor_kind, session_id`；ACK、settled、committed 三阶段分离，事件 seq 与 fencing token 同事务；每会话一个 CLI 进程，capability 限定到 user/session/run/attempt/generation；只读工具 `search_evidence`、`get_profile` 与流式模型网关。新增 39 项测试（含真实 CLI 子进程 + 桩网关），后端 344 passed，覆盖率 79.52%。见 `docs/adr/0010-m3-agent-runtime-contract.md`。

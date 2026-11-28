@@ -252,17 +252,23 @@ async def record_budget(
     session: AsyncSession,
     *,
     task_id: str,
-    attempts: int = 0,
+    run_id: str | None = None,
+    attempt: int = 0,
     usage: dict[str, int] | None = None,
     estimated_cost_usd: float = 0.0,
 ) -> AgentTaskBudgetUse:
-    """Additive budget accounting; callers never overwrite prior attempts."""
+    """Cumulative budget accounting, idempotent for one run/attempt sync."""
 
     record = await _budget_use(session, task_id)
-    record.attempts += max(0, attempts)
+    if run_id and record.last_run_id == run_id and record.last_attempt == attempt:
+        return record
+    record.attempts = max(record.attempts, max(0, attempt))
     record.input_tokens += max(0, int((usage or {}).get("input_tokens", 0)))
     record.output_tokens += max(0, int((usage or {}).get("output_tokens", 0)))
     record.estimated_cost_usd = round(record.estimated_cost_usd + max(0.0, estimated_cost_usd), 8)
+    if run_id:
+        record.last_run_id = run_id
+        record.last_attempt = attempt
     await session.flush()
     return record
 

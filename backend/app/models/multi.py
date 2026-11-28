@@ -95,6 +95,10 @@ class AgentTaskBudgetUse(Base):
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     estimated_cost_usd: Mapped[float] = mapped_column(nullable=False, default=0.0)
+    # Deduplicate a repeated sync of the same run/attempt; budget is cumulative
+    # across attempts and must not be double-counted by a retry of the sync.
+    last_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    last_attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

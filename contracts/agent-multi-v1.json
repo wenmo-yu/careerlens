@@ -16,6 +16,7 @@
     "Result projection preserves at most 2000 characters and only citations that still exist for the same user.",
     "Cancelling a parent cancels every descendant task and each queued or running agent run.",
     "Budget is cumulative across attempts; a restart or provider usage gap never resets it.",
+    "A repeated sync of the same run/attempt is deduplicated by (last_run_id,last_attempt), so scheduler retry cannot double-count tokens.",
     "Role tool scopes are enforced by the gateway, not by model-supplied arguments."
   ],
   "mailbox": {

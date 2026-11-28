@@ -3,7 +3,7 @@
 from sqlalchemy import select
 
 from app.models.evidence import Evidence
-from app.models.multi import AgentTask
+from app.models.multi import AgentTask, AgentTaskBudgetUse
 from app.models.run import AgentRun
 from app.models.schedule import AgentScheduleOccurrence
 from app.runtime.agent import multi, store
@@ -200,6 +200,7 @@ async def test_scheduler_syncs_child_result_and_projects_parent(session_factory)
         )
         run = await session.get(AgentRun, child.run_id)
         run.status = "succeeded"
+        run.attempts = 1
         run.result = {
             "message": "找到一条证据",
             "citations": [{"evidence_id": "ev-1"}],
@@ -216,11 +217,15 @@ async def test_scheduler_syncs_child_result_and_projects_parent(session_factory)
         )
     scheduler = AgentScheduler(session_factory, config=SchedulerConfig())
     await scheduler._sync_task(claim)
+    await scheduler._sync_task(claim)  # repeated sync must not double-count
     async with session_factory() as session:
         refreshed = await session.get(AgentTask, parent.id)
         assert refreshed.status == "succeeded"
         assert refreshed.result["children"][0]["text"] == "找到一条证据"
         assert refreshed.result["children"][0]["citations"] == ["ev-1"]
+        budget = await session.get(AgentTaskBudgetUse, child.id)
+        assert budget.attempts == 1
+        assert budget.output_tokens == 2
 
 
 async def test_scheduler_tick_triggers_due_schedules(session_factory):
