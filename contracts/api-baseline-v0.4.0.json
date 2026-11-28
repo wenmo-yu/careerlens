@@ -3,12 +3,12 @@
   "name": "careerlens-api-baseline",
   "api_version": "0.4.0",
   "openapi_version": "3.1.0",
-  "source_commit": "12d33bfc69c1c08f8e630091f11d6b7edb2dd886",
+  "source_commit": "b6d5671caf11d296c3219b793735e3c1760afcb2",
   "source_tree_equivalent_to": "43c67d3b01540ba80c00c17efd483336a08c2426",
   "openapi_snapshot": "openapi-v0.4.0.json",
-  "path_count": 99,
-  "operation_count": 111,
-  "schema_count": 94,
+  "path_count": 103,
+  "operation_count": 117,
+  "schema_count": 99,
   "operations": [
     {
       "method": "GET",
@@ -41,6 +41,60 @@
       "method": "GET",
       "path": "/api/v1/agent/artifacts/{artifact_id}",
       "operationId": "read_artifact_api_v1_agent_artifacts__artifact_id__get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/roles",
+      "operationId": "list_roles_api_v1_agent_roles_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/roles",
+      "operationId": "create_role_api_v1_agent_roles_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/roles/{role_id}",
+      "operationId": "get_role_api_v1_agent_roles__role_id__get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/agent/roles/{role_id}",
+      "operationId": "update_role_api_v1_agent_roles__role_id__patch",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/roles/{role_id}/state",
+      "operationId": "set_role_state_api_v1_agent_roles__role_id__state_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/roles/{role_id}/trigger",
+      "operationId": "trigger_role_api_v1_agent_roles__role_id__trigger_post",
       "tags": [
         "agent"
       ],
@@ -515,18 +569,18 @@
       "deprecated": false
     },
     {
-      "method": "DELETE",
+      "method": "GET",
       "path": "/api/v1/evidence/{evidence_id}",
-      "operationId": "delete_evidence_api_v1_evidence__evidence_id__delete",
+      "operationId": "read_evidence_api_v1_evidence__evidence_id__get",
       "tags": [
         "evidence"
       ],
       "deprecated": false
     },
     {
-      "method": "GET",
+      "method": "DELETE",
       "path": "/api/v1/evidence/{evidence_id}",
-      "operationId": "read_evidence_api_v1_evidence__evidence_id__get",
+      "operationId": "delete_evidence_api_v1_evidence__evidence_id__delete",
       "tags": [
         "evidence"
       ],

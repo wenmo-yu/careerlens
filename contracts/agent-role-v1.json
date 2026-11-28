@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wenmo-yu/careerlens/blob/main/contracts/agent-role-v1.json",
+  "title": "CareerLens Long-lived Role Contract v1",
+  "protocol": "agent-role",
+  "version": 1,
+  "states": ["active", "paused", "archived"],
+  "templates": [
+    "evidence_researcher",
+    "job_analyst",
+    "learning_planner",
+    "evidence_reviewer",
+    "career_coach"
+  ],
+  "role_fields": [
+    "id", "user_id", "workspace_id", "name", "template", "version", "prompt",
+    "tool_allowlist", "model_policy", "budget", "output_schema", "state",
+    "session_id", "actor_token_id"
+  ],
+  "rules": [
+    "A role is a user-configured persistence boundary with exactly one long-lived agent session.",
+    "tool_allowlist is intersected with the global tool registry: a role can only narrow tools, never grant an unregistered tool.",
+    "Write tools remain gated by the durable approval and tool ledger; a role does not bypass approval.",
+    "Every configuration update increments version; a run records the exact role version in its payload and never changes it.",
+    "Roles cannot create other roles, cannot send messages as another identity, and expose no external delivery tool.",
+    "An inactive or archived role rejects triggers; a revoked actor token pauses the role and records a failed occurrence.",
+    "The trusted gateway enforces the allowlist on both model tool offers and tool invocation; the CLI cannot widen it."
+  ],
+  "default_tool_allowlist": ["search_evidence", "get_profile"],
+  "error_codes": [
+    "role_not_found",
+    "role_inactive",
+    "role_name_conflict",
+    "unknown_tool",
+    "escalation_denied",
+    "invalid_config",
+    "actor_revoked"
+  ]
+}

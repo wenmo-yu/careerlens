@@ -18,6 +18,7 @@ from app.core.database import get_session
 from app.models.agent import AgentApproval, AgentArtifact, AgentRuntimeSlot
 from app.models.run import AgentRun
 from app.runtime import heartbeat
+from app.runtime.agent import roles as role_service
 from app.runtime.agent import store, tools
 from app.schemas.agent import (
     ApprovalDecision,
@@ -207,6 +208,11 @@ async def runtime_capabilities(
         "read_only_tools": tools.read_tools(),
         "write_tools": tools.write_tools(),
         "tool_ledger": True,
+        "roles": {
+            "enabled": True,
+            "templates": sorted(role_service.ROLE_TEMPLATES),
+            "tool_narrowing": True,
+        },
     }
 
 

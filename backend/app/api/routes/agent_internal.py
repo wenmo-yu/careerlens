@@ -11,7 +11,9 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
 
 from app.core.config import get_settings
 from app.core.database import get_session
@@ -51,14 +53,21 @@ class ToolInvoke(BaseModel):
     args_digest: str | None = Field(default=None, max_length=64)
 
 
-async def _capability(session: AsyncSession, token: str | None) -> caps.Capability:
+async def _capability(
+    session: AsyncSession, token: str | None
+) -> tuple[caps.Capability, AgentRun, set[str] | None]:
     if not token:
         raise HTTPException(401, "Missing agent capability")
     try:
         claim = caps.verify(token)
     except caps.CapabilityError as exc:
         raise HTTPException(401, str(exc)) from exc
-    run = await session.get(AgentRun, claim.run_id)
+    # payload is deferred; load it eagerly because the role allowlist lives there.
+    run = await session.scalar(
+        select(AgentRun)
+        .where(AgentRun.id == claim.run_id)
+        .options(undefer(AgentRun.payload))
+    )
     if (
         run is None
         or run.user_id != claim.user_id
@@ -68,7 +77,18 @@ async def _capability(session: AsyncSession, token: str | None) -> caps.Capabili
         or run.attempts != claim.attempt
     ):
         raise HTTPException(409, "Capability no longer matches an active run")
-    return claim
+    # A role narrows the tool set at the trusted gateway. The CLI cannot widen
+    # it: both the model's offered tools and every invocation are intersected
+    # with the frozen allowlist recorded in the run payload.
+    role = (run.payload or {}).get("role") or {}
+    allowed: set[str] | None = None
+    if role:
+        allowed = {
+            name
+            for name in (role.get("tool_allowlist") or [])
+            if name in tools.TOOLS
+        }
+    return claim, run, allowed
 
 
 @router.post("/internal/agent/model/complete")
@@ -77,9 +97,11 @@ async def complete(
     session: Session,
     capability: CapabilityHeader = None,
 ):
-    claim = await _capability(session, capability)
+    claim, _run, role_allowed = await _capability(session, capability)
     messages = [message.model_dump() for message in payload.messages]
     allowed = {tool["name"] for tool in tools.definitions()}
+    if role_allowed is not None:
+        allowed &= role_allowed
     offered = [tool for tool in payload.tools if tool.get("name") in allowed]
     provider = get_settings().agent_model_provider
 
@@ -112,7 +134,13 @@ async def invoke_tool(
     session: Session,
     capability: CapabilityHeader = None,
 ):
-    claim = await _capability(session, capability)
+    claim, _run, role_allowed = await _capability(session, capability)
+    if role_allowed is not None and payload.name not in role_allowed:
+        return {
+            "ok": False,
+            "code": "tool_not_allowed",
+            "message": "Tool is not allowed for this role",
+        }
     try:
         result = await tools.invoke(
             session,

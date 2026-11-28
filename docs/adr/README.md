@@ -23,6 +23,7 @@
 | [0017](0017-m5-workspace-file-broker.md) | M5 工作区文件 broker 与路径授权 | Accepted（应用层边界；不是完整 OS 沙箱） | M5 |
 | [0018](0018-runtime-heartbeat-health.md) | Worker 与 Scheduler 显式心跳健康语义 | Accepted（runtime/status 已实现；ready 语义不变） | M2、M9 |
 | [0019](0019-agent-workbench-ui.md) | Agent 工作台最小界面 | Accepted（静态导出通过；真实桌面体验未验证） | M6 |
+| [0020](0020-m8-role-lifecycle.md) | M8 持久角色生命周期与工具收窄 | Accepted（持久契约与服务端收窄；长期运行未验收） | M8 |
 
 ## 优先级
 
