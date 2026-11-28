@@ -46,15 +46,26 @@ def configure(process: str, settings: Any = None) -> Path | None:
         return None
 
     target = Path(directory)
-    target.mkdir(parents=True, exist_ok=True)
-    path = target / f"{process}.log"
-    handler = RotatingFileHandler(
-        path,
-        maxBytes=max(0, int(getattr(settings, "log_max_bytes", 5 * 1024 * 1024))),
-        backupCount=max(1, int(getattr(settings, "log_backups", 3))),
-        encoding="utf-8",
-    )
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+        handler = RotatingFileHandler(
+            target / f"{process}.log",
+            maxBytes=max(0, int(getattr(settings, "log_max_bytes", 5 * 1024 * 1024))),
+            backupCount=max(1, int(getattr(settings, "log_backups", 3))),
+            encoding="utf-8",
+        )
+    except OSError:
+        # Read-only containers (compose sets `read_only: true` on the worker) and
+        # permission-restricted installs must not crash on startup just because
+        # file logging is unavailable. Fall back to stdout and say so once.
+        logging.getLogger(__name__).warning(
+            "log directory %s is not writable; falling back to stdout", target
+        )
+        if not any(isinstance(item, logging.StreamHandler) for item in root.handlers):
+            root.addHandler(logging.StreamHandler())
+        return None
+
     handler.setFormatter(logging.Formatter(FORMAT))
     setattr(handler, TAG, process)
     root.addHandler(handler)
-    return path
+    return target / f"{process}.log"

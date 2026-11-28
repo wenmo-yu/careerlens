@@ -105,3 +105,17 @@ def test_logs_rotate_and_stay_idempotent(tmp_path):
 def test_empty_log_dir_means_stdout_only(tmp_path):
     assert logs.configure("scheduler", settings_for(tmp_path, log_dir="")) is None
     assert logs.configure("scheduler", settings_for(tmp_path, log_dir="  ")) is None
+
+
+def test_unwritable_log_dir_falls_back_to_stdout(tmp_path, monkeypatch):
+    """Read-only containers must keep running, not crash on file logging."""
+
+    def refuse(*args, **kwargs):
+        raise PermissionError(13, "read-only file system")
+
+    monkeypatch.setattr(Path, "mkdir", refuse)
+    assert logs.configure("worker", settings_for(tmp_path)) is None
+    assert any(
+        isinstance(handler, logging.StreamHandler)
+        for handler in logging.getLogger().handlers
+    )
