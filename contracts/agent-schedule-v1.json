@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wenmo-yu/careerlens/blob/main/contracts/agent-schedule-v1.json",
+  "title": "CareerLens Durable Schedule Contract v1",
+  "protocol": "agent-schedule",
+  "version": 1,
+  "states": ["active", "paused", "disabled"],
+  "occurrence_states": ["pending", "claimed", "succeeded", "skipped", "failed"],
+  "misfire_policies": ["skip", "run_once"],
+  "rules": [
+    "A schedule is an internal planner: it may only submit an ordinary agent run for the same user.",
+    "One (schedule_id, due_at) pair is one occurrence; repeats never create a second run.",
+    "Disabled and paused schedules reject triggers; revoked actor tokens pause the schedule and record failure.",
+    "skip policy marks occurrences older than two intervals as skipped and advances next_due past now.",
+    "run_once policy submits exactly one run for a missed occurrence, then advances normally.",
+    "Manual triggers use their idempotency-key timestamp as due_at and cannot bypass actor authorization."
+  ],
+  "error_codes": [
+    "schedule_not_found",
+    "schedule_inactive",
+    "invalid_interval",
+    "actor_revoked",
+    "occurrence_conflict"
+  ]
+}

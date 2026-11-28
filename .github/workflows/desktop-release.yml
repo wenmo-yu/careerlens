@@ -1,0 +1,105 @@
+name: desktop-release
+
+on:
+  push:
+    tags:
+      - "desktop-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-check:
+    name: cargo check (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Static frontend export
+        run: pnpm --dir frontend build:desktop
+
+      - name: Install Linux WebView build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo check
+        run: cargo check --manifest-path desktop/src-tauri/Cargo.toml
+
+  windows-bundle:
+    name: Tauri NSIS build (windows)
+    runs-on: windows-latest
+    needs: cargo-check
+    env:
+      # Placeholders only. No private signing material is stored in the repo.
+      # Without these secrets configured the produced installer is UNSIGNED
+      # and must be distributed as a release candidate, never as stable.
+      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Tauri build (NSIS)
+        working-directory: desktop/src-tauri
+        run: pnpm dlx @tauri-apps/cli@2 build --ci
+
+      - name: SHA256 and release summary
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path 'target\release\bundle\nsis' -Filter '*setup.exe' |
+            Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer not found' }
+          $hash = (Get-FileHash -Algorithm SHA256 -Path $installer.FullName).Hash.ToLowerInvariant()
+          $hashFile = Join-Path $installer.Directory.FullName 'SHA256SUMS.txt'
+          "$hash  $($installer.Name)" | Set-Content -Path $hashFile -Encoding utf8
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "installer=$($installer.FullName)" -Encoding utf8
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "sha256=$hash" -Encoding utf8
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## CareerLens Desktop $env:GITHUB_REF_NAME" -Encoding utf8
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Artifact: $($installer.Name)" -Encoding utf8
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- SHA256: ``$hash``" -Encoding utf8
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Signing: unsigned development build (no signing secret configured). RC only; do not mark stable." -Encoding utf8
+        id: bundle
+
+      - name: Upload NSIS installer and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: careerlens-desktop-nsis-${{ github.sha }}
+          path: |
+            desktop/src-tauri/target/release/bundle/nsis/*setup.exe
+            desktop/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
+          if-no-files-found: error

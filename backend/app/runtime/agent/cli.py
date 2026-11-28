@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 import json
 import sys
 import threading
@@ -59,9 +58,10 @@ def respond(request_id: str, *, ok: bool, result: dict | None = None, error: dic
 
 
 class Gateway:
-    def __init__(self, base_url: str, capability: str):
+    def __init__(self, base_url: str, capability: str, session_id: str = ""):
         self.base_url = base_url.rstrip("/")
         self.capability = capability
+        self.session_id = session_id
 
     def _request(self, path: str, body: dict) -> urllib.request.Request:
         return urllib.request.Request(
@@ -74,10 +74,30 @@ class Gateway:
             method="POST",
         )
 
-    def tool(self, name: str, args: dict) -> dict:
+    def tool(
+        self,
+        name: str,
+        args: dict,
+        *,
+        invocation_id: str | None = None,
+        approval_id: str | None = None,
+        args_digest: str | None = None,
+        approved: bool = False,
+    ) -> dict:
+        body: dict[str, Any] = {"name": name, "args": args}
+        if self.session_id:
+            body["session_id"] = self.session_id
+        if invocation_id:
+            body["invocation_id"] = invocation_id
+        if approval_id:
+            body["approval_id"] = approval_id
+        if args_digest:
+            body["args_digest"] = args_digest
+        if approved:
+            body["approved"] = True
         try:
             with urllib.request.urlopen(
-                self._request("/internal/agent/tools/invoke", {"name": name, "args": args}),
+                self._request("/internal/agent/tools/invoke", body),
                 timeout=60,
             ) as response:
                 return json.loads(response.read())
@@ -117,11 +137,18 @@ class Gateway:
 
 
 def _digest(args: dict) -> str:
-    canonical = json.dumps(args, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(canonical.encode()).hexdigest()
+    # Must match the gateway's canonical digest so an approval can be verified.
+    return tool_registry.digest_args(args)
 
 
-async def run_turn(run: dict, messages: list[dict], gateway: Gateway) -> None:
+async def run_turn(
+    run: dict,
+    messages: list[dict],
+    gateway: Gateway,
+    *,
+    pending_tool: dict | None = None,
+    pending_turn: dict | None = None,
+) -> None:
     tools = tool_registry.definitions()
     history = list(messages)
     usage_total = {"input_tokens": 0, "output_tokens": 0}
@@ -129,8 +156,83 @@ async def run_turn(run: dict, messages: list[dict], gateway: Gateway) -> None:
     text_parts: list[str] = []
     citations: list[dict] = []
     max_turns = get_settings().agent_max_turns
+    restored_ids: set[str] = set()
+    start_turn = 0
 
-    for turn_index in range(max_turns):
+    if pending_tool and pending_turn:
+        # Replay exactly the approved invocation once, then continue from the
+        # following model turn. Recovery can never request approval again.
+        call_id = str(pending_tool.get("invocation_id") or "")
+        name = str(pending_tool.get("tool") or "")
+        args = dict(pending_tool.get("args") or {})
+        digest = str(pending_tool.get("args_digest") or _digest(args))
+        approval_id = str(pending_tool.get("approval_id") or "")
+        turn = int(pending_turn.get("turn", 0) or 0)
+        seq += 1
+        emit(
+            "tool.requested",
+            {"invocation_ids": [call_id], "turn": turn},
+            run=run,
+            seq=seq,
+        )
+        history.append(
+            {
+                "role": "assistant",
+                "content": str(pending_turn.get("text") or ""),
+                "tool_calls": list(pending_turn.get("tool_calls") or []),
+            }
+        )
+        result = await asyncio.to_thread(
+            gateway.tool,
+            name,
+            args,
+            invocation_id=call_id,
+            approval_id=approval_id,
+            args_digest=digest,
+            approved=True,
+        )
+        ok = bool(result.get("ok", False))
+        seq += 1
+        emit(
+            "tool.completed",
+            {
+                "invocation_id": call_id,
+                "status": "succeeded" if ok else "failed",
+                "tool": name,
+                "args_digest": digest,
+                "error": None if ok else result.get("code", "tool_error"),
+            },
+            run=run,
+            seq=seq,
+        )
+        if not ok:
+            emit(
+                "run.settled",
+                {
+                    "stop_reason": "failed",
+                    "message": {"text": "", "citations": []},
+                    "usage": usage_total,
+                    "error": result.get("code", "tool_error"),
+                },
+                run=run,
+                seq=seq + 1,
+            )
+            return
+        payload_result = result.get("result") or {}
+        for item in payload_result.get("items", []) or []:
+            if item.get("evidence_id"):
+                citations.append(
+                    {
+                        "evidence_id": item["evidence_id"],
+                        "source_name": item.get("source_name"),
+                        "source_type": item.get("source_type"),
+                    }
+                )
+        history.append(model_gateway.tool_result_message(call_id, name, payload_result))
+        restored_ids.add(call_id)
+        start_turn = turn + 1
+
+    for turn_index in range(start_turn, max_turns):
         try:
             events = await gateway.stream_model(history, tools)
         except Exception as exc:  # provider/gateway failure is a failed turn, not a hang
@@ -150,6 +252,7 @@ async def run_turn(run: dict, messages: list[dict], gateway: Gateway) -> None:
         buffered = ""
         tool_calls: list[dict] = []
         stop_reason = "completed"
+        done_error = None
         for event in events:
             kind = event.get("type")
             if kind == "delta":
@@ -163,6 +266,7 @@ async def run_turn(run: dict, messages: list[dict], gateway: Gateway) -> None:
                 tool_calls.append(event)
             elif kind == "done":
                 stop_reason = str(event.get("stop_reason", stop_reason))
+                done_error = event.get("error")
                 usage = event.get("usage") or {}
                 for key in usage_total:
                     usage_total[key] += int(usage.get(key, 0) or 0)
@@ -171,6 +275,24 @@ async def run_turn(run: dict, messages: list[dict], gateway: Gateway) -> None:
             text_parts.append(buffered)
             emit("message.delta", {"text": buffered, "turn": turn_index}, run=run, seq=seq)
 
+        if stop_reason in {
+            "model_unavailable",
+            "invalid_request",
+            "tool_not_allowed",
+            "invalid_tool_args",
+        }:
+            emit(
+                "run.settled",
+                {
+                    "stop_reason": "failed",
+                    "message": {"text": "", "citations": []},
+                    "usage": usage_total,
+                    "error": str(done_error or stop_reason),
+                },
+                run=run,
+                seq=seq + 1,
+            )
+            return
         if not tool_calls:
             break
 
@@ -184,7 +306,40 @@ async def run_turn(run: dict, messages: list[dict], gateway: Gateway) -> None:
             run=run,
             seq=seq,
         )
+        write_call = None
+        write_scope = ""
         for call in tool_calls:
+            spec = tool_registry.TOOLS.get(call.get("name"))
+            if (
+                spec is not None
+                and spec.side_effect == "write"
+                and call.get("id") not in restored_ids
+            ):
+                write_call = call
+                write_scope = spec.scope
+                break
+        if write_call is not None:
+            # 写工具先停在审批屏障：本轮不执行，也不 emit run.settled。
+            seq += 1
+            emit(
+                "approval.requested",
+                {
+                    "invocation_id": write_call["id"],
+                    "tool": write_call["name"],
+                    "args_digest": _digest(write_call.get("args") or {}),
+                    "scope": write_scope,
+                    "args": write_call.get("args") or {},
+                    "tool_calls": tool_calls,
+                    "text": "".join(text_parts),
+                    "turn": turn_index,
+                },
+                run=run,
+                seq=seq,
+            )
+            return
+        for call in tool_calls:
+            if call["id"] in restored_ids:
+                continue  # 已恢复的 invocation 绝不重复执行
             result = await asyncio.to_thread(gateway.tool, call["name"], call.get("args") or {})
             ok = bool(result.get("ok", False))
             seq += 1
@@ -306,7 +461,9 @@ async def serve(*, warm: bool) -> int:
                 "capability": params.get("capability"),
                 "messages": params.get("messages") or [],
             }
-            gateway = Gateway(bound["api_base"], bound["capability"])
+            gateway = Gateway(
+                bound["api_base"], bound["capability"], bound["session_id"] or ""
+            )
             respond(request_id, ok=True, result={"session_id": bound["session_id"]})
         elif method == "run.start":
             if bound is None or gateway is None:
@@ -321,8 +478,18 @@ async def serve(*, warm: bool) -> int:
                 "attempt": int(params.get("attempt", 1)),
                 "runtime_generation": bound["runtime_generation"],
             }
+            pending_tool = params.get("pending_tool") or None
+            pending_turn = params.get("pending_turn") or None
             respond(request_id, ok=True, result={"accepted": True})
-            task = start_task(run_turn(run, bound["messages"], gateway))
+            task = start_task(
+                run_turn(
+                    run,
+                    bound["messages"],
+                    gateway,
+                    pending_tool=pending_tool,
+                    pending_turn=pending_turn,
+                )
+            )
         elif method == "runtime.ping":
             respond(request_id, ok=True, result={"pong": True, "bound": bound is not None})
         elif method == "run.cancel":

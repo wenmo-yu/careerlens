@@ -139,3 +139,59 @@ class AgentApproval(Base):
         ),
         Index("ix_agent_approval_pending", "user_id", "status", "created_at"),
     )
+
+
+# A write tool invocation is recorded before and after execution. The ledger is
+# the durable idempotency key: a repeated (run_id, invocation_id) never writes
+# a second artifact, and a different digest for the same invocation is a
+# conflict instead of a silent overwrite.
+TOOL_LEDGER_STATES = ("pending", "succeeded", "failed", "denied", "unknown")
+
+
+class AgentToolLedger(Base):
+    __tablename__ = "agent_tool_ledger"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    session_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    invocation_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    tool: Mapped[str] = mapped_column(String(64), nullable=False)
+    args_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    approval_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "invocation_id", name="uq_agent_tool_ledger_invocation"),
+        CheckConstraint(
+            "status IN ('pending','succeeded','failed','denied','unknown')",
+            name="ck_agent_tool_ledger_status",
+        ),
+        Index("ix_agent_tool_ledger_user", "user_id", "created_at"),
+        Index("ix_agent_tool_ledger_run", "run_id", "invocation_id"),
+    )
+
+
+class AgentArtifact(Base):
+    __tablename__ = "agent_artifacts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    session_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False, default="career_note")
+    title: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    citations: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_agent_artifact_user", "user_id", "created_at"),
+        Index("ix_agent_artifact_run", "run_id", "created_at"),
+    )

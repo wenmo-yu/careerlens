@@ -44,3 +44,9 @@ Thumbs.db
 frontend/test-results/
 frontend/playwright-report/
 frontend/.playwright/
+
+# Desktop build artefacts
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+frontend/out/
+frontend/.desktop-export/

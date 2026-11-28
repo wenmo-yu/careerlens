@@ -26,6 +26,9 @@ jobs:
           cache: pip
       - run: pip install -e ".[dev]"
       - run: ruff check --config pyproject.toml . ../examples/tutorials
+      - name: Verify self-developed runtime dependency policy (T27)
+        working-directory: .
+        run: python3 scripts/verify_agent_runtime_dependencies.py
       - name: Run the test suite with a coverage floor
         run: pytest --cov --cov-report=term-missing --cov-fail-under=78
       - name: Run offline RRF tutorial exercise with default and custom rankings
@@ -123,6 +126,7 @@ jobs:
           tests/test_agent_api.py
           tests/test_agent_scheduler.py
           tests/test_agent_cli.py
+          tests/test_agent_multi_schedule.py
 
   e2e:
     runs-on: ubuntu-latest

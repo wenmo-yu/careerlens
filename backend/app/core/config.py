@@ -80,6 +80,15 @@ class Settings(BaseSettings):
     agent_pending_per_user: int = Field(default=6, ge=1, le=50)
     agent_cli_module: str = "app.runtime.agent.cli"
     agent_model_provider: str = "demo"
+    # Agent Model Gateway overrides. Empty model name falls back to ai_model;
+    # a zero stream timeout falls back to ai_timeout_seconds. Prices are shared
+    # with the workflow LLM so cost accounting uses one source of truth.
+    agent_model_name: str = ""
+    agent_model_temperature: float = Field(default=0.1, ge=0, le=2)
+    agent_model_max_tokens: int = Field(default=2048, ge=1, le=32768)
+    agent_model_retries: int = Field(default=2, ge=0, le=4)
+    agent_model_backoff_ms: int = Field(default=250, ge=0, le=5000)
+    agent_model_stream_timeout_seconds: float = Field(default=0, ge=0, le=600)
     agent_capability_ttl_seconds: int = Field(default=120, ge=10, le=900)
     agent_api_base: str = "http://127.0.0.1:8000"
     agent_scheduler_poll_seconds: float = Field(default=0.25, gt=0, le=5)
@@ -108,7 +117,8 @@ class Settings(BaseSettings):
 
     @field_validator(
         "app_env", "auth_mode", "mcp_auth_mode", "retrieval_backend", "ai_provider",
-        "ai_failure_policy", "retrieval_provider", "checkpoint_backend", mode="before",
+        "agent_model_provider", "ai_failure_policy", "retrieval_provider", "checkpoint_backend",
+        mode="before",
     )
     @classmethod
     def normalize_mode(cls, value):
@@ -180,6 +190,22 @@ class Settings(BaseSettings):
         if not self.ai_model.strip() or not self.ai_base_url.startswith(("https://", "http://")):
             raise RuntimeError("Model configuration requires an HTTP(S) AI_BASE_URL and AI_MODEL")
 
+    def validate_agent_model(self) -> None:
+        """Remote agent providers need a key; demo/scripted stay offline."""
+
+        if self.agent_model_provider in {"demo", "scripted"}:
+            return
+        if not self.ai_api_key.strip() or self.ai_api_key.startswith("replace-with"):
+            raise ValueError("AGENT_MODEL_PROVIDER requires a configured AI_API_KEY")
+        if not self.ai_base_url.startswith(("https://", "http://")):
+            raise ValueError("Agent model requires an HTTP(S) AI_BASE_URL")
+        if not (self.agent_model_name or self.ai_model).strip():
+            raise ValueError("Agent model requires AGENT_MODEL_NAME or AI_MODEL")
+
+    @property
+    def agent_model_timeout_seconds(self) -> float:
+        return self.agent_model_stream_timeout_seconds or self.ai_timeout_seconds
+
     @property
     def checkpoint_url(self) -> str:
         url = self.checkpoint_database_url or self.database_url
@@ -222,6 +248,10 @@ class Settings(BaseSettings):
             ("retrieval_provider", {"hash", "qwen"}),
             ("checkpoint_backend", {"auto", "memory", "postgres"}),
             ("ai_provider", {"demo", "deepseek", "openai_compatible", "local"}),
+            (
+                "agent_model_provider",
+                {"demo", "scripted", "openai_compatible", "deepseek", "local"},
+            ),
             ("ai_failure_policy", {"allow_fallback", "strict"}),
         ):
             if getattr(self, name) not in allowed:

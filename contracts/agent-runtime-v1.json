@@ -73,6 +73,45 @@
     "identity_in_args",
     "approval_required",
     "capability_expired",
-    "scheduler_restart"
-  ]
+    "scheduler_restart",
+    "approval_mismatch",
+    "tool_ledger_conflict",
+    "tool_ledger_incomplete",
+    "artifact_not_found"
+  ],
+  "write_tools": [
+    {
+      "name": "save_career_note",
+      "side_effect": "write",
+      "scope": "agent.artifact.write",
+      "arguments": {
+        "required": ["title", "content"],
+        "optional": ["evidence_ids"],
+        "limits": {"title_chars": 200, "content_chars": 20000, "evidence_ids": 50}
+      },
+      "rule": "evidence_ids 只能是当前用户已存在的证据 id；否则拒绝执行。"
+    }
+  ],
+  "tool_ledger": {
+    "enabled": true,
+    "states": ["pending", "succeeded", "failed", "denied", "unknown"],
+    "idempotency_key": ["run_id", "invocation_id"],
+    "artifact_citations": "JSON list of evidence references",
+    "rule": "批准不等于重复执行：同一 invocation_id 与 args_digest 只产生一个 artifact，重复调用返回原结果；digest 变化则 tool_ledger_conflict；无审批或审批不匹配时拒绝执行，不伪造成功。"
+  },
+  "approval_payload_required": [
+    "invocation_id",
+    "tool",
+    "args_digest",
+    "scope",
+    "tool_calls",
+    "text",
+    "turn"
+  ],
+  "approval_recovery": {
+    "run_payload": ["pending_turn", "pending_tool"],
+    "pending_turn": ["invocation_id", "tool_calls", "text", "turn", "args_digest"],
+    "pending_tool": ["invocation_id", "tool", "args", "args_digest", "approval_id"],
+    "rule": "CLI/daemon 重启后只恢复该 invocation；scheduler 校验 approval.status=approved 且 args_digest 一致，否则 fail 且不执行工具。"
+  }
 }

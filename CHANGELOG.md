@@ -19,6 +19,14 @@ All notable changes to CareerLens are documented here.
 
 ### Added
 
+- V4 M5 模型网关：`stream_provider()` 接入 OpenAI-compatible / DeepSeek 流式 SSE，逐字 delta、完整工具调用装配、白名单、429/5xx/超时有限重试、usage 与成本计量；demo/scripted 事件形状保持兼容。见 `docs/adr/0012-m5-model-gateway-provider.md`。真实供应商账号端到端仍未验证。
+- V4 M5 写工具与审批闭环：新增 `agent_tool_ledger` / `agent_artifacts` 与 `save_career_note`；写工具必须经批准且 digest 匹配，同 invocation 只写一次；`pending_turn/pending_tool` 持久化到 Run payload，CLI/daemon 重启后只恢复原 invocation。见 `docs/adr/0013-m5-tool-ledger-and-approval.md`。这不是完整 OS 沙箱。
+- V4 M6 多任务树：团队父任务与最多三个独立子任务、角色工具范围、结果投影与引用核验、团队邮箱 `(team_id, message_key)` 去重、父取消级联；新增 `agent_tasks` / `agent_team_messages` / `agent_task_budget_use`。见 `docs/adr/0015-m6-multi-agent-task-tree.md`。
+- V4 M8 持久计划：`agent_schedules` / `agent_schedule_occurrences`，`(schedule_id,due_at)` 幂等、`skip/run_once` 错过策略、禁用/撤销令牌拒绝触发，并接入调度器 tick 内部触发。见 `docs/adr/0016-m8-durable-schedules.md`。
+- Tauri 2 桌面宿主骨架：`desktop/` 提供 daemon 自动启动、命名管道 v1 控制、托盘、关窗后台与 NSIS 打包；`frontend/next.desktop.config.ts` 独立静态导出，主 `next.config.ts` 不变。见 `docs/adr/0014-tauri-host-and-daemon-control.md`。签名、自动更新与真实安装验收未做。
+- T27 依赖门禁：`scripts/verify_agent_runtime_dependencies.py` 在 CI 检查 Pi / OpenAI Agents SDK 依赖与 vendored 目录；Quality Gate 的 `agent-runtime-windows` 增加 M6/M8 测试。
+- 公开 Agent API：`GET /agent/artifacts`、`GET /agent/artifacts/{id}`、团队任务/邮箱与计划任务端点；OpenAPI 快照更新为 99 路径、111 操作、94 schema。
+
 - V4 M3 持久 Agent 运行契约：`agent_sessions`/`agent_session_messages`/`agent_runtime_slots`/`agent_approvals` 与 `agent_runs.executor_kind, session_id`；ACK、settled、committed 三阶段分离，事件 seq 与 fencing token 同事务；每会话一个 CLI 进程，capability 限定到 user/session/run/attempt/generation；只读工具 `search_evidence`、`get_profile` 与流式模型网关。新增 39 项测试（含真实 CLI 子进程 + 桩网关），后端 344 passed，覆盖率 79.52%。见 `docs/adr/0010-m3-agent-runtime-contract.md`。
 - V4 M4 Runtime Manager：预热池状态机（reserve 原子、绑定壳不回池、总进程上限）、两路并发准入、租约/fencing、旧代拒绝、崩溃退避补充与 `runtime/status`、`runtime/capabilities` 诊断；两个并发会话、6 个排队任务、崩溃重试、长任务超时均有测试。调度器入口要求 `AGENT_RUNTIME_ENABLED=true`，默认不启动。见 `docs/adr/0011-m4-runtime-manager.md`。
 - V4 M2 第一步：daemon 从原型迁入 `backend/app/runtime/daemon/`（`contract` / `supervisor` / `control_ipc` / `lifecycle`），入口 `python -m app.runtime.daemon --api-exe <path>`；契约文件缺失时回退内置副本，新增 45 项 daemon 测试（41 项跨平台 + 4 项 Windows 专属）覆盖退避、熔断、握手、错误码与管道往返，后端覆盖率 78.65%；Quality Gate 增加 `daemon-windows` job。见 `docs/adr/0009-daemon-implementation-step-one.md`。

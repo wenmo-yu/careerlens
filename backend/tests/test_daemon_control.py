@@ -176,3 +176,22 @@ def test_empty_command_is_invalid():
     plane = build()
     response, _ = plane.dispatch("   ", Session())
     assert response["code"] == "invalid_params"
+
+
+def test_contract_json_frames_are_accepted():
+    plane = build()
+    response, session = plane.dispatch(
+        '{"command":"hello","params":{"protocol":1,"client":"desktop","client_version":"0.4.0"}}',
+        Session(),
+    )
+    assert response["ok"] is True
+    status, _ = plane.dispatch('{"command":"status","params":{}}', session)
+    assert status["backend"]["healthy"] is True
+    restart, _ = plane.dispatch('{"command":"restart","params":{"role":"worker"}}', session)
+    assert restart == {"ok": True, "restarting": "worker"}
+
+
+def test_malformed_json_frame_is_rejected():
+    plane = build()
+    response, _ = plane.dispatch("{not json", Session())
+    assert response == {"ok": False, "code": "invalid_json", "message": "invalid control frame"}

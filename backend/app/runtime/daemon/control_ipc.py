@@ -64,24 +64,56 @@ class ControlPlane:
         }
 
     @staticmethod
-    def _parts(line: str) -> list[str]:
-        return line.strip().split()
+    def _decode(line: str) -> tuple[str, dict, str | None]:
+        """Decode one control frame.
+
+        The published contract uses one JSON object per line. The positional
+        form (`hello 1`, `restart worker`) is kept as a deprecated compatibility
+        path for the M1/M2 probe, but new clients must send JSON.
+        """
+
+        text = line.strip()
+        if not text:
+            return "", {}, None
+        if text.startswith("{"):
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError:
+                return "", {}, "invalid_json"
+            if not isinstance(payload, dict):
+                return "", {}, "invalid_json"
+            verb = str(payload.get("command", "")).lower()
+            params = payload.get("params") or {}
+            if not isinstance(params, dict):
+                return verb, {}, "invalid_params_object"
+            return verb, params, None
+        parts = text.split()
+        verb = parts[0].lower()
+        params: dict[str, object] = {}
+        if verb == "hello" and len(parts) > 1:
+            params["protocol"] = parts[1]
+            if len(parts) > 2:
+                params["client"] = parts[2]
+        elif verb == "restart" and len(parts) > 1:
+            params["role"] = parts[1]
+        return verb, params, None
 
     # --- dispatch ------------------------------------------------------------
     def dispatch(self, line: str, session: Session) -> tuple[dict, Session]:
-        parts = self._parts(line)
-        if not parts:
+        verb, params, decode_error = self._decode(line)
+        if decode_error:
+            return error(decode_error, "invalid control frame"), session
+        if not verb:
             return error("invalid_params", "empty command"), session
-        verb = parts[0].lower()
         spec = self.contract.command(verb)
 
         if verb == "hello":
-            return self._hello(parts, session)
+            return self._hello(params, session)
         if not session.handshaken:
             return error("not_ready", "send hello before other commands"), session
         if spec is None:
             return error("unknown_command", f"unknown command: {verb}"), session
-        missing = self._missing(spec.required_params, parts)
+        missing = self._missing(spec.required_params, params)
         if missing:
             return error("invalid_params", "missing command arguments", missing=missing), session
         if verb == "ping":
@@ -91,7 +123,7 @@ class ControlPlane:
         if verb == "status":
             return {"ok": True, **self._status()}, session
         if verb == "restart":
-            role = parts[1].lower()
+            role = str(params["role"]).lower()
             if role not in self.contract.restart_roles:
                 return error("unknown_role", f"unknown role: {role}"), session
             self.supervisor.restart(role)
@@ -101,21 +133,18 @@ class ControlPlane:
         return error("unknown_command", f"unknown command: {verb}"), session
 
     @staticmethod
-    def _missing(required: tuple[str, ...], parts: list[str]) -> list[str]:
-        # 原型只支持位置参数：hello / restart 各带一个值。
-        if not required:
-            return []
-        return [required[0]] if len(parts) < 2 else []
+    def _missing(required: tuple[str, ...], params: dict) -> list[str]:
+        return [name for name in required if name not in params or params[name] in (None, "")]
 
-    def _hello(self, parts: list[str], session: Session) -> tuple[dict, Session]:
-        if len(parts) < 2:
+    def _hello(self, params: dict, session: Session) -> tuple[dict, Session]:
+        if "protocol" not in params:
             return (
                 error("invalid_params", "hello requires a protocol", missing=["protocol"]),
                 session,
             )
         try:
-            protocol = int(parts[1])
-        except ValueError:
+            protocol = int(params["protocol"])
+        except (TypeError, ValueError):
             return error("invalid_params", "hello protocol must be an integer"), session
         if protocol != self.contract.protocol:
             return (
@@ -126,6 +155,10 @@ class ControlPlane:
                 ),
                 session,
             )
+        client = str(params.get("client", "compat"))
+        client_version = str(params.get("client_version", "0"))
+        if not client or len(client) > 64 or len(client_version) > 64:
+            return error("invalid_params", "invalid hello client identity"), session
         return (
             {
                 "ok": True,

@@ -6,10 +6,199 @@
   "source_commit": "91cfae2278123cdaf9bd82a1a89403f731c846e7",
   "source_tree_equivalent_to": "43c67d3b01540ba80c00c17efd483336a08c2426",
   "openapi_snapshot": "openapi-v0.4.0.json",
-  "path_count": 79,
-  "operation_count": 88,
-  "schema_count": 78,
+  "path_count": 99,
+  "operation_count": 111,
+  "schema_count": 94,
   "operations": [
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/approvals",
+      "operationId": "list_approvals_api_v1_agent_approvals_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/approvals/{run_id}/decision",
+      "operationId": "decide_approval_api_v1_agent_approvals__run_id__decision_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/artifacts",
+      "operationId": "list_artifacts_api_v1_agent_artifacts_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/artifacts/{artifact_id}",
+      "operationId": "read_artifact_api_v1_agent_artifacts__artifact_id__get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/schedules",
+      "operationId": "list_schedules_api_v1_agent_schedules_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/schedules",
+      "operationId": "create_schedule_api_v1_agent_schedules_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/schedules/{schedule_id}/occurrences",
+      "operationId": "list_occurrences_api_v1_agent_schedules__schedule_id__occurrences_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/schedules/{schedule_id}/state",
+      "operationId": "update_schedule_state_api_v1_agent_schedules__schedule_id__state_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/schedules/{schedule_id}/trigger",
+      "operationId": "trigger_schedule_api_v1_agent_schedules__schedule_id__trigger_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/sessions",
+      "operationId": "list_sessions_api_v1_agent_sessions_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/sessions",
+      "operationId": "create_session_api_v1_agent_sessions_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/sessions/{session_id}",
+      "operationId": "read_session_api_v1_agent_sessions__session_id__get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/sessions/{session_id}/messages",
+      "operationId": "read_messages_api_v1_agent_sessions__session_id__messages_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/sessions/{session_id}/runs",
+      "operationId": "submit_turn_api_v1_agent_sessions__session_id__runs_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/tasks/{task_id}",
+      "operationId": "read_task_api_v1_agent_tasks__task_id__get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/tasks/{task_id}/cancel",
+      "operationId": "cancel_task_api_v1_agent_tasks__task_id__cancel_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/tasks/{task_id}/projection",
+      "operationId": "project_task_api_v1_agent_tasks__task_id__projection_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/teams",
+      "operationId": "create_team_api_v1_agent_teams_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/teams/{team_id}/messages",
+      "operationId": "read_mail_api_v1_agent_teams__team_id__messages_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/teams/{team_id}/messages",
+      "operationId": "append_mail_api_v1_agent_teams__team_id__messages_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/teams/{team_id}/tasks",
+      "operationId": "list_team_tasks_api_v1_agent_teams__team_id__tasks_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
     {
       "method": "GET",
       "path": "/api/v1/assessments/instruments",
@@ -326,18 +515,18 @@
       "deprecated": false
     },
     {
-      "method": "GET",
+      "method": "DELETE",
       "path": "/api/v1/evidence/{evidence_id}",
-      "operationId": "read_evidence_api_v1_evidence__evidence_id__get",
+      "operationId": "delete_evidence_api_v1_evidence__evidence_id__delete",
       "tags": [
         "evidence"
       ],
       "deprecated": false
     },
     {
-      "method": "DELETE",
+      "method": "GET",
       "path": "/api/v1/evidence/{evidence_id}",
-      "operationId": "delete_evidence_api_v1_evidence__evidence_id__delete",
+      "operationId": "read_evidence_api_v1_evidence__evidence_id__get",
       "tags": [
         "evidence"
       ],
@@ -700,6 +889,24 @@
       "operationId": "stream_events_api_v1_runs__run_id__stream_get",
       "tags": [
         "runs"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/runtime/capabilities",
+      "operationId": "runtime_capabilities_api_v1_runtime_capabilities_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/runtime/status",
+      "operationId": "runtime_status_api_v1_runtime_status_get",
+      "tags": [
+        "agent"
       ],
       "deprecated": false
     },

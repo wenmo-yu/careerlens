@@ -15,12 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_session
-from app.models.agent import AgentApproval, AgentRuntimeSlot
+from app.models.agent import AgentApproval, AgentArtifact, AgentRuntimeSlot
 from app.models.run import AgentRun
 from app.runtime.agent import store, tools
 from app.schemas.agent import (
     ApprovalDecision,
     ApprovalRead,
+    ArtifactRead,
     MessageRead,
     SessionCreate,
     SessionRead,
@@ -147,6 +148,42 @@ async def decide_approval(
     return run
 
 
+@router.get("/agent/artifacts", response_model=list[ArtifactRead])
+async def list_artifacts(
+    session: Session,
+    user_id: User,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    authorization: Authorization = None,
+):
+    await _authorize(session, user_id, authorization, "read")
+    return list(
+        await session.scalars(
+            select(AgentArtifact)
+            .where(AgentArtifact.user_id == user_id)
+            .order_by(AgentArtifact.created_at.desc(), AgentArtifact.id.desc())
+            .limit(limit)
+        )
+    )
+
+
+@router.get("/agent/artifacts/{artifact_id}", response_model=ArtifactRead)
+async def read_artifact(
+    artifact_id: str,
+    session: Session,
+    user_id: User,
+    authorization: Authorization = None,
+):
+    await _authorize(session, user_id, authorization, "read")
+    artifact = await session.scalar(
+        select(AgentArtifact).where(
+            AgentArtifact.id == artifact_id, AgentArtifact.user_id == user_id
+        )
+    )
+    if artifact is None:
+        raise HTTPException(404, "Artifact not found")
+    return artifact
+
+
 @router.get("/runtime/capabilities")
 async def runtime_capabilities(
     session: Session, user_id: User, authorization: Authorization = None
@@ -166,7 +203,9 @@ async def runtime_capabilities(
             "lease_seconds": settings.agent_lease_seconds,
             "turn_timeout_seconds": settings.agent_turn_timeout_seconds,
         },
-        "read_only_tools": sorted(tools.TOOLS),
+        "read_only_tools": tools.read_tools(),
+        "write_tools": tools.write_tools(),
+        "tool_ledger": True,
     }
 
 

@@ -257,3 +257,141 @@ def test_contract_event_kinds_match_runtime():
         )
     )
     assert {item["kind"] for item in contract["run_events"]} == set(store.RUN_EVENT_KINDS)
+
+
+# --- M5 approval persistence and idempotency --------------------------------
+
+
+async def test_wait_for_approval_persists_pending_and_reuses_invocation(session_factory):
+    _, run_id, _ = await new_turn(session_factory)
+    row = await claim(session_factory)
+    generation = await bind_and_ack(session_factory, row)
+    pending_turn = {
+        "invocation_id": "call-1",
+        "tool_calls": [{"id": "call-1", "name": "save_career_note", "args": {"title": "t"}}],
+        "text": "draft",
+        "turn": 0,
+        "args_digest": "a" * 64,
+    }
+    pending_tool = {
+        "invocation_id": "call-1",
+        "tool": "save_career_note",
+        "args": {"title": "t", "content": "c"},
+        "args_digest": "a" * 64,
+    }
+    async with session_factory.begin() as session:
+        first = await store.wait_for_approval(
+            session,
+            claim=row,
+            generation=generation,
+            invocation_id="call-1",
+            tool="save_career_note",
+            args_digest="a" * 64,
+            scope="agent.artifact.write",
+            pending_turn=pending_turn,
+            pending_tool=pending_tool,
+        )
+        assert first.scope == "agent.artifact.write"
+    async with session_factory() as session:
+        run = await session.get(AgentRun, run_id)
+        await session.refresh(run, ["payload"])
+        assert run.status == "waiting_confirmation"
+        assert run.payload["pending_turn"]["text"] == "draft"
+        assert run.payload["pending_tool"]["approval_id"] == first.id
+    async with session_factory.begin() as session:
+        again = await store.wait_for_approval(
+            session,
+            claim=row,
+            generation=generation,
+            invocation_id="call-1",
+            tool="save_career_note",
+            args_digest="a" * 64,
+            pending_turn=pending_turn,
+            pending_tool=pending_tool,
+        )
+        assert again.id == first.id
+        approvals = list(await session.scalars(select(AgentApproval)))
+        assert len(approvals) == 1
+    with pytest.raises(store.AgentConflict):
+        async with session_factory.begin() as session:
+            await store.wait_for_approval(
+                session,
+                claim=row,
+                generation=generation,
+                invocation_id="call-1",
+                tool="save_career_note",
+                args_digest="b" * 64,
+            )
+
+
+async def test_repeated_approve_is_idempotent_and_conflict_is_409(session_factory):
+    _, run_id, _ = await new_turn(session_factory)
+    row = await claim(session_factory)
+    generation = await bind_and_ack(session_factory, row)
+    async with session_factory.begin() as session:
+        await store.wait_for_approval(
+            session,
+            claim=row,
+            generation=generation,
+            invocation_id="call-1",
+            tool="save_career_note",
+            args_digest="a" * 64,
+            pending_turn={
+                "invocation_id": "call-1", "tool_calls": [], "text": "", "turn": 0,
+                "args_digest": "a" * 64,
+            },
+            pending_tool={
+                "invocation_id": "call-1", "tool": "save_career_note", "args": {},
+                "args_digest": "a" * 64,
+            },
+        )
+    for _ in range(2):
+        async with session_factory.begin() as session:
+            run = await store.decide_approval(
+                session, user_id="u1", run_id=run_id, approve=True
+            )
+            assert run.status == "queued"
+    async with session_factory() as session:
+        kinds = list(
+            await session.scalars(
+                select(RunEvent.event_type)
+                .where(RunEvent.run_id == run_id)
+                .order_by(RunEvent.seq)
+            )
+        )
+        assert kinds.count("approval.resolved") == 1
+    with pytest.raises(store.AgentConflict):
+        async with session_factory.begin() as session:
+            await store.decide_approval(
+                session, user_id="u1", run_id=run_id, approve=False
+            )
+
+
+async def test_repeated_deny_is_idempotent_and_never_executes(session_factory):
+    _, run_id, _ = await new_turn(session_factory, user="u1", text="deny me")
+    row = await claim(session_factory)
+    generation = await bind_and_ack(session_factory, row)
+    async with session_factory.begin() as session:
+        await store.wait_for_approval(
+            session,
+            claim=row,
+            generation=generation,
+            invocation_id="call-1",
+            tool="save_career_note",
+            args_digest="c" * 64,
+        )
+    for _ in range(2):
+        async with session_factory.begin() as session:
+            run = await store.decide_approval(
+                session, user_id="u1", run_id=run_id, approve=False
+            )
+            assert run.status == "cancelled" and run.confirmation == "denied"
+    async with session_factory() as session:
+        kinds = list(
+            await session.scalars(
+                select(RunEvent.event_type)
+                .where(RunEvent.run_id == run_id)
+                .order_by(RunEvent.seq)
+            )
+        )
+        assert kinds.count("run.cancelled") == 1

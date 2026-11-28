@@ -10,14 +10,16 @@
 | [`runtime-jsonl-v1.examples.jsonl`](runtime-jsonl-v1.examples.jsonl) | Runtime JSONL v1 | request、response、event 的边界样例 |
 | [`runtime-jsonl-v1.methods.json`](runtime-jsonl-v1.methods.json) | Runtime JSONL v1 | 方法注册表、方向与 id 空间、错误码与可重试位 |
 | [`daemon-control-v1.json`](daemon-control-v1.json) | Daemon Control v1 | 本机管道控制面：握手、命令、错误码与 ACL 要求 |
-| [`agent-runtime-v1.json`](agent-runtime-v1.json) | Agent Runtime v1 | 会话/Run 事件、ACK→settled→committed、capability、池状态与错误码 |
+| [`agent-runtime-v1.json`](agent-runtime-v1.json) | Agent Runtime v1 | 会话/Run 事件、ACK→settled→committed、capability、池状态、工具账本与错误码 |
 | [`agent-api-additions-v1.json`](agent-api-additions-v1.json) | API additions v1 | M3/M4 新增的公开路径；对 v0.4.0 只增不改 |
+| [`agent-multi-v1.json`](agent-multi-v1.json) | Agent Multi v1 | M6 任务树、角色工具范围、结果投影与团队邮箱去重 |
+| [`agent-schedule-v1.json`](agent-schedule-v1.json) | Agent Schedule v1 | M8 持久计划、occurrence 幂等、错过策略与授权边界 |
 
 ## 当前基线事实
 
 - 生成提交：`91cfae2278123cdaf9bd82a1a89403f731c846e7`。
 - 与 V4 设计基线 `43c67d3b01540ba80c00c17efd483336a08c2426` 的 `backend/`、`frontend/`、`docs/` 子树对象 ID 相同；两者之间只有教程文档提交。
-- OpenAPI 快照包含 79 个路径、88 个操作和 78 个 schema。
+- OpenAPI 快照包含 99 个路径、111 个操作和 94 个 schema（含 M5/M6/M8 新增 agent API）。
 - Runtime JSONL 是 CareerLens 自定义协议：不兼容 ACP，不使用 Pi 的事件名、方法名或会话结构，也不把 JSONL 日志当作业务事实来源。
 
 ## 兼容规则

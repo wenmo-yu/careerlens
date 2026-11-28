@@ -243,3 +243,47 @@ async def test_reconnect_replays_events_and_messages_after_cursor(agent_api):
         params={"user_id": "agent-user", "after_seq": 1},
     )
     assert [item["content"] for item in response.json()] == ["replayed answer"]
+
+
+async def test_approval_dto_capabilities_and_idempotent_decision(agent_api):
+    client, factory = agent_api
+    _, run_id, claim, generation = await create_turn(client, factory, user="m5-user")
+    async with factory.begin() as session:
+        await store.wait_for_approval(
+            session,
+            claim=claim,
+            generation=generation,
+            invocation_id="call-10",
+            tool="save_career_note",
+            args_digest="d" * 64,
+            scope="agent.artifact.write",
+        )
+    response = await client.get("/api/v1/agent/approvals", params={"user_id": "m5-user"})
+    assert response.status_code == 200
+    item = response.json()[0]
+    assert item["invocation_id"] == "call-10"
+    assert item["tool"] == "save_career_note"
+    assert item["args_digest"] == "d" * 64
+    assert item["scope"] == "agent.artifact.write"
+    assert "created_at" in item
+
+    response = await client.get(
+        "/api/v1/runtime/capabilities", params={"user_id": "m5-user"}
+    )
+    payload = response.json()
+    assert payload["write_tools"] == ["save_career_note"]
+    assert payload["tool_ledger"] is True
+    assert payload["read_only_tools"] == ["get_profile", "search_evidence"]
+
+    for _ in range(2):
+        decision = await client.post(
+            f"/api/v1/agent/approvals/{run_id}/decision",
+            json={"user_id": "m5-user", "approve": True},
+        )
+        assert decision.status_code == 200
+        assert decision.json()["status"] == "queued"
+    conflict = await client.post(
+        f"/api/v1/agent/approvals/{run_id}/decision",
+        json={"user_id": "m5-user", "approve": False},
+    )
+    assert conflict.status_code == 409

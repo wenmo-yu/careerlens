@@ -15,6 +15,11 @@
 | [0009](0009-daemon-implementation-step-one.md) | Daemon 实装第一步：模块边界与可测性 | Accepted（已进入 `backend/`） | M2 |
 | [0010](0010-m3-agent-runtime-contract.md) | M3 持久 Agent 运行契约、capability 与只读工具 | Accepted（只读闭环；真实模型/写工具未开放） | M3 |
 | [0011](0011-m4-runtime-manager.md) | M4 预热池、租约、代际与准入 | Accepted（池与调度原型进入 `backend/`） | M4 |
+| [0012](0012-m5-model-gateway-provider.md) | M5 OpenAI-compatible 流式模型网关 | Accepted（接口冻结；真实供应商端到端未验证） | M5 |
+| [0013](0013-m5-tool-ledger-and-approval.md) | M5 工具账本与写工具审批/恢复闭环 | Accepted（数据库写入；OS 沙箱未做） | M5 |
+| [0014](0014-tauri-host-and-daemon-control.md) | Tauri 2 桌面宿主与 Daemon 控制面骨架 | Accepted（骨架实现；安装包签名与升级未验证） | M2、M6 |
+| [0015](0015-m6-multi-agent-task-tree.md) | M6 多任务树、角色隔离与结果投影 | Accepted（持久契约与 API；真实质量评测未做） | M6 |
+| [0016](0016-m8-durable-schedules.md) | M8 持久计划与去重触发 | Accepted（内部触发；系统唤醒未做） | M8 |
 
 ## 优先级
 

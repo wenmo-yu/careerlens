@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:desktop": "node ../desktop/scripts/build-frontend.mjs",
     "start": "next start",
     "lint": "eslint app lib components",
     "test": "node --experimental-strip-types --test lib/assessment-format.test.mjs lib/browser-capture.test.mjs lib/profile-views.test.mjs lib/run-events.test.mjs",

@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     agent,
+    agent_multi,
     assessment,
     auth,
     catalog,
@@ -23,6 +24,7 @@ from app.api.routes import (
 
 router = APIRouter()
 router.include_router(agent.router, tags=["agent"])
+router.include_router(agent_multi.router, tags=["agent"])
 router.include_router(auth.router, prefix="/auth", tags=["auth"])
 router.include_router(evidence.router, prefix="/evidence", tags=["evidence"])
 router.include_router(profile.router, prefix="/profiles", tags=["profiles"])

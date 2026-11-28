@@ -56,6 +56,7 @@ class ApprovalRead(BaseModel):
     invocation_id: str
     tool: str
     args_digest: str
+    scope: str
     status: str
     created_at: datetime
     decided_at: datetime | None
@@ -66,3 +67,17 @@ class ApprovalDecision(BaseModel):
 
     user_id: str = Field(min_length=1, max_length=128)
     approve: bool
+
+
+class ArtifactRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    user_id: str
+    session_id: str | None
+    run_id: str
+    kind: str
+    title: str
+    content: str
+    citations: list
+    created_at: datetime

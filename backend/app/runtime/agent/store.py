@@ -11,7 +11,7 @@ The rules this module enforces:
 * session history is append-only and ordered by ``message_seq``.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -60,6 +60,9 @@ class AgentClaim:
     attempt: int
     fencing_token: int
     text: str
+    # Durable recovery state (pending approval/tool) survives CLI and daemon
+    # restarts; a claim without one simply carries an empty dict.
+    payload: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -332,6 +335,7 @@ async def claim_agent_run(
         attempt=run.attempts,
         fencing_token=run.fencing_token,
         text=str(payload.get("text", "")),
+        payload=dict(payload),
     )
 
 
@@ -351,6 +355,7 @@ async def bind_generation(
 async def _lock_claim(session: AsyncSession, claim: AgentClaim) -> AgentRun:
     run = await session.scalar(
         select(AgentRun)
+        .options(undefer(AgentRun.payload))
         .where(
             AgentRun.id == claim.run_id,
             AgentRun.fencing_token == claim.fencing_token,
@@ -466,6 +471,9 @@ async def wait_for_approval(
     invocation_id: str,
     tool: str,
     args_digest: str,
+    scope: str = "",
+    pending_turn: dict | None = None,
+    pending_tool: dict | None = None,
 ) -> AgentApproval:
     run = await _lock_claim(session, claim)
     approval = await session.scalar(
@@ -473,6 +481,10 @@ async def wait_for_approval(
             AgentApproval.run_id == run.id, AgentApproval.invocation_id == invocation_id
         )
     )
+    if approval is not None and approval.args_digest != args_digest:
+        raise AgentConflict(
+            "Approval already exists for this invocation with a different digest"
+        )
     if approval is None:
         approval = AgentApproval(
             run_id=run.id,
@@ -481,26 +493,47 @@ async def wait_for_approval(
             invocation_id=invocation_id,
             tool=tool,
             args_digest=args_digest,
+            scope=scope[:100],
         )
         session.add(approval)
         await session.flush()
+
+    # Persist the barrier itself, not just a flag: a restarted CLI or daemon
+    # must be able to replay exactly one invocation after approval.
+    previous = dict(run.payload or {})
+    was_waiting = (
+        run.status == "waiting_confirmation"
+        and str(previous.get("pending_turn", {}).get("invocation_id", "")) == invocation_id
+        and previous.get("approval_requested") == approval.id
+    )
+    stored = dict(previous)
+    if pending_turn is not None:
+        stored["pending_turn"] = dict(pending_turn)
+    if pending_tool is not None:
+        tool_state = dict(pending_tool)
+        tool_state["approval_id"] = approval.id
+        stored["pending_tool"] = tool_state
+    stored["approval_requested"] = approval.id
+    run.payload = stored
     run.confirmation = "pending"
     run.status = "waiting_confirmation"
     run.lease_owner = None
     run.lease_until = None
-    await _append(
-        session,
-        run,
-        claim,
-        "approval.requested",
-        {
-            "approval_id": approval.id,
-            "invocation_id": invocation_id,
-            "args_digest": args_digest,
-            "tool": tool,
-        },
-        generation=generation,
-    )
+    if not was_waiting:
+        await _append(
+            session,
+            run,
+            claim,
+            "approval.requested",
+            {
+                "approval_id": approval.id,
+                "invocation_id": invocation_id,
+                "args_digest": args_digest,
+                "tool": tool,
+                "scope": scope,
+            },
+            generation=generation,
+        )
     await session.flush()
     return approval
 
@@ -513,8 +546,6 @@ async def decide_approval(
     )
     if run is None:
         return None
-    if run.status != "waiting_confirmation":
-        raise AgentConflict("Run is not waiting for approval")
     approval = await session.scalar(
         select(AgentApproval)
         .where(
@@ -522,10 +553,24 @@ async def decide_approval(
             AgentApproval.user_id == user_id,
             AgentApproval.status == "pending",
         )
-        .order_by(AgentApproval.created_at.desc())
+        .order_by(AgentApproval.created_at.desc(), AgentApproval.id.desc())
     )
     if approval is None:
+        # 重复决策结果一致时幂等返回；结果冲突则是持久冲突（409），
+        # 不重复写事件，也不产生第二次副作用。
+        decided = await session.scalar(
+            select(AgentApproval)
+            .where(AgentApproval.run_id == run_id, AgentApproval.user_id == user_id)
+            .order_by(AgentApproval.created_at.desc(), AgentApproval.id.desc())
+        )
+        expected = "approved" if approve else "denied"
+        if decided is not None and decided.status == expected:
+            return run
+        if decided is not None and decided.status in ("approved", "denied", "expired"):
+            raise AgentConflict("Approval was already decided with a different outcome")
         raise AgentConflict("No pending approval for this run")
+    if run.status != "waiting_confirmation":
+        raise AgentConflict("Run is not waiting for approval")
     approval.status = "approved" if approve else "denied"
     approval.decision_by = user_id
     approval.decided_at = datetime.now(UTC)

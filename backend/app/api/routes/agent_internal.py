@@ -44,6 +44,11 @@ class ToolInvoke(BaseModel):
 
     name: str = Field(min_length=1, max_length=64)
     args: dict[str, Any] = Field(default_factory=dict)
+    session_id: str | None = Field(default=None, max_length=36)
+    invocation_id: str | None = Field(default=None, max_length=64)
+    approval_id: str | None = Field(default=None, max_length=36)
+    approved: bool = False
+    args_digest: str | None = Field(default=None, max_length=64)
 
 
 async def _capability(session: AsyncSession, token: str | None) -> caps.Capability:
@@ -76,20 +81,18 @@ async def complete(
     messages = [message.model_dump() for message in payload.messages]
     allowed = {tool["name"] for tool in tools.definitions()}
     offered = [tool for tool in payload.tools if tool.get("name") in allowed]
-    try:
-        turn = model.build_turn(
-            messages,
-            offered,
-            provider=get_settings().agent_model_provider,
-        )
-    except ModelUnavailable as exc:
-        raise HTTPException(503, f"Model gateway unavailable: {exc.reason}") from exc
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
+    provider = get_settings().agent_model_provider
 
     async def generate():
-        async for event in model.stream_turn(turn):
-            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        try:
+            async for event in model.stream_provider(messages, offered, provider=provider):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        except ModelUnavailable as exc:
+            failure = {"type": "done", "stop_reason": "model_unavailable", "error": exc.reason}
+            yield f"data: {json.dumps(failure, ensure_ascii=False)}\n\n"
+        except ValueError as exc:
+            failure = {"type": "done", "stop_reason": "invalid_request", "error": str(exc)}
+            yield f"data: {json.dumps(failure, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
@@ -117,9 +120,17 @@ async def invoke_tool(
             name=payload.name,
             args=payload.args,
             run_id=claim.run_id,
+            session_id=payload.session_id or "",
+            invocation_id=payload.invocation_id,
+            approval_id=payload.approval_id,
+            approved=payload.approved,
+            args_digest=payload.args_digest,
         )
     except tools.ToolRejected as exc:
-        await session.rollback()
+        if exc.persist:
+            await session.commit()
+        else:
+            await session.rollback()
         return {"ok": False, "code": exc.code, "message": exc.message}
     await session.commit()
     return {"ok": True, "result": result}

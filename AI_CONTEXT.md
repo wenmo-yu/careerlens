@@ -1,6 +1,6 @@
 # CareerLens AI 上下文导航（AI 专用）
 
-> 更新时间：2026-11-27。这个文件是给 AI 查阅用的代码与公开文档索引。
+> 更新时间：2026-11-28。这个文件是给 AI 查阅用的代码与公开文档索引。
 > 目标：让 AI 在回答「某个功能在哪、以前怎么做、现在怎么做、改它要读什么」时，不必重新遍历整个仓库。
 > 入口规则见 [`AGENTS.md`](AGENTS.md)；仓库外的本地管理文档见 [`../AI查阅导航.md`](../AI查阅导航.md)。
 
@@ -13,13 +13,13 @@
 | 产品版本 | v0.4.0；三期产品交付完成，`CHANGELOG.md` 已回填 |
 | 仓库 | https://github.com/wenmo-yu/careerlens |
 | 公开教程站 | https://wenmo-yu.github.io/careerlens/ |
-| 最新公开提交 | `ce5bb08`（PR #59，教程同步画像与岗位工作台）；本轮文档/截图提交 `34680ab` → `aee4487` → `9953471` |
-| 验证基线 | 后端 258 项测试（覆盖率门槛 78%，实测 78.35%）、20 个冻结合成场景、Playwright 端到端 5 项、Quality Gate 四项与依赖审计两项全绿（backend / frontend / e2e / docker-smoke / pip-audit / pnpm audit）；Docsify build 111 文件 0 坏链，Pages 部署成功；源码整改后新增安全、跨存储删除、运行时不变量、检索世代与前端幂等等专项测试 |
-| 默认可运行方式 | Docker Compose；无需 API Key，使用确定性 Demo 模型与本地检索 |
-| 仍未完成 | 真人独立试学、真机初装/剪贴板/跨端点检、真实模型与旧库迁移；这些是验证缺口，不是源码缺口 |
-| 本地 git 状态 | 本地 `HEAD` 和 `ahead` 可能滞后（远端 fetch 502），**远端 main + Actions + Pages 才是权威** |
+| 最新公开提交 | 本轮 Desktop V4 M5/M6/M8 合并前基线为 `b1c9948`；最终 SHA 以远端 `main` 与 Actions 为准 |
+| 验证基线 | 后端 379 项测试（覆盖率门槛 78%，实测 79.73%）、Quality Gate 7 个 job（backend / frontend / Agent Core / daemon-windows / agent-runtime-windows / e2e / docker-smoke）；新增 `desktop-release` 工作流；Docsify 站点在推送后按最终 SHA 重建 |
+| 默认可运行方式 | Docker Compose；无需 API Key，使用确定性 Demo 模型与本地检索；Desktop 静态导出与 NSIS 构建已在本机通过 |
+| 仍未完成 | 真实供应商账号端到端、OS 文件/网络 broker、真实安装/签名/自动更新、系统级唤醒、真实多专家质量评测、真人试学与旧库迁移；这些是验证缺口，不是已完成的源码能力 |
+| 本地 git 状态 | 本地 `HEAD` 和 `ahead` 可能滞后；**远端 main + Actions + Pages 才是权威** |
 
-**一句话**：产品代码已到 v0.4.0，画像与推荐增强批次已推送，教程已全章加厚并补上第 10/11 篇画像与岗位实战；AI 查代码时优先相信本文件、`CHANGELOG.md`、`docs/README.md` 和源码，不要相信早期草案或本地 git 指针。
+**一句话**：产品代码已到 v0.4.0，V4 M0–M6/M8 的核心切片已进入 `main` 候选工作树：自研 Runner、daemon、预热池、真实模型流式网关、写工具审批账本、多任务树、持久计划与 Tauri 宿主骨架；AI 查代码时优先相信本文件、`CHANGELOG.md`、`docs/README.md` 和源码，不要相信早期草案或本地 git 指针。
 
 ---
 
@@ -81,14 +81,15 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `frontend/` | Next.js 工作台与公开页 | 界面、交互、SSE、截图 |
 | `docs-site/` | Docsify 教程站壳、侧栏、构建脚本 | 改教程站、发布 Pages、链接/锚点 |
 | `docs/` | 公开技术文档 | 架构、数据、Agent/检索、运维口径；`docs/adr/` 是 V4 决策记录 |
-| `contracts/` | V4 版本化机器可读契约：OpenAPI 快照、API 基线、Runtime JSONL v1 | 改跨端/跨进程接口前先读；不要把 JSONL 日志当业务事实 |
+| `contracts/` | V4 版本化机器可读契约：OpenAPI、API 基线、Runtime JSONL v1、daemon、agent runtime/multi/schedule | 改跨端/跨进程接口前先读；不要把 JSONL 日志当业务事实 |
 | `agent-runtime/` | 自研 Agent Core M0 原型：ScriptedModel、内存端口、JSONL 双向 RPC | 只用于验证状态机/协议；不要当生产运行时或安全边界 |
+| `desktop/` | Tauri 2 Host：daemon 自动启动、命名管道控制、托盘、关窗后台、NSIS 构建脚本 | 桌面壳与进程边界；不直连业务库、不替代 daemon |
 | `backend/app/runtime/daemon/` | 用户级 daemon：单实例、进程监督、Job Object、管道控制面 | 只管进程；不持业务事实，不跑 Agent Loop |
-| `backend/app/runtime/agent/` | M3/M4 agent plane：会话存储、capability、CLI、预热池与调度器 | 不生成业务事实；Run/事件/审批的唯一权威仍是数据库 |
+| `backend/app/runtime/agent/` | M3–M8 agent plane：会话、capability、CLI、预热池、调度器、模型网关、工具账本、任务树、计划 | 不生成业务事实；Run/事件/审批的唯一权威仍是数据库 |
 | `tutorials/` | 零基础课程正文与练习 | 教学、概念解释、源码导读 |
 | `examples/` | 跟做脚本和合成夹具 | 验证课程练习是否可复跑 |
 | `eval/` | 评测数据集与基线 | 评测口径、回归基线 |
-| `scripts/` | `docker-smoke.ps1` 全栈冒烟 | 本地验收、CI 复现 |
+| `scripts/` | `docker-smoke.ps1`、`verify_agent_runtime_dependencies.py`（T27） | 本地验收、CI 复现、依赖边界审计 |
 | `browser-helper/` | 浏览器采集扩展 | 授权采集流程、采集脚本 |
 | `.github/` | Issue/PR 模板、dependabot、Actions | CI、发布、Pages、社区模板 |
 
@@ -105,7 +106,7 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/migration_runner.py` | 启动时执行 Alembic 迁移的辅助逻辑 |
 | `backend/app/core/config.py` | `get_settings()`：认证模式、API 前缀、CORS、模型、检索、运行时的全部配置入口 |
 | `backend/app/core/database.py` | 异步 engine / session / `create_schema()` |
-| `backend/app/api/router.py` | 所有 `/api/v1/*` 路由汇总：`auth/evidence/profiles/jobs/chat/connectors/observability/evaluation/reports/runs/privacy/wiki` |
+| `backend/app/api/router.py` | 所有 `/api/v1/*` 路由汇总：`auth/evidence/profiles/jobs/chat/connectors/observability/evaluation/reports/runs/privacy/wiki/agent/agent_multi` |
 
 ### 4.2 API 路由（`backend/app/api/routes/`）
 
@@ -129,6 +130,9 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `recommendations.py` | 画像推荐确定性推荐：`/recommendations/roles`、`/recommendations/learning-plan` |
 | `learning.py` | 画像推荐：`/saved-jobs`（保存/对比 JD）、`/learning/plans/{id}/progress` |
 | `assessment.py` | 自陈测评结果入口：旧版快测题与提交、三份量化表的清单/题目/提交、结果列表与删除。路由只做鉴权、参数校验和响应拼装，落库与 stale 标记统一走 `services/assessment.py` |
+| `agent.py` | M3–M5 公开 agent API：会话/消息/turn、审批、artifact 读取、runtime status/capabilities |
+| `agent_multi.py` | M6/M8：团队任务树、结果投影、团队邮箱、持久计划/occurrence/触发 |
+| `agent_internal.py` | CLI 专用内部网关（不在公开 OpenAPI）：模型流式补全与工具调用；由 HMAC capability 保护 |
 
 ### 4.3 数据模型与契约
 
@@ -144,13 +148,16 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/models/career_report.py` | 版本化报告，`(user_id, version)` 唯一约束 |
 | `backend/app/models/conversation.py` | 多轮对话消息持久化 |
 | `backend/app/models/run.py` | `AgentRun` / `RunStep` / `RunEvent` / `RunScope`：后台运行、代次、租约、fencing、事件序号 |
+| `backend/app/models/agent.py` | `AgentSession` / `AgentMessage` / `AgentRuntimeSlot` / `AgentApproval` / `AgentToolLedger` / `AgentArtifact`：会话语义、审批屏障、写工具幂等账本与产物 |
+| `backend/app/models/multi.py` | `AgentTask` / `AgentTeamMessage` / `AgentTaskBudgetUse`：M6 任务树、邮箱去重、跨 attempt 预算 |
+| `backend/app/models/schedule.py` | `AgentSchedule` / `AgentScheduleOccurrence`：M8 计划与 `(schedule_id,due_at)` 幂等 occurrence |
 | `backend/app/models/wiki.py` | `WikiPage` / `WikiRevision`：页面、版本、引用、链接关系 |
 | `backend/app/models/access_token.py` / `audit.py` / `evaluation.py` / `account_deletion.py` | 令牌、不含原文的审计、评测记录、账号删除回执 |
 | `backend/app/models/learning.py` | 画像推荐 `SavedJob` / `LearningProgress`：用户保存的 JD 与学习计划进度 |
 | `backend/app/models/assessment.py` | 画像推荐 `AssessmentResult` / `UserConstraint`：自陈测评与约束，独立于事实画像 |
 | `backend/app/models/profile_extension.py` | 画像推荐 `DimensionDefinition` / `ProfileExtension`：用户可选画像维度 |
 | `backend/app/schemas/*.py` | Pydantic 请求/响应契约：auth、chat、evidence、job、profile、report、run、wiki、evaluation、privacy；画像推荐新增 catalog、profile_overview、assessment（快测/量表/约束/维度/画像模式/故事） |
-| `backend/migrations/versions/*.py` | Alembic 迁移：初始表、会话、SourceDocument/ParsedBlock、content_hash、report version 唯一、suppression、Wiki、Run、血缘保留；画像推荐 head `d0e1f2a3b4c5` 建 saved_jobs/learning_progress/assessment_results/user_constraints/dimension_definitions/profile_extensions |
+| `backend/migrations/versions/*.py` | Alembic 迁移：初始表、会话、SourceDocument/ParsedBlock、content_hash、report version 唯一、suppression、Wiki、Run、血缘保留；agent plane 链路 `a9b8c7d6e5f4`（M3）→ `b5c6d7e8f9a0`（M5 ledger/artifacts）→ `c7d8e9f0a1b2`（M6/M8 tasks/schedules，当前 head） |
 
 ### 4.4 业务服务（`backend/app/services/`）
 
@@ -213,6 +220,13 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/runtime/index_outbox.py` | 持久索引待办，PostgreSQL 行锁领取，SQLite 使用写事务串行；本地检索模式也消费删除 |
 | `backend/app/runtime/deletion_work.py` | 跨存储删除任务的租约、重试和清理回执 |
 | `backend/app/runtime/reindex.py` | 维护窗口内全量重建并核对 Qdrant 目标集合 |
+| `backend/app/runtime/agent/model.py` | 自研模型网关：demo/scripted 兼容、OpenAI-compatible SSE、工具分片装配、重试与成本指标 |
+| `backend/app/runtime/agent/tools.py` | 工具注册表：只读 `search_evidence/get_profile` + 写工具 `save_career_note`；approval/digest/ledger 校验 |
+| `backend/app/runtime/agent/cli.py` | 每会话 CLI：JSONL v1、审批屏障、批准后单 invocation 恢复、模型流消费 |
+| `backend/app/runtime/agent/scheduler.py` | 调度器：预热/准入/租约/代际、审批恢复、schedule tick 触发 |
+| `backend/app/runtime/agent/multi.py` | M6 任务树、邮箱去重、预算累计、结果投影与父取消级联 |
+| `backend/app/runtime/agent/schedule.py` | M8 计划创建、occurence 幂等、misfire 策略与 due 触发 |
+| `desktop/src-tauri/src/daemon.rs` | Tauri Host 的 daemon 启动与命名管道 v1 客户端（同一连接完成 hello + 命令） |
 | `backend/app/retrieval/generations.py` / `backend/app/models/index_generation.py` | 保存已使用的向量集合，隐私清理按登记范围处理 |
 | `backend/migrations/versions/e1f2a3b4c5d6_*` → `14c5d6e7f8a9_*` | 本轮的令牌、运行时、隐私清理、向量世代与历史审计升级 |
 | `backend/app/mcp/server.py` | MCP 工具与资源；`create_server()` 支持 stdio 与 Streamable HTTP；工具 list_generate_career_report/generate_career_report/list_profile/list_reports/get_report/list_jobs/analyze_job/get_job_analysis（共享 services），另有 `search_evidence` / `upsert_profile` 两个 local-only 便利工具；资源 careerlens://profile/reports/jobs/evidence；和 API 共用 scope 审计，不另起业务实现 |
@@ -228,7 +242,7 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/evaluation/regression.py` | 回归门禁 |
 | `backend/app/evaluation/cli.py` | 评测命令行 |
 | `backend/app/evaluation/dev_benchmark*.json` / `sample_*.json` | 开发集与基线快照，不代表真实准确率 |
-| `backend/tests/` | 30+ 个测试文件；按主题命名，`test_run_runtime.py`、`test_wiki_compile.py`、`test_knowledge_mode.py`、`test_source_dedup.py` 是核心回归；画像推荐新增 `test_import_result_contract.py`、`test_profile_overview.py`、`test_catalog.py`、`test_recommendation.py`、`test_learning_progress.py`、`test_assessment.py`、`test_runtime_specialists.py`；补充轮新增 `test_assessment_instruments.py`（许可字段、计分、API）与 `test_github_connector.py`（MockTransport，无真实网络） |
+| `backend/tests/` | 50+ 个测试文件；`test_run_runtime.py`、`test_wiki_compile.py`、`test_knowledge_mode.py`、`test_source_dedup.py` 是核心回归；画像推荐有 `test_import_result_contract.py`、`test_profile_overview.py`、`test_catalog.py`、`test_recommendation.py`、`test_learning_progress.py`、`test_assessment.py`、`test_runtime_specialists.py`；V4 新增 `test_agent_store.py`、`test_agent_pool.py`、`test_agent_gateway.py`、`test_agent_api.py`、`test_agent_scheduler.py`、`test_agent_cli.py`、`test_agent_multi_schedule.py`、`test_daemon_*`；远程供应商与 GitHub 连接器均用 MockTransport，无真实网络 |
 
 ### 4.8 后端数据流
 
@@ -339,6 +353,11 @@ HTTP/MCP 请求
 | `docs/adr/0009-daemon-implementation-step-one.md` | Daemon 在 `backend/` 的模块边界、契约加载与可测性 |
 | `docs/adr/0010-m3-agent-runtime-contract.md` | 会话/Run 持久契约、ACK/settled/committed、capability 与只读工具 |
 | `docs/adr/0011-m4-runtime-manager.md` | 预热池状态机、准入、租约、代际拒绝与诊断端点 |
+| `docs/adr/0012-m5-model-gateway-provider.md` | 真实模型流式网关、事件、重试、成本与未验证边界 |
+| `docs/adr/0013-m5-tool-ledger-and-approval.md` | 写工具审批、幂等账本、重启恢复与 OS 沙箱边界 |
+| `docs/adr/0014-tauri-host-and-daemon-control.md` | Tauri Host、命名管道控制、托盘/关窗与静态导出 |
+| `docs/adr/0015-m6-multi-agent-task-tree.md` | 独立子会话、角色范围、结果投影与邮箱去重 |
+| `docs/adr/0016-m8-durable-schedules.md` | 计划 occurrence 幂等、错过策略与内部触发边界 |
 | `docs/assets/*.jpg` | 23 张新版截图：页面总览、工作台各分区（导入/画像/匹配/报告/Copilot/测评/质量/数据）与公开页 |
 
 ---
@@ -416,10 +435,12 @@ HTTP/MCP 请求
 | `examples/bilibili-export.example.json` / `weibo-export.example.json` | 连接器示例导出 |
 | `eval/README.md` / `eval/datasets/` / `eval/baselines/` | 评测说明、数据集、基线快照 |
 | `scripts/docker-smoke.ps1` | 一次性合成资料全栈冒烟；覆盖导入→画像→岗位→报告→对话、双 Worker、SSE、Wiki、清理 |
+| `scripts/verify_agent_runtime_dependencies.py` | T27 依赖边界：拒绝 Pi / OpenAI Agents SDK 依赖与 vendored 目录 |
 | `browser-helper/` | 浏览器采集扩展：manifest、popup、采集与截图脚本、测试 |
 | `.github/workflows/quality.yml` | PR/main 的后端、前端、Docker 冒烟质量门禁 |
 | `.github/workflows/docs-pages.yml` | Docsify 打包与 GitHub Pages 部署 |
 | `.github/workflows/release.yml` | Release 发布 |
+| `.github/workflows/desktop-release.yml` | Desktop 静态导出、Tauri NSIS 构建、SHA256 与未签名 RC 摘要 |
 | `.github/dependabot.yml` / `ISSUE_TEMPLATE/` / `pull_request_template.md` | 依赖更新与社区模板 |
 
 ---
@@ -435,6 +456,7 @@ HTTP/MCP 请求
 | v0.3.0 | Wiki 编译/版本/短句柄/表格行守卫、查询期 `rag/wiki/hybrid`、模型角色绑定、两阶段 reranker；修复 Wiki 引用导致 fallback KeyError | 知识组织以 `wiki/` + `services/wiki_pages.py` 为准；模式切换是**建索引/页面时决定、查询时切换**，不是每次重建 |
 | v0.4.0 | 持久后台 Run、Worker/Coordinator、SSE、审批取消、租约恢复、fencing、索引 outbox、任务中心 | 长任务以 `runtime/` + `api/routes/runs.py` + `components/run-center.tsx` 为准；不要把长任务当成请求线程里的同步调用 |
 | 未发布整改 | 分离 API/MCP/实例运维身份，靠持久任务清理外部副本，聊天上下文改用关系表，向量集合检查指纹 | 升级先运行迁移，维护窗口内重建旧向量集合；生产配置和恢复命令以 `docs/api-and-configuration.md` 为准 |
+| V4 M0–M8（未发布） | 自研 Runner/JSONL、daemon、预热池、模型网关、写工具审批账本、任务树、计划与 Tauri 宿主 | Agent 面以 `backend/app/runtime/agent/` + `contracts/agent-*` + `desktop/` 为准；M7 职业体验沿用既有业务层，不另起一套 |
 
 ### 10.2 教程与站点（2026-11-24 → 2026-11-25）
 
@@ -472,6 +494,10 @@ HTTP/MCP 请求
 | 混合检索 / RRF / reranker | `retrieval/hybrid.py` → `retrieval/providers.py` → `retrieval/qdrant_store.py` → `retrieval/service.py` | `tests/test_qdrant_retrieval.py`、`examples/tutorials/lesson-05-rrf/` |
 | Wiki 编译与版本 | `wiki/compiler.py` → `wiki/handles.py` → `wiki/tables.py` → `services/wiki_pages.py` | `tests/test_wiki_compile.py`、`tests/test_wiki_schema.py`、`05-Wiki知识组织.md` |
 | 后台 Run / Worker / SSE | `runtime/store.py` → `runtime/worker.py` → `runtime/operations.py` → `api/routes/runs.py` | `models/run.py`、`components/run-center.tsx`、`tests/test_run_runtime.py` |
+| Agent 会话 / CLI / 调度 | `runtime/agent/store.py` → `scheduler.py` → `cli.py` → `pool.py` → `api/routes/agent.py` | `contracts/agent-runtime-v1.json`、`tests/test_agent_*.py`、ADR 0010/0011 |
+| 真实模型与写工具 | `runtime/agent/model.py` → `tools.py` → `agent_internal.py` → `contracts/agent-runtime-v1.json` | ADR 0012/0013、`tests/test_agent_gateway.py` |
+| 多任务 / 团队邮箱 / 计划 | `runtime/agent/multi.py` / `schedule.py` → `api/routes/agent_multi.py` → `models/multi.py` / `schedule.py` | ADR 0015/0016、`tests/test_agent_multi_schedule.py` |
+| 桌面宿主 / daemon 控制 | `desktop/src-tauri/src/main.rs` → `daemon.rs` → `tray.rs` → `tauri.conf.json` | ADR 0014、`contracts/daemon-control-v1.json`、`desktop/scripts/build-frontend.mjs` |
 | MCP 工具 | `mcp/server.py` → `services/*` → `security/auth.py` | `tests/test_mcp.py`、`07-A-MCP服务与ACP对照.md` |
 | 隐私与删除 | `services/privacy.py` → `models/account_deletion.py` → `runtime/index_outbox.py` | `tests/test_auth_privacy.py`、`docs/integrations-and-security.md` |
 | 测评题库与计分 | `backend/app/assessment/data/*.json` → `assessment/loader.py` → `assessment/scoring.py` → `api/routes/assessment.py` → `services/assessment.py` | `docs/assessments.md`、`tests/test_assessment_instruments.py`、`frontend/components/assessment-*.tsx` |
@@ -490,6 +516,8 @@ HTTP/MCP 请求
 1. **不要从 `app.asar.extracted/` 或 `weknora-source/` 推断 CareerLens 实现**；它们是外部参考。
 2. **不要把验收报告里的数字当当前值**；它们各自标注了当时版本。当前值看本文件 §0。
 3. **不要把「Demo 默认可跑」理解成「真实模型已验收」**；真实模型/OCR/ASR 仍是 Issue #3 和 M-02。
+4. **不要把 M5 写成工具账本当成完整沙箱**：`save_career_note` 只写数据库 artifact；OS 文件/网络 broker 与真实高风险工具仍未开放。
+5. **不要把 M6/M8 当成已产品化**：多专家质量评测、系统级唤醒、通知与真实用户试学都未做；`skip/run_once` 只覆盖恢复后的策略，不覆盖睡眠唤醒本身。
 4. **不要把「旧库迁移未验」写成「代码不支持迁移」**；迁移存在，但独立环境旧库验收待 Issue #2。
 5. **不要把「加厚完成」写成「真人已学会」**；T-07/T-18 仍待独立试学。
 6. **不要因为本地 `git status` ahead 就重推**；远端内容与 Actions 是权威，本地引用可能滞后。

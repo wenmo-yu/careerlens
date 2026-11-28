@@ -8,7 +8,7 @@
   "transport": {
     "kind": "windows_named_pipe",
     "name_pattern": "\\\\.\\pipe\\careerlens-daemon-<instance>",
-    "framing": "每条命令一行 UTF-8 JSON 请求，每条响应一行 UTF-8 JSON",
+    "framing": "每条命令一行 UTF-8 JSON 请求，每条响应一行 UTF-8 JSON；M1/M2 的位置参数写法仅作兼容读取，新客户端禁止使用",
     "max_message_bytes": 65536,
     "acl": {
       "sddl": "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;<current_user_sid>)",

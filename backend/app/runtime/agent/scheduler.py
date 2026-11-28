@@ -20,12 +20,15 @@ import uuid
 from collections import deque
 from dataclasses import dataclass
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import get_settings
-from app.models.agent import AgentRuntimeSlot
-from app.runtime.agent import capability, store
+from app.models.agent import AgentApproval, AgentRuntimeSlot
+from app.models.multi import AgentTask
+from app.models.run import AgentRun
+from app.runtime.agent import capability, multi, store
+from app.runtime.agent import schedule as schedule_service
 from app.runtime.agent.pool import Pool
 
 LOG = logging.getLogger(__name__)
@@ -208,6 +211,10 @@ class AgentScheduler:
 
     # ---- main loop ---------------------------------------------------
     async def tick(self) -> None:
+        # Durable schedules are internal planners: they only enqueue ordinary
+        # agent runs, so they stay on the same authority path as user turns.
+        async with self.factory.begin() as session:
+            await schedule_service.trigger_due(session)
         for slot in self.pool.evict_idle():
             await self._retire(slot, "evicted")
         await self._refill_warm()
@@ -301,6 +308,14 @@ class AgentScheduler:
         slot = None
         heartbeat: asyncio.Task | None = None
         try:
+            payload = claim.payload or {}
+            pending_tool = dict(payload.get("pending_tool") or {})
+            pending_turn = dict(payload.get("pending_turn") or {})
+            recovering = bool(pending_tool and pending_turn)
+            if recovering and not await self._approval_is_valid(claim, pending_tool):
+                # 批准丢失或 digest 变化：失败且不执行任何写工具。
+                await self._fail(claim, "approval_mismatch", retry=False)
+                return DriveResult("rejected", error="approval_mismatch")
             async with self.factory.begin() as session:
                 generation = await store.bind_generation(session, claim=claim)
             slot = await self._acquire_slot(claim, generation)
@@ -338,16 +353,16 @@ class AgentScheduler:
             )
             self.pool.mark_ready(slot)
             await self._persist_slot(slot)
-            await cli.request(
-                "run.start",
-                {
-                    "run_id": claim.run_id,
-                    "attempt": claim.attempt,
-                    "runtime_generation": generation,
-                    "input": claim.text,
-                },
-                self.config.bind_timeout,
-            )
+            start_params = {
+                "run_id": claim.run_id,
+                "attempt": claim.attempt,
+                "runtime_generation": generation,
+                "input": claim.text,
+            }
+            if recovering:
+                start_params["pending_tool"] = pending_tool
+                start_params["pending_turn"] = pending_turn
+            await cli.request("run.start", start_params, self.config.bind_timeout)
             async with self.factory.begin() as session:
                 await store.acknowledge(
                     session, claim=claim, generation=generation, slot_id=slot.slot_id
@@ -356,7 +371,9 @@ class AgentScheduler:
             await self._persist_slot(slot)
 
             heartbeat = asyncio.create_task(self._keep_lease(claim))
-            return await self._consume(cli, claim, generation)
+            result = await self._consume(cli, claim, generation)
+            await self._sync_task(claim)
+            return result
         except store.StaleClaim:
             if slot is not None:
                 self.pool.fault(slot, "stale_generation")
@@ -417,14 +434,37 @@ class AgentScheduler:
                     )
                 return DriveResult("committed", stop_reason=str(payload.get("stop_reason")))
             if kind == "approval.requested":
+                invocation_id = str(payload.get("invocation_id", ""))
+                args = dict(payload.get("args") or {})
+                if not args:
+                    for call in payload.get("tool_calls") or []:
+                        if str(call.get("id", "")) == invocation_id:
+                            args = dict(call.get("args") or {})
+                            break
+                pending_turn = {
+                    "tool_calls": list(payload.get("tool_calls") or []),
+                    "text": str(payload.get("text") or ""),
+                    "turn": int(payload.get("turn", 0) or 0),
+                    "args_digest": str(payload.get("args_digest", "")),
+                    "invocation_id": invocation_id,
+                }
+                pending_tool = {
+                    "invocation_id": invocation_id,
+                    "tool": str(payload.get("tool", "")),
+                    "args": args,
+                    "args_digest": str(payload.get("args_digest", "")),
+                }
                 async with self.factory.begin() as session:
                     await store.wait_for_approval(
                         session,
                         claim=claim,
                         generation=generation,
-                        invocation_id=str(payload.get("invocation_id", "")),
-                        tool=str(payload.get("tool", "")),
-                        args_digest=str(payload.get("args_digest", "")),
+                        invocation_id=invocation_id,
+                        tool=pending_tool["tool"],
+                        args_digest=pending_turn["args_digest"],
+                        scope=str(payload.get("scope") or ""),
+                        pending_turn=pending_turn,
+                        pending_tool=pending_tool,
                     )
                 return DriveResult("waiting_approval")
             if kind not in ALLOWED_EVENTS:
@@ -439,6 +479,24 @@ class AgentScheduler:
                     data=payload,
                 )
 
+    async def _approval_is_valid(
+        self, claim: store.AgentClaim, pending_tool: dict
+    ) -> bool:
+        approval_id = str(pending_tool.get("approval_id") or "")
+        if not approval_id:
+            return False
+        async with self.factory() as session:
+            approval = await session.get(AgentApproval, approval_id)
+        if approval is None:
+            return False
+        return (
+            approval.run_id == claim.run_id
+            and approval.user_id == claim.user_id
+            and approval.invocation_id == str(pending_tool.get("invocation_id") or "")
+            and approval.args_digest == str(pending_tool.get("args_digest") or "")
+            and approval.status == "approved"
+        )
+
     async def _keep_lease(self, claim: store.AgentClaim) -> None:
         interval = max(1.0, get_settings().agent_lease_seconds / 3)
         while True:
@@ -446,6 +504,41 @@ class AgentScheduler:
             async with self.factory.begin() as session:
                 if not await store.heartbeat(session, claim=claim):
                     return
+
+    async def _sync_task(self, claim: store.AgentClaim) -> None:
+        """Map a child run's terminal facts onto its M6 task and parent."""
+
+        async with self.factory.begin() as session:
+            task = await session.scalar(
+                select(AgentTask).where(AgentTask.run_id == claim.run_id)
+            )
+            if task is None:
+                return
+            run = await session.get(AgentRun, claim.run_id)
+            if run is None:
+                return
+            task.status = {
+                "succeeded": "succeeded",
+                "failed": "failed",
+                "cancelled": "cancelled",
+                "waiting_confirmation": "waiting",
+                "interrupted": "queued",
+            }.get(run.status, "running")
+            result = run.result or {}
+            if result:
+                task.result = {
+                    "text": str(result.get("message", "")),
+                    "citations": [
+                        str(item.get("evidence_id"))
+                        for item in result.get("citations", []) or []
+                        if isinstance(item, dict) and item.get("evidence_id")
+                    ],
+                    "usage": result.get("usage") or {},
+                }
+            if task.parent_id:
+                await multi.refresh_parent(
+                    session, user_id=claim.user_id, parent_id=task.parent_id
+                )
 
     async def _history(self, claim: store.AgentClaim) -> list[dict]:
         async with self.factory() as session:

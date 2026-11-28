@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wenmo-yu/careerlens/blob/main/contracts/agent-multi-v1.json",
+  "title": "CareerLens Multi-Agent Task Contract v1",
+  "protocol": "agent-multi",
+  "version": 1,
+  "roles": {
+    "researcher": ["search_evidence", "get_profile"],
+    "reviewer": ["search_evidence", "get_profile"],
+    "synthesizer": ["search_evidence", "get_profile"]
+  },
+  "task_states": ["queued", "running", "waiting", "succeeded", "failed", "cancelled"],
+  "rules": [
+    "Children receive separate agent sessions; child histories are never merged into the parent or siblings.",
+    "A parent task has no model turn; it waits durably and projects bounded child results only.",
+    "Result projection preserves at most 2000 characters and only citations that still exist for the same user.",
+    "Cancelling a parent cancels every descendant task and each queued or running agent run.",
+    "Budget is cumulative across attempts; a restart or provider usage gap never resets it.",
+    "Role tool scopes are enforced by the gateway, not by model-supplied arguments."
+  ],
+  "mailbox": {
+    "idempotency_key": ["team_id", "message_key"],
+    "duplicate_same_payload": "return_existing",
+    "duplicate_different_payload": "409 conflict",
+    "delivery": "read-model; recipients poll durable messages"
+  },
+  "error_codes": [
+    "unknown_role",
+    "duplicate_role",
+    "team_not_found",
+    "message_key_conflict",
+    "budget_exceeded",
+    "citation_unverified"
+  ]
+}

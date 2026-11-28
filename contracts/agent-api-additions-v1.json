@@ -20,14 +20,14 @@
       }
     },
     "/api/v1/agent/sessions": {
-      "post": {
-        "operationId": "create_session_api_v1_agent_sessions_post",
+      "get": {
+        "operationId": "list_sessions_api_v1_agent_sessions_get",
         "tags": [
           "agent"
         ]
       },
-      "get": {
-        "operationId": "list_sessions_api_v1_agent_sessions_get",
+      "post": {
+        "operationId": "create_session_api_v1_agent_sessions_post",
         "tags": [
           "agent"
         ]
@@ -68,6 +68,114 @@
     "/api/v1/runtime/status": {
       "get": {
         "operationId": "runtime_status_api_v1_runtime_status_get",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/artifacts": {
+      "get": {
+        "operationId": "list_artifacts_api_v1_agent_artifacts_get",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/artifacts/{artifact_id}": {
+      "get": {
+        "operationId": "read_artifact_api_v1_agent_artifacts__artifact_id__get",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/schedules": {
+      "get": {
+        "operationId": "list_schedules_api_v1_agent_schedules_get",
+        "tags": [
+          "agent"
+        ]
+      },
+      "post": {
+        "operationId": "create_schedule_api_v1_agent_schedules_post",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/schedules/{schedule_id}/occurrences": {
+      "get": {
+        "operationId": "list_occurrences_api_v1_agent_schedules__schedule_id__occurrences_get",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/schedules/{schedule_id}/state": {
+      "post": {
+        "operationId": "update_schedule_state_api_v1_agent_schedules__schedule_id__state_post",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/schedules/{schedule_id}/trigger": {
+      "post": {
+        "operationId": "trigger_schedule_api_v1_agent_schedules__schedule_id__trigger_post",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/tasks/{task_id}": {
+      "get": {
+        "operationId": "read_task_api_v1_agent_tasks__task_id__get",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/tasks/{task_id}/cancel": {
+      "post": {
+        "operationId": "cancel_task_api_v1_agent_tasks__task_id__cancel_post",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/tasks/{task_id}/projection": {
+      "get": {
+        "operationId": "project_task_api_v1_agent_tasks__task_id__projection_get",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/teams": {
+      "post": {
+        "operationId": "create_team_api_v1_agent_teams_post",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/teams/{team_id}/messages": {
+      "get": {
+        "operationId": "read_mail_api_v1_agent_teams__team_id__messages_get",
+        "tags": [
+          "agent"
+        ]
+      },
+      "post": {
+        "operationId": "append_mail_api_v1_agent_teams__team_id__messages_post",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/teams/{team_id}/tasks": {
+      "get": {
+        "operationId": "list_team_tasks_api_v1_agent_teams__team_id__tasks_get",
         "tags": [
           "agent"
         ]
