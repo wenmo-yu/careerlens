@@ -43,6 +43,14 @@
     "run.committed",
     "terminal status"
   ],
+  "runtime_health": {
+    "endpoint": "GET /api/v1/runtime/status",
+    "roles": ["worker", "scheduler"],
+    "states": ["ok", "stale", "not_started"],
+    "heartbeat_interval_seconds": 5,
+    "stale_after_seconds": "AGENT_LEASE_SECONDS * 3",
+    "rule": "Heartbeats express liveness only; run, event, approval and task facts remain owned by the business database. /health/ready keeps its database/retrieval semantics."
+  },
   "pool_states": [
     "spawning",
     "warm",
@@ -77,7 +85,14 @@
     "approval_mismatch",
     "tool_ledger_conflict",
     "tool_ledger_incomplete",
-    "artifact_not_found"
+    "artifact_not_found",
+    "workspace_not_configured",
+    "path_denied",
+    "extension_denied",
+    "file_not_found",
+    "file_too_large",
+    "invalid_encoding",
+    "tool_write_failed"
   ],
   "write_tools": [
     {
@@ -90,6 +105,16 @@
         "limits": {"title_chars": 200, "content_chars": 20000, "evidence_ids": 50}
       },
       "rule": "evidence_ids 只能是当前用户已存在的证据 id；否则拒绝执行。"
+    },
+    {
+      "name": "write_workspace_file",
+      "side_effect": "write",
+      "scope": "workspace.write",
+      "arguments": {
+        "required": ["path", "content"],
+        "limits": {"path_chars": 500, "content_bytes": 1048576}
+      },
+      "rule": "仅允许在 AGENT_WORKSPACE_ROOT 下写 UTF-8 文本；同 invocation 同 digest 不重复写，详见 agent-file-broker-v1.json。"
     }
   ],
   "tool_ledger": {

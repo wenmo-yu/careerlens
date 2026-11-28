@@ -14,6 +14,7 @@
 | [`agent-api-additions-v1.json`](agent-api-additions-v1.json) | API additions v1 | M3/M4 新增的公开路径；对 v0.4.0 只增不改 |
 | [`agent-multi-v1.json`](agent-multi-v1.json) | Agent Multi v1 | M6 任务树、角色工具范围、结果投影与团队邮箱去重 |
 | [`agent-schedule-v1.json`](agent-schedule-v1.json) | Agent Schedule v1 | M8 持久计划、occurrence 幂等、错过策略与授权边界 |
+| [`agent-file-broker-v1.json`](agent-file-broker-v1.json) | Agent File Broker v1 | M5 工作区文件读写、路径白名单、审批与原子写入边界 |
 
 ## 当前基线事实
 

@@ -204,6 +204,8 @@ async def test_approvals_and_runtime_status(agent_api):
     assert payload["protocol"] == 1
     assert payload["runs"]["cancelled"] == 1
     assert payload["pending_approvals"] == 0
+    assert set(payload["heartbeats"]) == {"worker", "scheduler"}
+    assert payload["heartbeats"]["worker"]["healthy"] is False
 
 
 async def test_runtime_capabilities_reports_limits(agent_api):
@@ -214,7 +216,7 @@ async def test_runtime_capabilities_reports_limits(agent_api):
     assert response.status_code == 200
     payload = response.json()
     assert payload["executor_kinds"] == ["workflow", "agent"]
-    assert payload["read_only_tools"] == ["get_profile", "search_evidence"]
+    assert payload["read_only_tools"] == ["get_profile", "read_workspace_file", "search_evidence"]
     assert payload["limits"]["max_running"] >= 1
 
 
@@ -271,9 +273,9 @@ async def test_approval_dto_capabilities_and_idempotent_decision(agent_api):
         "/api/v1/runtime/capabilities", params={"user_id": "m5-user"}
     )
     payload = response.json()
-    assert payload["write_tools"] == ["save_career_note"]
+    assert payload["write_tools"] == ["save_career_note", "write_workspace_file"]
     assert payload["tool_ledger"] is True
-    assert payload["read_only_tools"] == ["get_profile", "search_evidence"]
+    assert payload["read_only_tools"] == ["get_profile", "read_workspace_file", "search_evidence"]
 
     for _ in range(2):
         decision = await client.post(

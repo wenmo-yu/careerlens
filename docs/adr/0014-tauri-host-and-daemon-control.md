@@ -54,7 +54,7 @@ M0 原型已经证明 Next.js 静态导出、Tauri WebView origin 与本机 CORS
 | --- | --- |
 | `pnpm --dir frontend build:desktop`（经 `build:desktop` 脚本） | Next.js 16.4.6 静态导出成功；路由 7 个：`/`、`/_not-found`、`/architecture`、`/demo`、`/icon.svg`、`/start`、`/workspace` |
 | `cargo check --offline --manifest-path desktop/src-tauri/Cargo.toml` | `Finished dev profile` |
-| `tauri build --ci`（在 `desktop/src-tauri`） | `Finished release profile`；产出 `careerlens-desktop.exe` 与 NSIS `CareerLens_0.4.0_x64-setup.exe`（12.50 MiB，SHA256 `887d4be99a639911a4a9f88c6264bb56fb7b3145070b04665838705c82af4623`） |
+| `tauri build --ci`（在 `desktop/src-tauri`） | `Finished release profile`；产出 `careerlens-desktop.exe` 与 NSIS `CareerLens_0.4.0_x64-setup.exe`（2.21 MiB，SHA256 `b6c9d3e74d40b918f96c4bda90a5f88a88fca67d7ed5e6a0dc9b00c4930cc8bc`；字体改本地 CSS 栈后体积下降） |
 
 以上是本机构建证据，不是安装/运行验收。构建产物与 `frontend/out/` 均被 `.gitignore` 排除，未提交。
 

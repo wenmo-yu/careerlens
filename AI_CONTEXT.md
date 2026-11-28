@@ -14,7 +14,7 @@
 | 仓库 | https://github.com/wenmo-yu/careerlens |
 | 公开教程站 | https://wenmo-yu.github.io/careerlens/ |
 | 最新公开提交 | 本轮 Desktop V4 M5/M6/M8 合并前基线为 `b1c9948`；最终 SHA 以远端 `main` 与 Actions 为准 |
-| 验证基线 | 后端 379 项测试（覆盖率门槛 78%，实测 79.73%）、Quality Gate 7 个 job（backend / frontend / Agent Core / daemon-windows / agent-runtime-windows / e2e / docker-smoke）；新增 `desktop-release` 工作流；Docsify 站点在推送后按最终 SHA 重建 |
+| 验证基线 | 后端 394 项测试（覆盖率门槛 78%，实测 79.85%）、Quality Gate 7 个 job（backend / frontend / Agent Core / daemon-windows / agent-runtime-windows / e2e / docker-smoke）；新增 `desktop-release` 工作流；Docsify 站点 131 文件 / 452 链接 / 0 坏链（追加轮） |
 | 默认可运行方式 | Docker Compose；无需 API Key，使用确定性 Demo 模型与本地检索；Desktop 静态导出与 NSIS 构建已在本机通过 |
 | 仍未完成 | 真实供应商账号端到端、OS 文件/网络 broker、真实安装/签名/自动更新、系统级唤醒、真实多专家质量评测、真人试学与旧库迁移；这些是验证缺口，不是已完成的源码能力 |
 | 本地 git 状态 | 本地 `HEAD` 和 `ahead` 可能滞后；**远端 main + Actions + Pages 才是权威** |
@@ -81,9 +81,10 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `frontend/` | Next.js 工作台与公开页 | 界面、交互、SSE、截图 |
 | `docs-site/` | Docsify 教程站壳、侧栏、构建脚本 | 改教程站、发布 Pages、链接/锚点 |
 | `docs/` | 公开技术文档 | 架构、数据、Agent/检索、运维口径；`docs/adr/` 是 V4 决策记录 |
-| `contracts/` | V4 版本化机器可读契约：OpenAPI、API 基线、Runtime JSONL v1、daemon、agent runtime/multi/schedule | 改跨端/跨进程接口前先读；不要把 JSONL 日志当业务事实 |
+| `contracts/` | V4 版本化机器可读契约：OpenAPI、API 基线、Runtime JSONL v1、daemon、agent runtime/multi/schedule/file broker | 改跨端/跨进程接口前先读；不要把 JSONL 日志当业务事实 |
 | `agent-runtime/` | 自研 Agent Core M0 原型：ScriptedModel、内存端口、JSONL 双向 RPC | 只用于验证状态机/协议；不要当生产运行时或安全边界 |
 | `desktop/` | Tauri 2 Host：daemon 自动启动、命名管道控制、托盘、关窗后台、NSIS 构建脚本 | 桌面壳与进程边界；不直连业务库、不替代 daemon |
+| `frontend/app/agent/page.tsx` | Agent 工作台：会话/消息/审批/runtime 状态最小界面 | V4 Agent UI 的入口；不是完整三栏桌面 UI |
 | `backend/app/runtime/daemon/` | 用户级 daemon：单实例、进程监督、Job Object、管道控制面 | 只管进程；不持业务事实，不跑 Agent Loop |
 | `backend/app/runtime/agent/` | M3–M8 agent plane：会话、capability、CLI、预热池、调度器、模型网关、工具账本、任务树、计划 | 不生成业务事实；Run/事件/审批的唯一权威仍是数据库 |
 | `tutorials/` | 零基础课程正文与练习 | 教学、概念解释、源码导读 |
@@ -223,9 +224,11 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/runtime/agent/model.py` | 自研模型网关：demo/scripted 兼容、OpenAI-compatible SSE、工具分片装配、重试与成本指标 |
 | `backend/app/runtime/agent/tools.py` | 工具注册表：只读 `search_evidence/get_profile` + 写工具 `save_career_note`；approval/digest/ledger 校验 |
 | `backend/app/runtime/agent/cli.py` | 每会话 CLI：JSONL v1、审批屏障、批准后单 invocation 恢复、模型流消费 |
-| `backend/app/runtime/agent/scheduler.py` | 调度器：预热/准入/租约/代际、审批恢复、schedule tick 触发 |
+| `backend/app/runtime/agent/scheduler.py` | 调度器：预热/准入/租约/代际、审批恢复、schedule tick 触发、心跳 |
 | `backend/app/runtime/agent/multi.py` | M6 任务树、邮箱去重、预算累计、结果投影与父取消级联 |
 | `backend/app/runtime/agent/schedule.py` | M8 计划创建、occurence 幂等、misfire 策略与 due 触发 |
+| `backend/app/runtime/heartbeat.py` | worker/scheduler 心跳写入与 stale/not_started 判断 | 只表达 liveness，不是业务事实 |
+| `backend/app/runtime/agent/file_broker.py` | 工作区文件读写、路径白名单、符号链接拒绝、审批账本与原子写入 | 应用层边界，不是完整 OS 沙箱 |
 | `desktop/src-tauri/src/daemon.rs` | Tauri Host 的 daemon 启动与命名管道 v1 客户端（同一连接完成 hello + 命令） |
 | `backend/app/retrieval/generations.py` / `backend/app/models/index_generation.py` | 保存已使用的向量集合，隐私清理按登记范围处理 |
 | `backend/migrations/versions/e1f2a3b4c5d6_*` → `14c5d6e7f8a9_*` | 本轮的令牌、运行时、隐私清理、向量世代与历史审计升级 |
@@ -358,6 +361,9 @@ HTTP/MCP 请求
 | `docs/adr/0014-tauri-host-and-daemon-control.md` | Tauri Host、命名管道控制、托盘/关窗与静态导出 |
 | `docs/adr/0015-m6-multi-agent-task-tree.md` | 独立子会话、角色范围、结果投影与邮箱去重 |
 | `docs/adr/0016-m8-durable-schedules.md` | 计划 occurrence 幂等、错过策略与内部触发边界 |
+| `docs/adr/0017-m5-workspace-file-broker.md` | 工作区文件授权、路径白名单与原子写入边界 |
+| `docs/adr/0018-runtime-heartbeat-health.md` | worker/scheduler liveness 与 readiness 语义边界 |
+| `docs/adr/0019-agent-workbench-ui.md` | `/agent` 最小界面与轮询边界 |
 | `docs/assets/*.jpg` | 23 张新版截图：页面总览、工作台各分区（导入/画像/匹配/报告/Copilot/测评/质量/数据）与公开页 |
 
 ---
@@ -497,6 +503,9 @@ HTTP/MCP 请求
 | Agent 会话 / CLI / 调度 | `runtime/agent/store.py` → `scheduler.py` → `cli.py` → `pool.py` → `api/routes/agent.py` | `contracts/agent-runtime-v1.json`、`tests/test_agent_*.py`、ADR 0010/0011 |
 | 真实模型与写工具 | `runtime/agent/model.py` → `tools.py` → `agent_internal.py` → `contracts/agent-runtime-v1.json` | ADR 0012/0013、`tests/test_agent_gateway.py` |
 | 多任务 / 团队邮箱 / 计划 | `runtime/agent/multi.py` / `schedule.py` → `api/routes/agent_multi.py` → `models/multi.py` / `schedule.py` | ADR 0015/0016、`tests/test_agent_multi_schedule.py` |
+| 工作区文件 broker | `runtime/agent/file_broker.py` → `tools.py` → `contracts/agent-file-broker-v1.json` | ADR 0017、`tests/test_agent_file_broker.py` |
+| 后台健康语义 | `runtime/heartbeat.py` → `worker.py` / `scheduler.py` → `api/routes/agent.py` | ADR 0018、`tests/test_runtime_heartbeat.py` |
+| Agent 最小界面 | `frontend/app/agent/page.tsx` → `frontend/lib/api.ts` → `/api/v1/agent/*` | ADR 0019、`frontend/app/agent/page.tsx` |
 | 桌面宿主 / daemon 控制 | `desktop/src-tauri/src/main.rs` → `daemon.rs` → `tray.rs` → `tauri.conf.json` | ADR 0014、`contracts/daemon-control-v1.json`、`desktop/scripts/build-frontend.mjs` |
 | MCP 工具 | `mcp/server.py` → `services/*` → `security/auth.py` | `tests/test_mcp.py`、`07-A-MCP服务与ACP对照.md` |
 | 隐私与删除 | `services/privacy.py` → `models/account_deletion.py` → `runtime/index_outbox.py` | `tests/test_auth_privacy.py`、`docs/integrations-and-security.md` |

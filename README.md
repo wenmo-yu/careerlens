@@ -29,7 +29,7 @@ CareerLens 是一个**证据驱动的职业决策 Agent**：把简历、自述�
 | **缺口怎么变成行动** | 每项要求判 `strong / partial / gap`，按每周投入排学习路线，进度可回写为作品证据 |
 | **长任务会中断吗** | 导入、分析、报告走持久化 Run + Worker，SSE 实时进度、断线续看、取消与幂等恢复 |
 | **数据能带走吗** | Scope Token、JSON 导出、单条删除、整账号清理，审计不含原文 |
-| **只是个演示吗** | 配套教程覆盖从概念到源码，379 项后端测试 + Quality Gate 7 个 job 全绿 |
+| **只是个演示吗** | 配套教程覆盖从概念到源码，394 项后端测试 + Quality Gate 7 个 job 全绿 |
 
 **技术亮点**：LangGraph 条件路由 · 自研 Agent Core 与 Runtime JSONL v1 · 预热池/租约/fencing · 写工具审批与幂等账本 · Qdrant Dense+Sparse 混合检索与 RRF · 带引用的 Wiki 版本页 · MCP 工具接口 · 可切换生成模型 · Prometheus 指标。详见[架构文档](docs/architecture.md)。
 
@@ -53,6 +53,7 @@ CareerLens 是一个**证据驱动的职业决策 Agent**：把简历、自述�
 | 系统怎么跑：架构、数据、Agent、运行时、接口、配置 | [技术文档](docs/README.md) |
 | 自陈测评、MBTI 边界、三份自写量表与计分 | [测评题库与许可](docs/assessments.md) |
 | 用自备只读令牌导入 GitHub 仓库元数据与 README | [GitHub 仓库导入](docs/github-token-import.md) |
+| V4 持久 Agent：会话、消息、审批、runtime 状态 | `/agent` 工作台（需启动 scheduler） · [ADR 0019](docs/adr/0019-agent-workbench-ui.md) |
 | 八平台当前页采集、公开链接卡、XLSX/HTML/ZIP 等来源边界 | [接入、MCP 与安全](docs/integrations-and-security.md) |
 | 从零跟做：概念课、源码课、画像与岗位实战 | [教程目录](#教程目录) · [在线教程站](https://wenmo-yu.github.io/careerlens/) |
 
@@ -146,7 +147,7 @@ CareerLens 分三层，职责清楚、可逐层替换：
 
 | 项目 | 结果 |
 | --- | --- |
-| 后端 | Ruff 与 pytest（379 项），含教程 DOCX 双来源回归；覆盖率门槛 78%，实测 79.73% |
+| 后端 | Ruff 与 pytest（394 项），含教程 DOCX 双来源回归；覆盖率门槛 78%，实测 79.85% |
 | 前端 | ESLint、TypeScript 类型检查、12 项 Node 单测、production build 通过 |
 | 端到端 | Playwright 5 项：导入 → 画像 → 岗位匹配（真实确认与 worker）→ 报告，另有文档上传、空状态、首页跳转与 404 |
 | CI | Quality Gate 四项（backend / frontend / e2e / docker-smoke）与 Dependency Audit 两项全绿；Pages 单独构建部署 |

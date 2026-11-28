@@ -1046,3 +1046,102 @@ export function deleteAccount(userId: string) {
     method: "DELETE",
   });
 }
+
+export type AgentSession = {
+  id: string;
+  user_id: string;
+  workspace_id: string;
+  title: string;
+  head_revision: number;
+  runtime_generation: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AgentMessage = {
+  id: string;
+  session_id: string;
+  run_id: string | null;
+  role: "user" | "assistant" | "tool";
+  content: string;
+  citations: Array<Record<string, unknown>>;
+  message_seq: number;
+  created_at: string;
+};
+
+export type AgentApproval = {
+  id: string;
+  run_id: string;
+  invocation_id: string;
+  tool: string;
+  args_digest: string;
+  scope: string;
+  status: string;
+  created_at: string;
+};
+
+export type RuntimeCapabilities = {
+  protocol: number;
+  agent_runtime_enabled: boolean;
+  executor_kinds: string[];
+  model_provider: string;
+  read_only_tools: string[];
+  write_tools: string[];
+  tool_ledger: boolean;
+  limits: Record<string, number>;
+};
+
+export type RuntimeStatus = {
+  protocol: number;
+  slots: Record<string, number>;
+  runs: Record<string, number>;
+  pending_approvals: number;
+  expired_leases: number;
+  generated_at: string;
+};
+
+export function createAgentSession(userId: string, title: string) {
+  return request<AgentSession>("/agent/sessions", {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, title }),
+  });
+}
+
+export function listAgentSessions(userId: string) {
+  return request<AgentSession[]>(`/agent/sessions?user_id=${encodeURIComponent(userId)}`);
+}
+
+export function listAgentMessages(userId: string, sessionId: string, afterSeq = 0) {
+  const query = new URLSearchParams({ user_id: userId, after_seq: String(afterSeq) });
+  return request<AgentMessage[]>(`/agent/sessions/${encodeURIComponent(sessionId)}/messages?${query}`);
+}
+
+export function submitAgentTurn(
+  userId: string, sessionId: string, text: string, idempotencyKey: string,
+) {
+  return request<Record<string, unknown>>(`/agent/sessions/${encodeURIComponent(sessionId)}/runs`, {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ user_id: userId, text }),
+  });
+}
+
+export function listAgentApprovals(userId: string) {
+  return request<AgentApproval[]>(`/agent/approvals?user_id=${encodeURIComponent(userId)}`);
+}
+
+export function decideAgentApproval(userId: string, runId: string, approve: boolean) {
+  return request<Record<string, unknown>>(
+    `/agent/approvals/${encodeURIComponent(runId)}/decision`,
+    { method: "POST", body: JSON.stringify({ user_id: userId, approve }) },
+  );
+}
+
+export function getRuntimeCapabilities(userId: string) {
+  return request<RuntimeCapabilities>(`/runtime/capabilities?user_id=${encodeURIComponent(userId)}`);
+}
+
+export function getRuntimeStatus(userId: string) {
+  return request<RuntimeStatus>(`/runtime/status?user_id=${encodeURIComponent(userId)}`);
+}

@@ -17,6 +17,7 @@ from app.core.config import get_settings
 from app.core.database import get_session
 from app.models.agent import AgentApproval, AgentArtifact, AgentRuntimeSlot
 from app.models.run import AgentRun
+from app.runtime import heartbeat
 from app.runtime.agent import store, tools
 from app.schemas.agent import (
     ApprovalDecision,
@@ -244,11 +245,15 @@ async def runtime_status(
             AgentRun.lease_until <= int(datetime.now(UTC).timestamp()),
         )
     )
+    heartbeats = await heartbeat.read_status(
+        session, stale_after_seconds=get_settings().agent_lease_seconds * 3
+    )
     return {
         "protocol": 1,
         "slots": {state: count for state, count in slots},
         "runs": {state: count for state, count in runs},
         "pending_approvals": approvals or 0,
         "expired_leases": expired or 0,
+        "heartbeats": heartbeats,
         "generated_at": datetime.now(UTC).isoformat(),
     }

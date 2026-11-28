@@ -46,6 +46,7 @@ def test_alembic_upgrade_creates_current_schema(tmp_path):
         "agent_task_budget_use",
         "agent_schedules",
         "agent_schedule_occurrences",
+        "runtime_heartbeats",
         "audit_events",
         "career_reports",
         "conversation_threads",

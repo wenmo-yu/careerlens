@@ -92,6 +92,10 @@ class Settings(BaseSettings):
     agent_capability_ttl_seconds: int = Field(default=120, ge=10, le=900)
     agent_api_base: str = "http://127.0.0.1:8000"
     agent_scheduler_poll_seconds: float = Field(default=0.25, gt=0, le=5)
+    # File broker is opt-in: an empty root disables workspace file tools.
+    agent_workspace_root: str = ""
+    agent_file_allow_extensions: str = ".txt,.md,.json,.csv"
+    agent_file_max_bytes: int = Field(default=1_048_576, ge=1024, le=20 * 1024 * 1024)
     auth_mode: str = "disabled"
     auth_token_pepper: str = Field(default="change-me-in-production", repr=False)
     auth_token_key_version: int = Field(default=1, ge=1)

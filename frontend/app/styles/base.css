@@ -9,10 +9,10 @@ html {
 }
 
 body {
-  /* next/font sets --font-* on <body>, so the families must be composed here:
-     a :root declaration cannot see them and would resolve to an empty value. */
-  --sans: var(--font-manrope), var(--font-noto), "PingFang SC", "Microsoft YaHei", sans-serif;
-  --serif: var(--font-serif), "Source Han Serif SC", "Songti SC", "STSong", Georgia, serif;
+  /* Local font stacks keep the build offline-safe. First matches are used when
+     installed; the fallback chains preserve the editorial serif/sans split. */
+  --sans: "Manrope", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+  --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", Georgia, serif;
   margin: 0;
   background-color: var(--bg);
   /* A very light dot grid: reads as paper texture, disappears at a glance. */

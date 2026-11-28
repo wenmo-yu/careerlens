@@ -27,6 +27,7 @@ from app.core.config import get_settings
 from app.models.agent import AgentApproval, AgentRuntimeSlot
 from app.models.multi import AgentTask
 from app.models.run import AgentRun
+from app.runtime import heartbeat as process_heartbeat
 from app.runtime.agent import capability, multi, store
 from app.runtime.agent import schedule as schedule_service
 from app.runtime.agent.pool import Pool
@@ -183,6 +184,7 @@ class AgentScheduler:
         self.tasks: set[asyncio.Task] = set()
         self.stopping = asyncio.Event()
         self.started_at = time.time()
+        self.last_heartbeat = 0.0
 
     # ---- lifecycle ---------------------------------------------------
     async def startup(self) -> None:
@@ -211,6 +213,11 @@ class AgentScheduler:
 
     # ---- main loop ---------------------------------------------------
     async def tick(self) -> None:
+        now = time.monotonic()
+        if now - self.last_heartbeat >= 5.0:
+            async with self.factory.begin() as session:
+                await process_heartbeat.beat(session, "scheduler", self.owner)
+            self.last_heartbeat = now
         # Durable schedules are internal planners: they only enqueue ordinary
         # agent runs, so they stay on the same authority path as user turns.
         async with self.factory.begin() as session:

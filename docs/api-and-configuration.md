@@ -111,9 +111,10 @@ python -m app.runtime.worker
 - `GET /api/v1/agent/artifacts`、`GET /agent/artifacts/{id}`：读取 `save_career_note` 产物。
 - `POST /api/v1/agent/teams`、`GET /agent/teams/{team_id}/tasks`、`POST /agent/tasks/{id}/cancel`：M6 子任务、结果投影与父取消级联。
 - `POST/GET /api/v1/agent/schedules`、`POST /agent/schedules/{id}/state`、`POST /agent/schedules/{id}/trigger`：M8 持久计划；`(schedule_id,due_at)` 幂等。
-- `GET /api/v1/runtime/status`、`GET /api/v1/runtime/capabilities`：池/Run/审批/租约诊断与工具能力。
+- `GET /api/v1/runtime/status`、`GET /api/v1/runtime/capabilities`：池/Run/审批/租约诊断、worker/scheduler 心跳与工具能力。心跳为 `ok/stale/not_started`，只表示进程是否定期报活；`/health/ready` 仍只检查数据库与检索依赖。
 - 启动 scheduler：`AGENT_RUNTIME_ENABLED=true python -m app.runtime.agent.scheduler`。未启动时 Run 会停在 `queued`，这不是成功。
 - 真实模型需 `AGENT_MODEL_PROVIDER=openai_compatible|deepseek|local` 与 `AI_API_KEY`；Demo/scripted 离线可用。真实供应商计费与 usage 未对账。
+- 工作区文件工具默认关闭。设置 `AGENT_WORKSPACE_ROOT` 后才启用 `read_workspace_file` / `write_workspace_file`；仅允许相对路径、白名单扩展与 `AGENT_FILE_MAX_BYTES` 内的 UTF-8 文本。写文件仍走审批与幂等账本。这不是 OS 沙箱。
 
 **Wiki、测评与评测**
 - `POST /api/v1/wiki/compile`、`GET /api/v1/wiki`、`GET /api/v1/wiki/{slug}`、`/{slug}/revert`、`/{slug}/revisions`：编译、读取、回滚与版本。

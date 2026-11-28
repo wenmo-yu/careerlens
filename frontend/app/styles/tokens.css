@@ -75,8 +75,7 @@
   --t-4xl: 38px;
   --t-5xl: 52px;
 
-  /* families (fallbacks only; base.css re-declares them on body so that
-     next/font's --font-* variables resolve correctly) */
+  /* families (fallbacks only; base.css re-declares them on body for the local stack) */
   --serif: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
   --sans: "PingFang SC", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;

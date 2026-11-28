@@ -21,6 +21,7 @@ from app.models.career_report import CareerReport
 from app.models.conversation import ConversationMessage, ConversationThread
 from app.models.evaluation import EvaluationRun
 from app.models.evidence import Evidence
+from app.models.heartbeat import RuntimeHeartbeat
 from app.models.index_generation import IndexGeneration
 from app.models.job_analysis import JobAnalysis
 from app.models.learning import LearningProgress, SavedJob
@@ -73,6 +74,7 @@ __all__ = [
     "RunEvent",
     "RunScope",
     "RunStep",
+    "RuntimeHeartbeat",
     "SourceDocument",
     "WikiPage",
     "WikiRevision",

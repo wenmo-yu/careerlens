@@ -21,9 +21,12 @@ All notable changes to CareerLens are documented here.
 
 - V4 M5 模型网关：`stream_provider()` 接入 OpenAI-compatible / DeepSeek 流式 SSE，逐字 delta、完整工具调用装配、白名单、429/5xx/超时有限重试、usage 与成本计量；demo/scripted 事件形状保持兼容。见 `docs/adr/0012-m5-model-gateway-provider.md`。真实供应商账号端到端仍未验证。
 - V4 M5 写工具与审批闭环：新增 `agent_tool_ledger` / `agent_artifacts` 与 `save_career_note`；写工具必须经批准且 digest 匹配，同 invocation 只写一次；`pending_turn/pending_tool` 持久化到 Run payload，CLI/daemon 重启后只恢复原 invocation。见 `docs/adr/0013-m5-tool-ledger-and-approval.md`。这不是完整 OS 沙箱。
+- V4 M5 工作区文件 broker：`AGENT_WORKSPACE_ROOT` 显式启用，拒绝绝对路径、`..`、UNC、ADS、符号链接、非白名单扩展与超大文件；写文件沿用审批/digest/幂等账本并原子替换。新增 `contracts/agent-file-broker-v1.json` 与 ADR 0017；这是应用层边界，不是 OS 沙箱。
+- V4 M6 Agent 工作台：`/agent` 最小界面可创建/选择会话、提交一轮、查看持久消息与待审批、批准/拒绝并展示 runtime/status/capabilities；轮询刷新，不另建前端事实源。见 `docs/adr/0019-agent-workbench-ui.md`。构建字体改为本地 CSS 栈，移除 `next/font/google` 网络依赖，离线/受限网络构建可复现。
 - V4 M6 多任务树：团队父任务与最多三个独立子任务、角色工具范围、结果投影与引用核验、团队邮箱 `(team_id, message_key)` 去重、父取消级联；新增 `agent_tasks` / `agent_team_messages` / `agent_task_budget_use`。见 `docs/adr/0015-m6-multi-agent-task-tree.md`。
 - V4 M8 持久计划：`agent_schedules` / `agent_schedule_occurrences`，`(schedule_id,due_at)` 幂等、`skip/run_once` 错过策略、禁用/撤销令牌拒绝触发，并接入调度器 tick 内部触发。见 `docs/adr/0016-m8-durable-schedules.md`。
 - Tauri 2 桌面宿主骨架：`desktop/` 提供 daemon 自动启动、命名管道 v1 控制、托盘、关窗后台与 NSIS 打包；`frontend/next.desktop.config.ts` 独立静态导出，主 `next.config.ts` 不变。见 `docs/adr/0014-tauri-host-and-daemon-control.md`。签名、自动更新与真实安装验收未做。
+- Worker/Scheduler 心跳：`runtime_heartbeats` 由 worker 与 scheduler 每 5 秒写入，`runtime/status` 返回 `ok/stale/not_started`，不再把进程存在当成健康；`/health/ready` 的数据库/检索语义保持不变。见 `docs/adr/0018-runtime-heartbeat-health.md`。
 - T27 依赖门禁：`scripts/verify_agent_runtime_dependencies.py` 在 CI 检查 Pi / OpenAI Agents SDK 依赖与 vendored 目录；Quality Gate 的 `agent-runtime-windows` 增加 M6/M8 测试；Dependabot 增加 `desktop/src-tauri` 的 Cargo 月度更新，Tauri major 不自动合并。
 - 公开 Agent API：`GET /agent/artifacts`、`GET /agent/artifacts/{id}`、团队任务/邮箱与计划任务端点；OpenAPI 快照更新为 99 路径、111 操作、94 schema。
 

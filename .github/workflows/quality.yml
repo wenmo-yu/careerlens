@@ -127,6 +127,8 @@ jobs:
           tests/test_agent_scheduler.py
           tests/test_agent_cli.py
           tests/test_agent_multi_schedule.py
+          tests/test_agent_file_broker.py
+          tests/test_runtime_heartbeat.py
 
   e2e:
     runs-on: ubuntu-latest

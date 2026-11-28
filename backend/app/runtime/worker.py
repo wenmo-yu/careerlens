@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import signal
+import time
 from uuid import uuid4
 
 from sqlalchemy import select, text
@@ -12,6 +13,7 @@ from app.core.config import get_settings
 from app.core.database import SessionFactory, engine
 from app.llm.provider import ModelUnavailable
 from app.models.run import AgentRun
+from app.runtime import heartbeat as process_heartbeat
 from app.runtime.deletion_work import process_deletion_work
 from app.runtime.index_outbox import process_index_work
 from app.runtime.operations import ParserUnavailable, prepare_operation
@@ -161,10 +163,21 @@ async def perform(factory: async_sessionmaker, claim: Claim) -> None:
 
 
 async def worker_loop(
-    factory: async_sessionmaker, owner: str, stop: asyncio.Event, *, indexing: bool = False
+    factory: async_sessionmaker,
+    owner: str,
+    stop: asyncio.Event,
+    *,
+    indexing: bool = False,
+    heartbeat_interval: float = 5.0,
 ) -> None:
+    last_beat = 0.0
     while not stop.is_set():
         try:
+            now = time.monotonic()
+            if now - last_beat >= heartbeat_interval:
+                async with factory.begin() as session:
+                    await process_heartbeat.beat(session, "worker", owner)
+                last_beat = now
             if indexing:
                 deletion_handled = await process_deletion_work(factory)
                 async with factory.begin() as session:

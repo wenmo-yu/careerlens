@@ -20,6 +20,9 @@
 | [0014](0014-tauri-host-and-daemon-control.md) | Tauri 2 桌面宿主与 Daemon 控制面骨架 | Accepted（骨架实现；安装包签名与升级未验证） | M2、M6 |
 | [0015](0015-m6-multi-agent-task-tree.md) | M6 多任务树、角色隔离与结果投影 | Accepted（持久契约与 API；真实质量评测未做） | M6 |
 | [0016](0016-m8-durable-schedules.md) | M8 持久计划与去重触发 | Accepted（内部触发；系统唤醒未做） | M8 |
+| [0017](0017-m5-workspace-file-broker.md) | M5 工作区文件 broker 与路径授权 | Accepted（应用层边界；不是完整 OS 沙箱） | M5 |
+| [0018](0018-runtime-heartbeat-health.md) | Worker 与 Scheduler 显式心跳健康语义 | Accepted（runtime/status 已实现；ready 语义不变） | M2、M9 |
+| [0019](0019-agent-workbench-ui.md) | Agent 工作台最小界面 | Accepted（静态导出通过；真实桌面体验未验证） | M6 |
 
 ## 优先级
 

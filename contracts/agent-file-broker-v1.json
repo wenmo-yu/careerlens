@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wenmo-yu/careerlens/blob/main/contracts/agent-file-broker-v1.json",
+  "title": "CareerLens Agent File Broker v1",
+  "protocol": "agent-file-broker",
+  "version": 1,
+  "scope": "Workspace-scoped UTF-8 text files for the self-developed agent plane",
+  "configuration": {
+    "root": "AGENT_WORKSPACE_ROOT (empty disables read/write workspace tools)",
+    "extensions": "AGENT_FILE_ALLOW_EXTENSIONS (default .txt,.md,.json,.csv)",
+    "max_bytes": "AGENT_FILE_MAX_BYTES (default 1048576)"
+  },
+  "path_rules": [
+    "Paths must be non-empty, relative, POSIX-style and may not contain '..', '.', backslashes, colons, NUL or a leading //",
+    "The resolved path must stay under the configured root",
+    "Symlinks, junctions and non-regular files are denied at every checked component",
+    "Extensions outside the allowlist and files over the byte budget are denied"
+  ],
+  "tools": [
+    {"name": "read_workspace_file", "side_effect": "read", "scope": "workspace.read"},
+    {"name": "write_workspace_file", "side_effect": "write", "scope": "workspace.write"}
+  ],
+  "write_rules": [
+    "Write calls require a matching approved invocation and canonical args_digest",
+    "The durable ledger key is (run_id, invocation_id)",
+    "A replay with the same digest returns the stored result and never overwrites the file",
+    "A different digest returns tool_ledger_conflict",
+    "Writes use a temporary file plus atomic replace inside the workspace root"
+  ],
+  "error_codes": [
+    "workspace_not_configured",
+    "path_denied",
+    "extension_denied",
+    "file_not_found",
+    "file_too_large",
+    "invalid_encoding",
+    "tool_ledger_conflict",
+    "tool_ledger_incomplete",
+    "tool_write_failed"
+  ],
+  "boundaries": [
+    "This is a narrowly scoped file broker, not a complete OS sandbox.",
+    "Network, shell, executable files and arbitrary absolute paths remain unavailable to the agent."
+  ]
+}

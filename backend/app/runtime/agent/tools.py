@@ -19,6 +19,7 @@ from app.models.agent import AgentApproval, AgentArtifact, AgentToolLedger
 from app.models.audit import AuditEvent
 from app.models.evidence import Evidence
 from app.retrieval.service import search_evidence
+from app.runtime.agent import file_broker
 from app.services.profile import read_profile
 
 MAX_NOTE_TITLE = 200
@@ -262,6 +263,35 @@ TOOLS: dict[str, ToolSpec] = {
             scope="agent.artifact.write",
             handler=_save_career_note,
         ),
+        ToolSpec(
+            name="read_workspace_file",
+            description="Read a small UTF-8 file from the configured agent workspace.",
+            schema={
+                "type": "object",
+                "properties": {"path": {"type": "string", "minLength": 1, "maxLength": 500}},
+                "required": ["path"],
+                "additionalProperties": False,
+            },
+            side_effect="read",
+            scope="workspace.read",
+            handler=file_broker.read_file,
+        ),
+        ToolSpec(
+            name="write_workspace_file",
+            description="Write a small UTF-8 file inside the configured agent workspace.",
+            schema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "minLength": 1, "maxLength": 500},
+                    "content": {"type": "string", "minLength": 1, "maxLength": 1_048_576},
+                },
+                "required": ["path", "content"],
+                "additionalProperties": False,
+            },
+            side_effect="write",
+            scope="workspace.write",
+            handler=file_broker.write_file,
+        ),
     )
 }
 
@@ -324,9 +354,11 @@ async def invoke(
                 AgentToolLedger.invocation_id == (invocation_id or ""),
             )
         )
-        if prior is not None and prior.args_digest != digest:
+        if prior is not None and (
+            prior.args_digest != digest or prior.tool != name
+        ):
             raise ToolRejected(
-                "tool_ledger_conflict", "invocation was already recorded with a different digest"
+                "tool_ledger_conflict", "invocation was already recorded by another tool or digest"
             )
         if not invocation_id or not approval_id or not approved:
             raise ToolRejected("approval_required", "Write tools require an approved invocation")
@@ -351,6 +383,8 @@ async def invoke(
         result = await spec.handler(session, user_id, args, context)
     except ToolRejected:
         raise
+    except file_broker.BrokerRejected as exc:
+        raise ToolRejected(exc.code, exc.message, persist=exc.persist) from exc
     except (TypeError, ValueError) as exc:
         raise ToolRejected("invalid_args", str(exc)) from exc
     session.add(
