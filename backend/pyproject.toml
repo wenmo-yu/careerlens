@@ -22,7 +22,7 @@ dependencies = [
   "pymupdf>=1.25,<2",
   "python-docx>=1.1,<2",
   "python-multipart>=0.0.12,<1",
-  "qdrant-client>=1.15.1,<1.16",
+  "qdrant-client>=1.15.1,<1.21",
   "sqlalchemy[asyncio]>=2.0.36,<3",
   "uvicorn[standard]>=0.32,<1",
 ]
