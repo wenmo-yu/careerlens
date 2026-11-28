@@ -86,7 +86,8 @@ try {
 
 try {
     New-Item -Path "HKCU:\Software\CareerLensProbe" -Force -ErrorAction Stop | Out-Null
-    New-ItemProperty -Path "HKCU:\Software\CareerLensProbe" -Name probe -Value 1 -ErrorAction Stop | Out-Null
+    New-ItemProperty -Path "HKCU:\Software\CareerLensProbe" -Name probe `
+        -Value 1 -ErrorAction Stop | Out-Null
     Add-Result "registry_write" $true "wrote"
 } catch { Add-Result "registry_write" $false $_.Exception.GetType().Name }
 
@@ -189,7 +190,8 @@ def main(argv: list[str] | None = None) -> int:
             profile=sandbox.PROFILE,
         )
         step(f"child exited code={result.exit_code} timed_out={result.timed_out}")
-        checks = json.loads(result.stdout.strip()) if result.stdout.strip().startswith(("{", "[")) else []
+        raw = result.stdout.strip()
+        checks = json.loads(raw) if raw.startswith(("{", "[")) else []
         if isinstance(checks, dict):
             checks = [checks]
         report = {

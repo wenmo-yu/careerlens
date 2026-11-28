@@ -65,7 +65,10 @@ pythonpath = ["."]
 source = ["app"]
 # Migrations are exercised by tests/test_migrations.py but their bodies are
 # declarative; counting them would inflate the number without adding signal.
-omit = ["app/evaluation/cli.py"]
+# sandbox.py is Windows-only: on Linux nearly every branch is unreachable, so it
+# would drag the floor down without measuring anything. It is covered by
+# tests/test_sandbox.py in the Windows CI job and by the T14/T16 probe.
+omit = ["app/evaluation/cli.py", "app/runtime/sandbox.py"]
 
 [tool.coverage.report]
 skip_covered = true

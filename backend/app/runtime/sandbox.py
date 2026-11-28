@@ -256,9 +256,8 @@ def grant(path: Path, sid: str, *, permissions: str = "(OI)(CI)(RX)") -> None:
 
     completed = _call("icacls", str(path), "/grant", f"*{sid}:{permissions}")
     if completed.returncode != 0:
-        raise SandboxUnavailable(
-            f"icacls grant failed for {path}: {completed.stderr.strip() or completed.stdout.strip()}"
-        )
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise SandboxUnavailable(f"icacls grant failed for {path}: {detail}")
 
 
 def has_grant(path: Path, sid: str) -> bool:
