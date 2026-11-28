@@ -21,11 +21,25 @@
     "request": {
       "command": "hello",
       "params": {
-        "protocol": { "type": "integer", "const": 1 },
-        "client": { "type": "string", "minLength": 1, "maxLength": 64 },
-        "client_version": { "type": "string", "minLength": 1, "maxLength": 64 }
+        "protocol": {
+          "type": "integer",
+          "const": 1
+        },
+        "client": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "client_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
       },
-      "required": ["protocol", "client"]
+      "required": [
+        "protocol",
+        "client"
+      ]
     },
     "response": {
       "ok": true,
@@ -34,58 +48,109 @@
       "pid": "integer",
       "instance_id": "string",
       "started_at": "number (unix seconds)",
-      "roles": ["api", "worker"]
+      "roles": [
+        "api",
+        "worker"
+      ]
     },
     "mismatch": {
       "ok": false,
       "code": "protocol_mismatch",
       "message": "client protocol is not supported",
-      "supported": [1]
+      "supported": [
+        1
+      ]
     }
   },
   "commands": [
     {
       "name": "hello",
-      "params_required": ["protocol", "client"],
-      "result_required": ["protocol", "daemon_version", "pid", "instance_id", "roles"],
+      "params_required": [
+        "protocol",
+        "client"
+      ],
+      "result_required": [
+        "protocol",
+        "daemon_version",
+        "pid",
+        "instance_id",
+        "roles"
+      ],
       "idempotent": true,
-      "errors": ["protocol_mismatch", "invalid_params"]
+      "errors": [
+        "protocol_mismatch",
+        "invalid_params"
+      ]
     },
     {
       "name": "ping",
       "params_required": [],
-      "result_required": ["pong"],
+      "result_required": [
+        "pong"
+      ],
       "idempotent": true,
       "errors": []
     },
     {
       "name": "status",
       "params_required": [],
-      "result_required": ["daemon", "backend", "children"],
+      "result_required": [
+        "daemon",
+        "backend",
+        "children"
+      ],
       "result_shape": {
-        "daemon": { "pid": "integer", "version": "string", "uptime_s": "number" },
-        "backend": { "healthy": "boolean", "url": "string" },
+        "daemon": {
+          "pid": "integer",
+          "version": "string",
+          "uptime_s": "number"
+        },
+        "backend": {
+          "healthy": "boolean",
+          "url": "string"
+        },
         "children": {
-          "<role>": { "pid": "integer|null", "restarts": "integer", "running": "boolean" }
+          "<role>": {
+            "pid": "integer|null",
+            "restarts": "integer",
+            "running": "boolean"
+          }
         }
       },
       "idempotent": true,
-      "errors": ["not_ready"]
+      "errors": [
+        "not_ready"
+      ]
     },
     {
       "name": "restart",
-      "params_required": ["role"],
-      "result_required": ["restarting"],
-      "allowed_roles": ["api", "worker"],
+      "params_required": [
+        "role"
+      ],
+      "result_required": [
+        "restarting"
+      ],
+      "allowed_roles": [
+        "api",
+        "worker"
+      ],
       "idempotent": false,
-      "errors": ["invalid_params", "unknown_role", "not_ready"]
+      "errors": [
+        "invalid_params",
+        "unknown_role",
+        "not_ready"
+      ]
     },
     {
       "name": "stop",
       "params_required": [],
-      "result_required": ["stopping"],
+      "result_required": [
+        "stopping"
+      ],
       "idempotent": true,
-      "errors": ["not_ready"]
+      "errors": [
+        "not_ready"
+      ]
     }
   ],
   "error_codes": [
@@ -118,6 +183,11 @@
       "code": "internal_error",
       "retryable": true,
       "meaning": "daemon 内部异常。message 只放可公开摘要，不含路径、令牌或提示词。"
+    },
+    {
+      "code": "frame_too_large",
+      "retryable": false,
+      "meaning": "单条控制帧超过 65536 字符/字节上限。服务端回错误后断开该连接；客户端应拆分或缩小请求，不得重试同一帧。"
     }
   ],
   "rules": [

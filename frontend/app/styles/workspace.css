@@ -1217,3 +1217,42 @@
    button` grows by default, which made "打开结果" a full-bleed bar. */
 .run-center .report-actions { margin-top: 14px; padding-top: 0; }
 .run-center .report-actions button { flex: 0 0 auto; min-width: 132px; }
+
+/* ---------- desktop settings ---------- */
+/* The switch is a real <button role="switch">, so it must read as a control and
+   keep a visible focus ring when driven by keyboard. */
+.input-panel button[role="switch"] {
+  align-self: flex-start;
+  min-width: 168px;
+}
+.input-panel button[role="switch"][aria-checked="true"] {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+.settings-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-xs);
+  line-height: 1.55;
+}
+.settings-command {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: var(--t-2xs);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.settings-error { margin: 0; color: #b42318; font-size: var(--t-xs); }
+.settings-notice { margin: 0; color: var(--brand); font-size: var(--t-xs); }
+.input-panel code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-size: .92em;
+}

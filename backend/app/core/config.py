@@ -9,6 +9,12 @@ class Settings(BaseSettings):
     app_name: str = "CareerLens API"
     app_env: str = "development"
     api_prefix: str = "/api/v1"
+    # Long-running local processes (worker, scheduler) write rotating files here.
+    # Empty means stdout only, which is what CI and tests want.
+    log_dir: str = "logs"
+    log_level: str = "INFO"
+    log_max_bytes: int = Field(default=5 * 1024 * 1024, ge=0)
+    log_backups: int = Field(default=3, ge=1, le=50)
     # /metrics exposes request counts and latency. Keep it enabled for local
     # and container scrapes; put it behind the gateway if the API is public.
     metrics_enabled: bool | None = None

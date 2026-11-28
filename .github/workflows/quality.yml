@@ -131,6 +131,9 @@ jobs:
           tests/test_agent_role_schedule.py
           tests/test_agent_mcp_execution.py
           tests/test_agent_wake.py
+          tests/test_agent_model_conformance.py
+          tests/test_windows_tasks.py
+          tests/test_runtime_ops.py
           tests/test_runtime_heartbeat.py
 
   e2e:

@@ -9,15 +9,26 @@ import {
   getWorkspaceSession,
   listAgentApprovals,
   listAgentMessages,
+  listAgentNotifications,
+  listAgentSchedules,
   listAgentSessions,
+  markAgentNotificationsRead,
+  searchAgentFacts,
+  streamRun,
   submitAgentTurn,
+  terminalRun,
   type AgentApproval,
   type AgentMessage,
+  type AgentNotification,
+  type AgentSchedule,
+  type AgentSearchResult,
   type AgentSession,
+  type RunEvent,
+  type RunStatus,
   type RuntimeCapabilities,
   type RuntimeStatus,
 } from "@/lib/api";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 export default function AgentPage() {
   const [userId, setUserId] = useState("demo-user");
@@ -32,6 +43,14 @@ export default function AgentPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [liveRunId, setLiveRunId] = useState("");
+  const [liveStatus, setLiveStatus] = useState<RunStatus | "">("");
+  const [liveEvents, setLiveEvents] = useState<RunEvent[]>([]);
+  const [schedules, setSchedules] = useState<AgentSchedule[]>([]);
+  const [notifications, setNotifications] = useState<AgentNotification[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResult, setSearchResult] = useState<AgentSearchResult | null>(null);
+  const liveCursor = useRef(0);
 
   const refresh = useCallback(async (id: string) => {
     if (!id) return;
@@ -49,6 +68,12 @@ export default function AgentPage() {
       if (selectedId) {
         setMessages(await listAgentMessages(id, selectedId));
       }
+      const [nextSchedules, nextNotifications] = await Promise.all([
+        listAgentSchedules(id),
+        listAgentNotifications(id),
+      ]);
+      setSchedules(nextSchedules);
+      setNotifications(nextNotifications);
       setError("");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "刷新 Agent 状态失败。");
@@ -73,6 +98,35 @@ export default function AgentPage() {
     return () => window.clearInterval(timer);
   }, [refresh, userId]);
 
+  // Live events for the run just submitted. The SSE endpoint replays from
+  // Last-Event-ID, so a reconnect does not lose or duplicate frames; the
+  // database stays the authority and the poll above still reconciles.
+  useEffect(() => {
+    if (!liveRunId || !userId) return;
+    const controller = new AbortController();
+    let closed = false;
+    void (async () => {
+      try {
+        await streamRun(userId, liveRunId, liveCursor.current, controller.signal, (event) => {
+          liveCursor.current = Math.max(liveCursor.current, event.seq);
+          setLiveEvents((current) => [...current.slice(-40), event]);
+          if (event.event_type.startsWith("run.")) {
+            const status = String((event.data as { status?: string }).status ?? "");
+            if (status) setLiveStatus(status as RunStatus);
+          }
+        });
+      } catch {
+        // Aborted on unmount or a transient read error; polling covers recovery.
+      } finally {
+        if (!closed) setNotice((current) => current || "事件流已结束；最终结果以数据库为准。");
+      }
+    })();
+    return () => {
+      closed = true;
+      controller.abort();
+    };
+  }, [liveRunId, userId]);
+
   async function createSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -95,9 +149,17 @@ export default function AgentPage() {
     setBusy(true);
     setError("");
     try {
-      await submitAgentTurn(userId, selectedId, input.trim(), crypto.randomUUID());
+      const run = (await submitAgentTurn(
+        userId, selectedId, input.trim(), crypto.randomUUID(),
+      )) as { id?: string; status?: string };
       setInput("");
-      setNotice("已提交；Run 由 scheduler 异步执行，可继续查看消息与审批。");
+      if (run?.id) {
+        liveCursor.current = 0;
+        setLiveEvents([]);
+        setLiveStatus((run.status as RunStatus) ?? "queued");
+        setLiveRunId(run.id);
+      }
+      setNotice("已提交；Run 由 scheduler 异步执行，下面会实时显示事件。");
       await refresh(userId);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "提交失败。");
@@ -117,6 +179,28 @@ export default function AgentPage() {
       setError(caught instanceof Error ? caught.message : "审批失败。");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function runSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!searchTerm.trim()) return;
+    try {
+      setSearchResult(await searchAgentFacts(userId, searchTerm.trim()));
+      setError("");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "搜索失败。");
+    }
+  }
+
+  async function markAllRead() {
+    const unread = notifications.filter((item) => !item.read).map((item) => item.fact_key);
+    if (!unread.length) return;
+    try {
+      await markAgentNotificationsRead(userId, unread);
+      setNotifications(await listAgentNotifications(userId));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "标记已读失败。");
     }
   }
 
@@ -203,6 +287,107 @@ export default function AgentPage() {
             <p>写工具：{capabilities?.write_tools.join(", ") || "未知"}</p>
             <small>未启动 scheduler 时 Run 会停在 queued，这不是成功。</small>
           </div>
+        </div>
+
+        <div className="two-column">
+          <div className="input-panel">
+            <div className="panel-title">
+              <h3>实时事件</h3>
+              <span>{liveStatus || "未连接"}</span>
+            </div>
+            <div className="skill-list" aria-live="polite">
+              {liveEvents.map((event) => (
+                <article key={`${event.seq}-${event.event_type}`}>
+                  <strong>#{event.seq} {event.event_type}</strong>
+                  <small>{JSON.stringify(event.data)}</small>
+                </article>
+              ))}
+              {!liveEvents.length && (
+                <p>提交一轮后，这里会按 seq 显示 SSE 事件；断线会从上次 seq 续看。</p>
+              )}
+            </div>
+            {liveStatus && terminalRun(liveStatus as RunStatus) ? (
+              <small>Run 已终态：{liveStatus}。消息与审批以上面的持久数据为准。</small>
+            ) : null}
+          </div>
+
+          <div className="input-panel">
+            <div className="panel-title">
+              <h3>计划</h3>
+              <span>{schedules.length}</span>
+            </div>
+            <div className="skill-list">
+              {schedules.map((schedule) => (
+                <article key={schedule.id}>
+                  <strong>{schedule.name}</strong>
+                  <small>
+                    {schedule.state} · {schedule.misfire_policy} · 每 {schedule.interval_seconds}s
+                  </small>
+                  <small>下次到期 {new Date(schedule.next_due * 1000).toLocaleString()}</small>
+                </article>
+              ))}
+              {!schedules.length && <p>还没有计划；计划由 API 创建，到点由 scheduler 触发。</p>}
+            </div>
+          </div>
+        </div>
+
+        <div className="two-column">
+          <div className="input-panel">
+            <div className="panel-title">
+              <h3>通知</h3>
+              <span>{notifications.filter((item) => !item.read).length} 未读</span>
+            </div>
+            <div className="skill-list">
+              {notifications.slice(0, 8).map((item) => (
+                <article key={item.fact_key}>
+                  <strong>{item.title}</strong>
+                  <small>{item.detail}</small>
+                  <small>{item.read ? "已读" : "未读"} · {item.kind}</small>
+                </article>
+              ))}
+              {!notifications.length && <p>没有通知。通知由待审批、失败 Run、失败任务与跳过计划派生。</p>}
+            </div>
+            <button type="button" className="secondary" onClick={() => void markAllRead()}>
+              全部标记已读
+            </button>
+          </div>
+
+          <form className="input-panel" onSubmit={runSearch}>
+            <div className="panel-title">
+              <h3>检索</h3>
+              <span>READ ONLY</span>
+            </div>
+            <label>
+              关键词
+              <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="会话、任务、角色或计划" />
+            </label>
+            <button type="submit" disabled={!searchTerm.trim()}>搜索</button>
+            {searchResult ? (
+              <div className="skill-list">
+                <small>会话 {searchResult.sessions.length} · 任务 {searchResult.tasks.length} · 角色 {searchResult.roles.length} · 计划 {searchResult.schedules.length}</small>
+                {searchResult.sessions.map((item) => (
+                  <article key={`s-${item.id}`}>
+                    <strong>{item.title || item.id.slice(0, 8)}</strong>
+                    <small>会话 · {item.status}</small>
+                  </article>
+                ))}
+                {searchResult.tasks.map((item) => (
+                  <article key={`t-${item.id}`}>
+                    <strong>{item.title || item.id.slice(0, 8)}</strong>
+                    <small>任务 · {item.status}</small>
+                  </article>
+                ))}
+                {searchResult.schedules.map((item) => (
+                  <article key={`p-${item.id}`}>
+                    <strong>{item.name}</strong>
+                    <small>计划 · {item.state}</small>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p>搜索只读、按用户隔离，每类结果有上限。</p>
+            )}
+          </form>
         </div>
 
         {error && <p role="alert">{error}</p>}

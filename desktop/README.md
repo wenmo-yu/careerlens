@@ -33,6 +33,20 @@ The Host sends contract-v1 JSON frames on one named-pipe connection: `hello`,
 then `status`, `restart` or `stop`. It does not expose user content, tokens or
 prompts in logs.
 
+## Autostart (off by default)
+
+The settings page (`/settings`) exposes one switch. Enabling it writes
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` → `CareerLens` with the
+value `"<exe>" --autostart`; disabling removes the value. Nothing in startup
+calls this: the user action is the only path.
+
+- It is per-user, needs no elevation, and shows up in Task Manager's startup tab.
+- `--autostart` starts the Host hidden in the tray instead of stealing focus.
+- If the install directory moves, the stored command no longer matches; the
+  settings page reports `matchesCurrentExe=false` and the user toggles it again.
+- Waking a sleeping machine is a separate Task Scheduler `WakeToRun` definition
+  (`backend/app/runtime/windows_tasks.py`). It is never registered automatically.
+
 ## Window and exit semantics
 
 - Closing the main window hides it to the tray; the daemon and API keep running.

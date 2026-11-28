@@ -14,6 +14,7 @@ from app.core.database import SessionFactory, engine
 from app.llm.provider import ModelUnavailable
 from app.models.run import AgentRun
 from app.runtime import heartbeat as process_heartbeat
+from app.runtime import logs
 from app.runtime.deletion_work import process_deletion_work
 from app.runtime.index_outbox import process_index_work
 from app.runtime.operations import ParserUnavailable, prepare_operation
@@ -198,7 +199,7 @@ async def worker_loop(
 
 
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    logs.configure("worker")
     get_settings().validate_security("worker")
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

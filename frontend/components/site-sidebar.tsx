@@ -20,10 +20,16 @@ const workspaceSections = [
   { href: "/workspace#assessment", label: "自我探索", tag: "05" },
   { href: "/workspace#quality", label: "质量与数据", tag: "06" },
   { href: "/agent", label: "持久 Agent", tag: "07" },
+  { href: "/settings", label: "桌面设置", tag: "08" },
 ];
 
 function currentPage(pathname: string): Page {
-  if (pathname.startsWith("/workspace") || pathname.startsWith("/agent")) return "workspace";
+  if (
+    pathname.startsWith("/workspace") ||
+    pathname.startsWith("/agent") ||
+    pathname.startsWith("/settings")
+  )
+    return "workspace";
   if (pathname.startsWith("/demo")) return "demo";
   if (pathname.startsWith("/architecture")) return "architecture";
   if (pathname.startsWith("/start")) return "start";

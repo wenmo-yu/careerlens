@@ -29,6 +29,7 @@ from app.models.heartbeat import RuntimeHeartbeat
 from app.models.multi import AgentTask
 from app.models.run import AgentRun
 from app.runtime import heartbeat as process_heartbeat
+from app.runtime import logs
 from app.runtime.agent import capability, multi, store
 from app.runtime.agent import schedule as schedule_service
 from app.runtime.agent import wake as wake_service
@@ -681,7 +682,7 @@ async def run_scheduler(factory: async_sessionmaker | None = None) -> None:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    logs.configure("scheduler")
     settings = get_settings()
     if not settings.agent_runtime_enabled:
         raise SystemExit(

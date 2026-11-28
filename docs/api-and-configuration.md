@@ -118,6 +118,9 @@ python -m app.runtime.worker
 - `GET /api/v1/runtime/status`、`GET /api/v1/runtime/capabilities`：池/Run/审批/租约诊断、worker/scheduler 心跳与工具能力。心跳为 `ok/stale/not_started`，只表示进程是否定期报活；`/health/ready` 仍只检查数据库与检索依赖。
 - 启动 scheduler：`AGENT_RUNTIME_ENABLED=true python -m app.runtime.agent.scheduler`。未启动时 Run 会停在 `queued`，这不是成功。
 - 真实模型需 `AGENT_MODEL_PROVIDER=openai_compatible|deepseek|local` 与 `AI_API_KEY`；Demo/scripted 离线可用。真实供应商计费与 usage 未对账。
+- 本地运维：`LOG_DIR` 控制 worker/scheduler 的滚动日志（空值表示只输出 stdout）；`python -m app.runtime.backup --database-url sqlite+aiosqlite:///... --out backups` 生成一致性快照，`--verify <file>` 校验完整性与迁移版本。PostgreSQL 请用 `pg_dump`，CLI 会明确拒绝。
+- 桌面客户端：开机自启默认关闭，在 `/settings` 打开后写入当前用户启动项；唤醒任务只提供 `WakeToRun` 定义，需要显式注册，应用不会自动创建。
+- 模型一致性调试：`python tools/openai_conformance_server.py --port 8123`，把 `AI_BASE_URL` 指向 `http://127.0.0.1:8123/v1` 即可用真实 HTTP/SSE 跑通增量、工具分片与 429/超时路径；它不是厂商验收。
 - 工作区文件工具默认关闭。设置 `AGENT_WORKSPACE_ROOT` 后才启用 `read_workspace_file` / `write_workspace_file`；仅允许相对路径、白名单扩展与 `AGENT_FILE_MAX_BYTES` 内的 UTF-8 文本。写文件仍走审批与幂等账本。这不是 OS 沙箱。
 
 **Wiki、测评与评测**

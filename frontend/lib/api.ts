@@ -1145,3 +1145,53 @@ export function getRuntimeCapabilities(userId: string) {
 export function getRuntimeStatus(userId: string) {
   return request<RuntimeStatus>(`/runtime/status?user_id=${encodeURIComponent(userId)}`);
 }
+
+export type AgentNotification = {
+  fact_key: string;
+  kind: "approval_pending" | "run_failed" | "task_failed" | "schedule_skipped" | "schedule_failed";
+  title: string;
+  detail: string;
+  ref_id: string | null;
+  created_at: string | null;
+  read: boolean;
+};
+
+export type AgentSchedule = {
+  id: string;
+  name: string;
+  state: string;
+  interval_seconds: number;
+  misfire_policy: string;
+  role_id: string | null;
+  next_due: number;
+  last_occurrence: number | null;
+};
+
+export type AgentSearchResult = {
+  sessions: { id: string; title: string; status: string }[];
+  tasks: { id: string; title: string; status: string; team_id: string }[];
+  roles: { id: string; name: string; version: number; state: string }[];
+  schedules: { id: string; name: string; state: string; next_due: number }[];
+};
+
+export function listAgentNotifications(userId: string) {
+  return request<AgentNotification[]>(
+    `/agent/notifications?user_id=${encodeURIComponent(userId)}`,
+  );
+}
+
+export function markAgentNotificationsRead(userId: string, factKeys: string[]) {
+  return request<{ added: number }>("/agent/notifications/read", {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, fact_keys: factKeys }),
+  });
+}
+
+export function listAgentSchedules(userId: string) {
+  return request<AgentSchedule[]>(`/agent/schedules?user_id=${encodeURIComponent(userId)}`);
+}
+
+export function searchAgentFacts(userId: string, query: string) {
+  const params = new URLSearchParams({ user_id: userId, q: query });
+  return request<AgentSearchResult>(`/agent/search?${params}`);
+}

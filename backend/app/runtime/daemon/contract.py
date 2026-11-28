@@ -35,6 +35,7 @@ BUILTIN_ERROR_CODES = frozenset(
         "protocol_mismatch",
         "not_ready",
         "internal_error",
+        "frame_too_large",
     }
 )
 BUILTIN_ROLES = ("api", "worker")

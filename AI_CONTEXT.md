@@ -84,7 +84,9 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `contracts/` | V4 版本化机器可读契约：OpenAPI、API 基线、Runtime JSONL v1、daemon、agent runtime/multi/schedule/role/inbox/mcp-connector/wake/file broker | 改跨端/跨进程接口前先读；不要把 JSONL 日志当业务事实 |
 | `agent-runtime/` | 自研 Agent Core M0 原型：ScriptedModel、内存端口、JSONL 双向 RPC | 只用于验证状态机/协议；不要当生产运行时或安全边界 |
 | `desktop/` | Tauri 2 Host：daemon 自动启动、命名管道控制、托盘、关窗后台、NSIS 构建脚本 | 桌面壳与进程边界；不直连业务库、不替代 daemon |
-| `frontend/app/agent/page.tsx` | Agent 工作台：会话/消息/审批/runtime 状态最小界面 | V4 Agent UI 的入口；不是完整三栏桌面 UI |
+| `frontend/app/agent/page.tsx` | Agent 工作台：会话/消息/审批/runtime 状态/SSE 实时事件/计划/通知/只读检索 | V4 Agent UI 入口；不是完整三栏桌面 UI |
+| `frontend/app/settings/page.tsx` | 桌面设置：开机自启开关（默认关闭）、唤醒与托盘语义说明 | 只在 Tauri 内可写；浏览器只读 |
+| `frontend/lib/desktop.ts` | Tauri 桥接：`autostart_status` / `autostart_set`，非桌面环境降级为 null | 不新增前端依赖，直接走 `__TAURI_INTERNALS__.invoke` |
 | `backend/app/runtime/daemon/` | 用户级 daemon：单实例、进程监督、Job Object、管道控制面 | 只管进程；不持业务事实，不跑 Agent Loop |
 | `backend/app/runtime/agent/` | M3–M8 agent plane：会话、capability、CLI、预热池、调度器、模型网关、工具账本、任务树、计划 | 不生成业务事实；Run/事件/审批的唯一权威仍是数据库 |
 | `tutorials/` | 零基础课程正文与练习 | 教学、概念解释、源码导读 |
@@ -240,7 +242,12 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/runtime/agent/mcp_execution.py` | M8 MCP 受控执行适配：命名空间工具走准入、fail closed 返回 execution_unavailable（无沙箱） |
 | `backend/app/runtime/agent/wake.py` | M8 唤醒对账：`[last_seen,now]` 窗口内错过 due 交给普通 schedule 触发，写可解释报告 |
 | `backend/app/runtime/heartbeat.py` | worker/scheduler 心跳写入与 stale/not_started 判断 | 只表达 liveness，不是业务事实 |
+| `backend/app/runtime/logs.py` | 按进程挂旋转文件日志，幂等；`LOG_DIR` 为空回退 stdout | 不做日志聚合/上传 |
+| `backend/app/runtime/backup.py` | SQLite `VACUUM INTO` 快照 + `integrity_check`/`alembic_version` 校验；PostgreSQL 明确拒绝 | 不是定时备份，也不是恢复演练 |
+| `backend/app/runtime/windows_tasks.py` | `WakeToRun` 计划任务定义与显式注册；非 Windows/无确认即拒绝 | 本机未注册；真实睡眠未验证 |
+| `backend/tools/openai_conformance_server.py` | OpenAI 兼容一致性服务器：真实 HTTP/SSE、工具分片、429/5xx/超时注入 | 只验证客户端，不是厂商验收 |
 | `backend/app/runtime/agent/file_broker.py` | 工作区文件读写、路径白名单、符号链接拒绝、审批账本与原子写入 | 应用层边界，不是完整 OS 沙箱 |
+| `desktop/src-tauri/src/autostart.rs` | 当前用户启动项读写（HKCU Run）、`--autostart` 解析，默认关闭 | 不写机器级启动项、不自动启用 |
 | `desktop/src-tauri/src/daemon.rs` | Tauri Host 的 daemon 启动与命名管道 v1 客户端（同一连接完成 hello + 命令） |
 | `backend/app/retrieval/generations.py` / `backend/app/models/index_generation.py` | 保存已使用的向量集合，隐私清理按登记范围处理 |
 | `backend/migrations/versions/e1f2a3b4c5d6_*` → `14c5d6e7f8a9_*` | 本轮的令牌、运行时、隐私清理、向量世代与历史审计升级 |
@@ -526,7 +533,10 @@ HTTP/MCP 请求
 | 角色-计划联动 / 唤醒对账 | `runtime/agent/schedule.py` + `wake.py` → `api/routes/agent_multi.py` + `agent_wake.py` | ADR 0023/0024、`contracts/agent-wake-v1.json`、`tests/test_agent_role_schedule.py`、`tests/test_agent_wake.py` |
 | 工作区文件 broker | `runtime/agent/file_broker.py` → `tools.py` → `contracts/agent-file-broker-v1.json` | ADR 0017、`tests/test_agent_file_broker.py` |
 | 后台健康语义 | `runtime/heartbeat.py` → `worker.py` / `scheduler.py` → `api/routes/agent.py` | ADR 0018、`tests/test_runtime_heartbeat.py` |
-| Agent 最小界面 | `frontend/app/agent/page.tsx` → `frontend/lib/api.ts` → `/api/v1/agent/*` | ADR 0019、`frontend/app/agent/page.tsx` |
+| Agent 工作台 | `frontend/app/agent/page.tsx` → `frontend/lib/api.ts` → `/api/v1/agent/*` + `/runs/{id}/stream` | ADR 0019/0028 |
+| 桌面自启 / 唤醒 | `desktop/src-tauri/src/autostart.rs` → `/settings` → `lib/desktop.ts`；`runtime/windows_tasks.py` | ADR 0025、`tests/test_windows_tasks.py` |
+| 本地日志 / 备份 | `runtime/logs.py` → `worker.py`/`scheduler.py`；`runtime/backup.py` → CLI | ADR 0027、`tests/test_runtime_ops.py` |
+| 模型一致性验证 | `tools/openai_conformance_server.py` → `tests/test_agent_model_conformance.py` | ADR 0026 |
 | 桌面宿主 / daemon 控制 | `desktop/src-tauri/src/main.rs` → `daemon.rs` → `tray.rs` → `tauri.conf.json` | ADR 0014、`contracts/daemon-control-v1.json`、`desktop/scripts/build-frontend.mjs` |
 | MCP 工具 | `mcp/server.py` → `services/*` → `security/auth.py` | `tests/test_mcp.py`、`07-A-MCP服务与ACP对照.md` |
 | 隐私与删除 | `services/privacy.py` → `models/account_deletion.py` → `runtime/index_outbox.py` | `tests/test_auth_privacy.py`、`docs/integrations-and-security.md` |

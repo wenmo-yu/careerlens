@@ -16,6 +16,11 @@ from dataclasses import dataclass
 from .contract import Contract
 from .supervisor import Supervisor
 
+# One control frame is a single line of JSON. The pipe server reads up to 64 KiB
+# per message; the character cap here is the same budget expressed in characters
+# so the pure-Python dispatcher can enforce it on any platform.
+MAX_FRAME_CHARS = 64 * 1024
+
 
 @dataclass(frozen=True)
 class DaemonInfo:
@@ -100,6 +105,18 @@ class ControlPlane:
 
     # --- dispatch ------------------------------------------------------------
     def dispatch(self, line: str, session: Session) -> tuple[dict, Session]:
+        # Defence in depth: the pipe uses a 64 KiB message buffer, but a client
+        # can hand us a long line through the compatibility path too. Rejecting
+        # here keeps the limit explicit and testable off-Windows.
+        if len(line) > MAX_FRAME_CHARS:
+            return (
+                error(
+                    "frame_too_large",
+                    "control frame exceeds the accepted size",
+                    limit=MAX_FRAME_CHARS,
+                ),
+                session,
+            )
         verb, params, decode_error = self._decode(line)
         if decode_error:
             return error(decode_error, "invalid control frame"), session
@@ -322,6 +339,26 @@ class PipeServer:  # pragma: no cover - Windows-only integration surface
                         self._handle, buffer, ctypes.sizeof(buffer), ctypes.byref(read), None
                     )
                     if not ok or read.value == 0:
+                        # A message larger than the buffer fails with
+                        # ERROR_MORE_DATA. Tell the client instead of dropping
+                        # the connection silently, then stop this session.
+                        if ctypes.get_last_error() == 234:
+                            payload = (
+                                json.dumps(
+                                    error(
+                                        "frame_too_large",
+                                        "control frame exceeds the pipe buffer",
+                                        limit=MAX_FRAME_CHARS,
+                                    ),
+                                    ensure_ascii=False,
+                                )
+                                + "\n"
+                            ).encode("utf-8")
+                            written = wintypes.DWORD(0)
+                            self._kernel32.WriteFile(
+                                self._handle, payload, len(payload),
+                                ctypes.byref(written), None,
+                            )
                         break
                     line = buffer.raw[: read.value].decode("utf-8", "replace")
                     response, session = self.plane.dispatch(line, session)

@@ -28,6 +28,11 @@
 | [0022](0022-m8-mcp-connector-admission.md) | M8 MCP 受控接入准入策略层 | Accepted（准入策略已实现；隔离执行与网络策略需 OS 沙箱） | M8 |
 | [0023](0023-m8-role-schedule-linkage.md) | M8 角色与计划联动 | Accepted（绑定触发继承角色会话/prompt/工具快照；系统唤醒未做） | M8 |
 | [0024](0024-m8-wake-reconciliation.md) | M8 唤醒感知与错过策略对账 | Accepted（策略对账已实现；真实 OS 唤醒需真机） | M8 |
+| [0025](0025-desktop-autostart-and-wake.md) | 开机自启与唤醒计划任务 | Accepted（自启默认关闭、可设置；唤醒只提供定义，未本机注册） | M2/M8 |
+| [0026](0026-model-provider-conformance.md) | 模型网关一致性服务器 | Accepted（真实 HTTP/SSE 已验证；厂商语义仍未验证） | M5 |
+| [0027](0027-local-logs-and-backup.md) | 本地日志滚动与数据库备份 | Accepted（SQLite 已验证；PostgreSQL 明确拒绝） | M2 |
+| [0028](0028-agent-workbench-live-events.md) | Agent 工作台实时事件与计划/通知视图 | Accepted（SSE + 轮询兜底；仍非完整三栏 UI） | M6 |
+
 
 ## 优先级
 

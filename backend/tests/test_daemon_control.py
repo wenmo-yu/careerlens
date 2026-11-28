@@ -195,3 +195,22 @@ def test_malformed_json_frame_is_rejected():
     plane = build()
     response, _ = plane.dispatch("{not json", Session())
     assert response == {"ok": False, "code": "invalid_json", "message": "invalid control frame"}
+
+
+def test_oversized_frame_is_rejected_before_parsing():
+    plane = build()
+    response, session = plane.dispatch("x" * (64 * 1024 + 1), Session())
+
+    assert response["ok"] is False
+    assert response["code"] == "frame_too_large"
+    assert response["limit"] == 64 * 1024
+    assert session.handshaken is False
+
+
+def test_frame_at_the_limit_still_reaches_the_decoder():
+    plane = build()
+    payload = "{" + " " * (64 * 1024 - 2) + "}"
+    response, _session = plane.dispatch(payload, Session())
+
+    # Not a valid command, but it must fail on content, not on size.
+    assert response["code"] in {"invalid_json", "invalid_params"}

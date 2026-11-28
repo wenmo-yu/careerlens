@@ -53,7 +53,8 @@ CareerLens 是一个**证据驱动的职业决策 Agent**：把简历、自述�
 | 系统怎么跑：架构、数据、Agent、运行时、接口、配置 | [技术文档](docs/README.md) |
 | 自陈测评、MBTI 边界、三份自写量表与计分 | [测评题库与许可](docs/assessments.md) |
 | 用自备只读令牌导入 GitHub 仓库元数据与 README | [GitHub 仓库导入](docs/github-token-import.md) |
-| V4 持久 Agent：会话、消息、审批、runtime 状态 | `/agent` 工作台（需启动 scheduler） · [ADR 0019](docs/adr/0019-agent-workbench-ui.md) |
+| V4 持久 Agent：会话、消息、审批、runtime 状态、实时事件、计划与通知 | `/agent` 工作台（需启动 scheduler） · [ADR 0019](docs/adr/0019-agent-workbench-ui.md) · [ADR 0028](docs/adr/0028-agent-workbench-live-events.md) |
+| 桌面后台：开机自启（默认关闭）、托盘语义、日志滚动与数据库备份 | [ADR 0025](docs/adr/0025-desktop-autostart-and-wake.md) · [ADR 0027](docs/adr/0027-local-logs-and-backup.md) · `/settings` |
 | 八平台当前页采集、公开链接卡、XLSX/HTML/ZIP 等来源边界 | [接入、MCP 与安全](docs/integrations-and-security.md) |
 | 从零跟做：概念课、源码课、画像与岗位实战 | [教程目录](#教程目录) · [在线教程站](https://wenmo-yu.github.io/careerlens/) |
 
