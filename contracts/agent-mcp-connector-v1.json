@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wenmo-yu/careerlens/blob/main/contracts/agent-mcp-connector-v1.json",
+  "title": "CareerLens MCP Connector Admission Contract v1",
+  "protocol": "agent-mcp-connector",
+  "version": 1,
+  "states": ["registered", "enabled", "disabled"],
+  "rules": [
+    "A connector is an admission record only: it declares namespace, allowed tools, required scope and the exact config digest that was reviewed.",
+    "Connectors are disabled by default; enabling is an explicit user action and does not execute any tool or open any network connection.",
+    "config_digest is computed over the exact declared config; any config change requires re-review and a new digest, so a reviewed config cannot silently change.",
+    "Admission is default deny: a tool is allowed only if its fully qualified name starts with the connector namespace, is in allowed_tools, and the caller has required_scope; explicit deny wins.",
+    "Model-supplied user_id, workspace_id or scope are never accepted as an authority; identity comes from the trusted invocation context.",
+    "An MCP connector never receives career-library manage scope automatically; it is read-scoped unless a user explicitly grants a higher scope.",
+    "No external MCP client, no outbound network call and no third-party code is loaded into the daemon or the agent CLI by this contract.",
+    "Isolated execution and network policy require an OS sandbox and remain unverified; this contract governs admission only."
+  ],
+  "name_format": "<namespace>.<tool>",
+  "error_codes": [
+    "connector_not_found",
+    "connector_disabled",
+    "namespace_mismatch",
+    "tool_not_allowed",
+    "config_digest_mismatch",
+    "scope_insufficient"
+  ]
+}

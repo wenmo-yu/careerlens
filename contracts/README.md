@@ -16,13 +16,14 @@
 | [`agent-schedule-v1.json`](agent-schedule-v1.json) | Agent Schedule v1 | M8 持久计划、occurrence 幂等、错过策略与授权边界 |
 | [`agent-role-v1.json`](agent-role-v1.json) | Agent Role v1 | M8 持久角色、配置版本快照、工具收窄与防提权边界 |
 | [`agent-inbox-v1.json`](agent-inbox-v1.json) | Agent Inbox v1 | M8 应用内通知派生、已读回执与用户隔离任务搜索 |
+| [`agent-mcp-connector-v1.json`](agent-mcp-connector-v1.json) | Agent MCP Connector v1 | M8 MCP 受控接入准入策略：默认禁用、命名空间、配置指纹、默认 deny |
 | [`agent-file-broker-v1.json`](agent-file-broker-v1.json) | Agent File Broker v1 | M5 工作区文件读写、路径白名单、审批与原子写入边界 |
 
 ## 当前基线事实
 
 - 生成提交：`12d33bfc69c1c08f8e630091f11d6b7edb2dd886`（M5 文件 broker / M6 Agent UI / 心跳语义）；OpenAPI 由当前 FastAPI 应用重新导出。
 - 与 V4 设计基线 `43c67d3b01540ba80c00c17efd483336a08c2426` 的 `backend/`、`frontend/`、`docs/` 子树对象 ID 相同；两者之间只有教程文档提交。
-- OpenAPI 快照包含 106 个路径、120 个操作和 102 个 schema（含 M5/M6/M8 新增 agent API、M8 持久角色 API 与应用内通知/搜索 API）。
+- OpenAPI 快照包含 110 个路径、125 个操作和 109 个 schema（含 M5/M6/M8 新增 agent API、M8 持久角色、通知/搜索与 MCP 准入 API）。
 - Runtime JSONL 是 CareerLens 自定义协议：不兼容 ACP，不使用 Pi 的事件名、方法名或会话结构，也不把 JSONL 日志当作业务事实来源。
 
 ## 兼容规则

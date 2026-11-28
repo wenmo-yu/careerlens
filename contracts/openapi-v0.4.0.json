@@ -84,6 +84,59 @@
         "title": "AccountDeletionRead",
         "type": "object"
       },
+      "AdmissionCheck": {
+        "additionalProperties": false,
+        "properties": {
+          "config_digest": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Digest"
+          },
+          "qualified_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Qualified Name",
+            "type": "string"
+          },
+          "user_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "qualified_name"
+        ],
+        "title": "AdmissionCheck",
+        "type": "object"
+      },
+      "AdmissionResult": {
+        "properties": {
+          "allowed": {
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "allowed",
+          "reason"
+        ],
+        "title": "AdmissionResult",
+        "type": "object"
+      },
       "ApprovalDecision": {
         "additionalProperties": false,
         "properties": {
@@ -807,6 +860,71 @@
         "title": "ChildTaskInput",
         "type": "object"
       },
+      "ConnectorAction": {
+        "additionalProperties": false,
+        "properties": {
+          "user_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "title": "ConnectorAction",
+        "type": "object"
+      },
+      "ConnectorCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_tools": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Allowed Tools",
+            "type": "array"
+          },
+          "namespace": {
+            "maxLength": 64,
+            "minLength": 3,
+            "title": "Namespace",
+            "type": "string"
+          },
+          "required_scope": {
+            "default": "read",
+            "enum": [
+              "read",
+              "write",
+              "manage"
+            ],
+            "title": "Required Scope",
+            "type": "string"
+          },
+          "user_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "User Id",
+            "type": "string"
+          },
+          "workspace_id": {
+            "default": "default",
+            "maxLength": 36,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "namespace",
+          "allowed_tools"
+        ],
+        "title": "ConnectorCreate",
+        "type": "object"
+      },
       "ConnectorImportRead": {
         "properties": {
           "connector": {
@@ -841,6 +959,100 @@
           "connector"
         ],
         "title": "ConnectorImportRead",
+        "type": "object"
+      },
+      "ConnectorRead": {
+        "properties": {
+          "allowed_tools": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Tools",
+            "type": "array"
+          },
+          "config_digest": {
+            "title": "Config Digest",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "namespace": {
+            "title": "Namespace",
+            "type": "string"
+          },
+          "required_scope": {
+            "title": "Required Scope",
+            "type": "string"
+          },
+          "revoked": {
+            "title": "Revoked",
+            "type": "boolean"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "workspace_id",
+          "namespace",
+          "allowed_tools",
+          "required_scope",
+          "config_digest",
+          "state",
+          "revoked",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConnectorRead",
+        "type": "object"
+      },
+      "ConnectorStateUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "enum": [
+              "registered",
+              "enabled",
+              "disabled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "user_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "state"
+        ],
+        "title": "ConnectorStateUpdate",
         "type": "object"
       },
       "ConstraintUpsert": {
@@ -2577,6 +2789,24 @@
           "job_analysis_id"
         ],
         "title": "ReportInput",
+        "type": "object"
+      },
+      "RevokeRead": {
+        "properties": {
+          "revoked": {
+            "title": "Revoked",
+            "type": "boolean"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revoked",
+          "state"
+        ],
+        "title": "RevokeRead",
         "type": "object"
       },
       "RoleCreate": {
@@ -4936,6 +5166,332 @@
           }
         },
         "summary": "Read Artifact",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/mcp/connectors": {
+      "get": {
+        "operationId": "list_connectors_api_v1_agent_mcp_connectors_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectorRead"
+                  },
+                  "title": "Response List Connectors Api V1 Agent Mcp Connectors Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Connectors",
+        "tags": [
+          "agent"
+        ]
+      },
+      "post": {
+        "operationId": "register_connector_api_v1_agent_mcp_connectors_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Connector",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/mcp/connectors/{connector_id}/admit": {
+      "post": {
+        "description": "Dry-run admission check. Returns a decision; never executes a tool.",
+        "operationId": "check_admission_api_v1_agent_mcp_connectors__connector_id__admit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connector_id",
+            "required": true,
+            "schema": {
+              "title": "Connector Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdmissionCheck"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdmissionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Check Admission",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/mcp/connectors/{connector_id}/revoke": {
+      "post": {
+        "operationId": "revoke_connector_api_v1_agent_mcp_connectors__connector_id__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connector_id",
+            "required": true,
+            "schema": {
+              "title": "Connector Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorAction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Connector",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/mcp/connectors/{connector_id}/state": {
+      "post": {
+        "operationId": "set_connector_state_api_v1_agent_mcp_connectors__connector_id__state_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connector_id",
+            "required": true,
+            "schema": {
+              "title": "Connector Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorStateUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Connector State",
         "tags": [
           "agent"
         ]

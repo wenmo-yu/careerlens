@@ -6,9 +6,9 @@
   "source_commit": "5a8a3efa5228a6d4545c936ad0c304f2778c06f4",
   "source_tree_equivalent_to": "43c67d3b01540ba80c00c17efd483336a08c2426",
   "openapi_snapshot": "openapi-v0.4.0.json",
-  "path_count": 106,
-  "operation_count": 120,
-  "schema_count": 102,
+  "path_count": 110,
+  "operation_count": 125,
+  "schema_count": 109,
   "operations": [
     {
       "method": "GET",
@@ -41,6 +41,51 @@
       "method": "GET",
       "path": "/api/v1/agent/artifacts/{artifact_id}",
       "operationId": "read_artifact_api_v1_agent_artifacts__artifact_id__get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/mcp/connectors",
+      "operationId": "list_connectors_api_v1_agent_mcp_connectors_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/mcp/connectors",
+      "operationId": "register_connector_api_v1_agent_mcp_connectors_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/mcp/connectors/{connector_id}/admit",
+      "operationId": "check_admission_api_v1_agent_mcp_connectors__connector_id__admit_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/mcp/connectors/{connector_id}/revoke",
+      "operationId": "revoke_connector_api_v1_agent_mcp_connectors__connector_id__revoke_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/mcp/connectors/{connector_id}/state",
+      "operationId": "set_connector_state_api_v1_agent_mcp_connectors__connector_id__state_post",
       "tags": [
         "agent"
       ],
