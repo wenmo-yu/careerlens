@@ -1916,6 +1916,45 @@
         "title": "LearningPlanStepRead",
         "type": "object"
       },
+      "MarkReadRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "fact_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Fact Keys",
+            "type": "array"
+          },
+          "user_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "fact_keys"
+        ],
+        "title": "MarkReadRequest",
+        "type": "object"
+      },
+      "MarkReadResult": {
+        "properties": {
+          "added": {
+            "title": "Added",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "added"
+        ],
+        "title": "MarkReadResult",
+        "type": "object"
+      },
       "MessageRead": {
         "properties": {
           "citations": {
@@ -1976,6 +2015,70 @@
           "created_at"
         ],
         "title": "MessageRead",
+        "type": "object"
+      },
+      "NotificationRead": {
+        "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "fact_key": {
+            "title": "Fact Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "approval_pending",
+              "run_failed",
+              "task_failed",
+              "schedule_skipped",
+              "schedule_failed"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "read": {
+            "title": "Read",
+            "type": "boolean"
+          },
+          "ref_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fact_key",
+          "kind",
+          "title",
+          "detail",
+          "ref_id",
+          "created_at",
+          "read"
+        ],
+        "title": "NotificationRead",
         "type": "object"
       },
       "ProfileItemRead": {
@@ -4838,6 +4941,129 @@
         ]
       }
     },
+    "/api/v1/agent/notifications": {
+      "get": {
+        "operationId": "list_notifications_api_v1_agent_notifications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationRead"
+                  },
+                  "title": "Response List Notifications Api V1 Agent Notifications Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Notifications",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/notifications/read": {
+      "post": {
+        "operationId": "mark_notifications_read_api_v1_agent_notifications_read_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkReadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkReadResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Notifications Read",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
     "/api/v1/agent/roles": {
       "get": {
         "operationId": "list_roles_api_v1_agent_roles_get",
@@ -5606,6 +5832,75 @@
           }
         },
         "summary": "Trigger Schedule",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/search": {
+      "get": {
+        "operationId": "search_agent_items_api_v1_agent_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Agent Items",
         "tags": [
           "agent"
         ]

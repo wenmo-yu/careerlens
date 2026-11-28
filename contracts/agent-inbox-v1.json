@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wenmo-yu/careerlens/blob/main/contracts/agent-inbox-v1.json",
+  "title": "CareerLens In-App Notification and Task Search Contract v1",
+  "protocol": "agent-inbox",
+  "version": 1,
+  "notification_kinds": [
+    "approval_pending",
+    "run_failed",
+    "task_failed",
+    "schedule_skipped",
+    "schedule_failed"
+  ],
+  "rules": [
+    "Notification content is derived at read time from durable facts: pending approvals, failed/interrupted agent runs, failed tasks, and skipped/failed schedule occurrences.",
+    "Only the read receipt is persisted; notifications never create a second source of truth and are never delivered outside the app.",
+    "A fact_key is stable and unique per user and fact; marking read is idempotent.",
+    "No email, webhook, push, SMS or any external destination is used; the centre is read-only except for read receipts.",
+    "Task search is read-only, scoped to the authenticated user's sessions, tasks, roles and schedules, with a bounded result limit.",
+    "Search never returns another user's content and never reveals existence across tenants.",
+    "Sleep/wake and notification delivery timing remain unverified; this contract covers in-app state only."
+  ],
+  "fact_key_patterns": {
+    "approval_pending": "approval:<approval_id>",
+    "run_failed": "run_failed:<run_id>",
+    "task_failed": "task_failed:<task_id>",
+    "schedule_skipped": "schedule_skipped:<occurrence_id>",
+    "schedule_failed": "schedule_failed:<occurrence_id>"
+  },
+  "error_codes": ["invalid_query", "user_mismatch", "not_found"]
+}
