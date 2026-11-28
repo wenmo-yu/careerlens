@@ -7,19 +7,21 @@ import {
   setAutostart,
   type AutostartStatus,
 } from "@/lib/desktop";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+
+// The desktop bridge only exists after hydration. useSyncExternalStore gives a
+// server snapshot (false) and a client snapshot without a setState-in-effect.
+const noopSubscribe = () => () => {};
 
 export default function SettingsPage() {
-  const [inDesktop, setInDesktop] = useState(false);
+  const inDesktop = useSyncExternalStore(noopSubscribe, desktopAvailable, () => false);
   const [status, setStatus] = useState<AutostartStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
-    const available = desktopAvailable();
-    setInDesktop(available);
-    if (!available) return;
+    if (!inDesktop) return;
     let live = true;
     void getAutostartStatus().then((next) => {
       if (live) setStatus(next);
@@ -27,7 +29,7 @@ export default function SettingsPage() {
     return () => {
       live = false;
     };
-  }, []);
+  }, [inDesktop]);
 
   async function toggle(next: boolean) {
     setBusy(true);
