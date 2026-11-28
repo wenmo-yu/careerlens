@@ -3,7 +3,7 @@
   "name": "careerlens-api-baseline",
   "api_version": "0.4.0",
   "openapi_version": "3.1.0",
-  "source_commit": "91cfae2278123cdaf9bd82a1a89403f731c846e7",
+  "source_commit": "5da849b5d201730650dc4cb9aa7b988a26add2dd",
   "source_tree_equivalent_to": "43c67d3b01540ba80c00c17efd483336a08c2426",
   "openapi_snapshot": "openapi-v0.4.0.json",
   "path_count": 99,

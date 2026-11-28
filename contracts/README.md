@@ -17,7 +17,7 @@
 
 ## 当前基线事实
 
-- 生成提交：`91cfae2278123cdaf9bd82a1a89403f731c846e7`。
+- 生成提交：`5da849b5d201730650dc4cb9aa7b988a26add2dd`（M5/M6/M8 与桌面宿主）；OpenAPI 由当前 FastAPI 应用重新导出。
 - 与 V4 设计基线 `43c67d3b01540ba80c00c17efd483336a08c2426` 的 `backend/`、`frontend/`、`docs/` 子树对象 ID 相同；两者之间只有教程文档提交。
 - OpenAPI 快照包含 99 个路径、111 个操作和 94 个 schema（含 M5/M6/M8 新增 agent API）。
 - Runtime JSONL 是 CareerLens 自定义协议：不兼容 ACP，不使用 Pi 的事件名、方法名或会话结构，也不把 JSONL 日志当作业务事实来源。
