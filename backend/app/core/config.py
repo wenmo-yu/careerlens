@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_max_bytes: int = Field(default=5 * 1024 * 1024, ge=0)
     log_backups: int = Field(default=3, ge=1, le=50)
+    # Execution boundary for the agent CLI: "off" or "appcontainer".
+    # appcontainer needs a staged runtime (tools/sandbox_stage.py).
+    agent_sandbox: str = "off"
+    agent_sandbox_runtime: str = ""
     # /metrics exposes request counts and latency. Keep it enabled for local
     # and container scrapes; put it behind the gateway if the API is public.
     metrics_enabled: bool | None = None

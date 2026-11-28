@@ -96,6 +96,34 @@ def _advapi32():
         dll.ConvertStringSidToSidW.argtypes = [ctypes.c_wchar_p, ctypes.POINTER(ctypes.c_void_p)]
         dll.FreeSid.restype = ctypes.c_void_p
         dll.FreeSid.argtypes = [ctypes.c_void_p]
+        dll.GetNamedSecurityInfoW.restype = ctypes.c_long
+        dll.GetNamedSecurityInfoW.argtypes = [
+            ctypes.c_wchar_p,
+            ctypes.c_int,
+            ctypes.c_ulong,
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(ctypes.c_void_p),
+        ]
+        dll.SetEntriesInAclW.restype = ctypes.c_long
+        dll.SetEntriesInAclW.argtypes = [
+            ctypes.c_ulong,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_void_p),
+        ]
+        dll.SetNamedSecurityInfoW.restype = ctypes.c_long
+        dll.SetNamedSecurityInfoW.argtypes = [
+            ctypes.c_wchar_p,
+            ctypes.c_int,
+            ctypes.c_ulong,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+        ]
         dll._careerlens_typed = True
     return dll
 
@@ -265,6 +293,107 @@ def has_grant(path: Path, sid: str) -> bool:
 
     completed = _call("icacls", str(path))
     return sid in (completed.stdout or "")
+
+
+class _TRUSTEE_W(ctypes.Structure):
+    _fields_ = [
+        ("pMultipleTrustee", ctypes.c_void_p),
+        ("MultipleTrusteeOperation", ctypes.c_int),
+        ("TrusteeForm", ctypes.c_int),
+        ("TrusteeType", ctypes.c_int),
+        ("ptstrName", ctypes.c_void_p),
+    ]
+
+
+class _EXPLICIT_ACCESS_W(ctypes.Structure):
+    _fields_ = [
+        ("grfAccessPermissions", ctypes.c_ulong),
+        ("grfAccessMode", ctypes.c_int),
+        ("grfInheritance", ctypes.c_ulong),
+        ("Trustee", _TRUSTEE_W),
+    ]
+
+
+FILE_TRAVERSE = 0x00000020
+FILE_READ_ATTRIBUTES = 0x00000080
+GRANT_ACCESS = 1
+NO_INHERITANCE = 0
+TRUSTEE_IS_SID = 0
+TRUSTEE_IS_UNKNOWN = 0
+SE_FILE_OBJECT = 1
+DACL_SECURITY_INFORMATION = 0x00000004
+
+
+def add_traverse_ace(path: Path, sid: str) -> bool:
+    """Add a non-inheriting traverse ACE via the ACL API.
+
+    ``icacls /grant`` on a directory with a huge tree (``D:/work``,
+    ``node_modules``) can sit for minutes because it also walks inherited ACEs.
+    ``SetNamedSecurityInfoW`` with a single ``NO_INHERITANCE`` ACE does exactly
+    one object and returns immediately, which is what a traverse grant needs.
+    """
+
+    if not supported():
+        raise SandboxUnavailable("AppContainer is Windows-only")
+    advapi32 = _advapi32()
+    kernel32 = _kernel32()
+    sid_ptr = ctypes.c_void_p()
+    if not advapi32.ConvertStringSidToSidW(ctypes.c_wchar_p(sid), ctypes.byref(sid_ptr)):
+        raise SandboxUnavailable("ConvertStringSidToSidW failed")
+
+    old_dacl = ctypes.c_void_p()
+    descriptor = ctypes.c_void_p()
+    try:
+        status = advapi32.GetNamedSecurityInfoW(
+            ctypes.c_wchar_p(str(path)),
+            SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION,
+            None,
+            None,
+            ctypes.byref(old_dacl),
+            None,
+            ctypes.byref(descriptor),
+        )
+        if status != 0:
+            raise SandboxUnavailable(f"GetNamedSecurityInfoW failed: {status}")
+
+        trustee = _TRUSTEE_W(
+            None,
+            TRUSTEE_IS_SID,
+            TRUSTEE_IS_SID,
+            TRUSTEE_IS_UNKNOWN,
+            ctypes.cast(sid_ptr, ctypes.c_void_p),
+        )
+        entry = _EXPLICIT_ACCESS_W(
+            FILE_TRAVERSE | FILE_READ_ATTRIBUTES,
+            GRANT_ACCESS,
+            NO_INHERITANCE,
+            trustee,
+        )
+        new_dacl = ctypes.c_void_p()
+        status = advapi32.SetEntriesInAclW(1, ctypes.byref(entry), old_dacl, ctypes.byref(new_dacl))
+        if status != 0:
+            raise SandboxUnavailable(f"SetEntriesInAclW failed: {status}")
+        try:
+            status = advapi32.SetNamedSecurityInfoW(
+                ctypes.c_wchar_p(str(path)),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                None,
+                None,
+                new_dacl,
+                None,
+            )
+            if status != 0:
+                raise SandboxUnavailable(f"SetNamedSecurityInfoW failed: {status}")
+        finally:
+            kernel32.LocalFree(new_dacl)
+        return True
+    finally:
+        if descriptor:
+            kernel32.LocalFree(descriptor)
+        if sid_ptr:
+            advapi32.FreeSid(sid_ptr)
 
 
 def grant_chain(path: Path, sid: str, *, recursive: bool = True) -> list[Path]:
@@ -596,3 +725,260 @@ def status() -> dict:
 
 def render(result: SandboxResult) -> str:
     return json.dumps(result.as_dict(), ensure_ascii=False)
+
+
+# --- async piped execution (scheduler CLI) ------------------------------------
+
+HANDLE_FLAG_INHERIT = 0x00000001
+
+
+class SandboxProcess:
+    """Subset of ``asyncio.subprocess.Process`` the scheduler relies on."""
+
+    def __init__(self, pid: int, handle: int, stdin, stdout, stderr) -> None:
+        self.pid = pid
+        self._handle = handle
+        self.stdin = stdin
+        self.stdout = stdout
+        self.stderr = stderr
+        self.returncode: int | None = None
+        self._pumps: list = []
+        self._files: list = []
+
+    async def wait(self) -> int:
+        import asyncio
+
+        if self.returncode is not None:
+            return self.returncode
+        kernel32 = _kernel32()
+        await asyncio.to_thread(kernel32.WaitForSingleObject, self._handle, INFINITE)
+        self.returncode = self._exit_code()
+        return self.returncode
+
+    def _exit_code(self) -> int:
+        code = ctypes.c_ulong(0)
+        _kernel32().GetExitCodeProcess(self._handle, ctypes.byref(code))
+        return int(code.value)
+
+    def terminate(self) -> None:
+        _kernel32().TerminateProcess(self._handle, 1)
+
+    def kill(self) -> None:
+        self.terminate()
+
+    def close(self) -> None:
+        for task in self._pumps:
+            task.cancel()
+        for file in self._files:
+            try:
+                file.close()
+            except OSError:
+                pass
+        if self.stdin is not None:
+            try:
+                self.stdin.close()
+            except OSError:
+                pass
+        if self._handle:
+            _kernel32().CloseHandle(self._handle)
+            self._handle = 0
+
+
+def _pipe(inherit_child_end: bool):
+    """Create a pipe; only the end the child needs is inheritable."""
+
+    kernel32 = _kernel32()
+    read_handle = ctypes.c_void_p()
+    write_handle = ctypes.c_void_p()
+
+    class _SECURITY_ATTRIBUTES(ctypes.Structure):
+        _fields_ = [
+            ("nLength", ctypes.c_ulong),
+            ("lpSecurityDescriptor", ctypes.c_void_p),
+            ("bInheritHandle", ctypes.c_int),
+        ]
+
+    attributes = _SECURITY_ATTRIBUTES(ctypes.sizeof(_SECURITY_ATTRIBUTES), None, 1)
+    if not kernel32.CreatePipe(
+        ctypes.byref(read_handle), ctypes.byref(write_handle), ctypes.byref(attributes), 0
+    ):
+        raise SandboxUnavailable(f"CreatePipe failed: {ctypes.get_last_error()}")
+    child, parent = (
+        (read_handle, write_handle) if inherit_child_end else (write_handle, read_handle)
+    )
+    kernel32.SetHandleInformation(parent, HANDLE_FLAG_INHERIT, 0)
+    return int(child.value), int(parent.value)
+
+
+class _StreamPump:
+    """Feed a StreamReader from a blocking pipe on a worker thread.
+
+    The Proactor loop refuses synchronous pipe handles (WinError 87), and
+    ``CreateProcessW`` rejects ``HANDLE_LIST`` here (87 as well). Blocking reads
+    on a thread keep the scheduler's async surface without fighting either.
+    """
+
+    def __init__(self, fileobj, reader) -> None:
+        self._file = fileobj
+        self._reader = reader
+
+    async def run(self) -> None:
+        import asyncio
+
+        try:
+            while True:
+                chunk = await asyncio.to_thread(self._file.read, 65536)
+                if not chunk:
+                    break
+                self._reader.feed_data(chunk)
+        except (OSError, ValueError):
+            pass
+        finally:
+            self._reader.feed_eof()
+
+
+class _StdinPump:
+    """StreamWriter-compatible sink flushing on a worker thread."""
+
+    def __init__(self, fileobj) -> None:
+        self._file = fileobj
+        self._buffer = bytearray()
+        self._closing = False
+
+    def write(self, data: bytes) -> None:
+        self._buffer.extend(data)
+
+    async def drain(self) -> None:
+        import asyncio
+
+        if not self._buffer:
+            return
+        payload = bytes(self._buffer)
+        self._buffer.clear()
+        await asyncio.to_thread(self._file.write, payload)
+        await asyncio.to_thread(self._file.flush)
+
+    def close(self) -> None:
+        if self._closing:
+            return
+        self._closing = True
+        try:
+            self._file.close()
+        except OSError:
+            pass
+
+    def is_closing(self) -> bool:
+        return self._closing
+
+    async def wait_closed(self) -> None:
+        return None
+
+
+async def popen(
+    argv: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str] | None = None,
+    profile: str = PROFILE,
+) -> SandboxProcess:
+    """Start ``argv`` inside the AppContainer with JSONL pipes.
+
+    Only the child's three pipe ends are inheritable, and the parent ends are
+    cleared right after ``CreatePipe``; ``CreateProcessW`` runs with
+    ``bInheritHandles=TRUE`` plus ``STARTF_USESTDHANDLES``.
+    """
+
+    if not supported():
+        raise SandboxUnavailable("AppContainer is Windows-only")
+    import asyncio
+    import ctypes.wintypes as wintypes
+    import msvcrt
+    import os
+
+    sid_string = ensure_profile(profile)
+    sid_ptr = ctypes.c_void_p()
+    if not _advapi32().ConvertStringSidToSidW(ctypes.c_wchar_p(sid_string), ctypes.byref(sid_ptr)):
+        raise SandboxUnavailable("ConvertStringSidToSidW failed")
+
+    kernel32 = _kernel32()
+    # _pipe returns (child_end, parent_end); the child end stays inheritable.
+    stdin_child, stdin_parent = _pipe(inherit_child_end=True)
+    stdout_child, stdout_parent = _pipe(inherit_child_end=False)
+    stderr_child, stderr_parent = _pipe(inherit_child_end=False)
+    child_ends = [stdin_child, stdout_child, stderr_child]
+    parent_ends = [stdin_parent, stdout_parent, stderr_parent]
+
+    size = ctypes.c_size_t(0)
+    kernel32.InitializeProcThreadAttributeList(None, 1, 0, ctypes.byref(size))
+    buffer = ctypes.create_string_buffer(size.value)
+    attribute_list = ctypes.cast(buffer, ctypes.c_void_p)
+    if not kernel32.InitializeProcThreadAttributeList(attribute_list, 1, 0, ctypes.byref(size)):
+        raise SandboxUnavailable("InitializeProcThreadAttributeList failed")
+
+    capabilities = _SECURITY_CAPABILITIES(sid_ptr, None, 0, 0)
+    if not kernel32.UpdateProcThreadAttribute(
+        attribute_list,
+        0,
+        PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
+        ctypes.byref(capabilities),
+        ctypes.sizeof(capabilities),
+        None,
+        None,
+    ):
+        raise SandboxUnavailable("UpdateProcThreadAttribute(security) failed")
+
+    startup = _STARTUPINFOEXW()
+    startup.StartupInfo.cb = ctypes.sizeof(_STARTUPINFOEXW)
+    startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES
+    startup.StartupInfo.hStdInput = wintypes.HANDLE(stdin_child)
+    startup.StartupInfo.hStdOutput = wintypes.HANDLE(stdout_child)
+    startup.StartupInfo.hStdError = wintypes.HANDLE(stderr_child)
+    startup.lpAttributeList = attribute_list
+
+    command_line = ctypes.create_unicode_buffer(subprocess.list2cmdline(argv))
+    environment = _environment_block(env)
+    info = _PROCESS_INFORMATION()
+    created = kernel32.CreateProcessW(
+        None,
+        command_line,
+        None,
+        None,
+        1,
+        EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT,
+        ctypes.cast(environment, ctypes.c_void_p),
+        ctypes.c_wchar_p(str(cwd)),
+        ctypes.byref(startup),
+        ctypes.byref(info),
+    )
+    last_error = ctypes.get_last_error()
+    for handle in child_ends:
+        kernel32.CloseHandle(ctypes.c_void_p(handle))
+    kernel32.DeleteProcThreadAttributeList(attribute_list)
+    if sid_ptr:
+        _advapi32().FreeSid(sid_ptr)
+    if not created:
+        for handle in parent_ends:
+            kernel32.CloseHandle(ctypes.c_void_p(handle))
+        raise SandboxUnavailable(f"CreateProcessW failed: {last_error}")
+    kernel32.CloseHandle(info.hThread)
+
+    loop = asyncio.get_running_loop()
+    stdout_reader = asyncio.StreamReader(limit=1 << 20, loop=loop)
+    stderr_reader = asyncio.StreamReader(limit=1 << 20, loop=loop)
+    out_file = os.fdopen(msvcrt.open_osfhandle(stdout_parent, os.O_RDONLY | os.O_BINARY), "rb", 0)
+    err_file = os.fdopen(msvcrt.open_osfhandle(stderr_parent, os.O_RDONLY | os.O_BINARY), "rb", 0)
+    in_file = os.fdopen(msvcrt.open_osfhandle(stdin_parent, os.O_WRONLY | os.O_BINARY), "wb", 0)
+
+    process = SandboxProcess(
+        int(info.dwProcessId),
+        int(info.hProcess),
+        _StdinPump(in_file),
+        stdout_reader,
+        stderr_reader,
+    )
+    process._files = [out_file, err_file, in_file]
+    process._pumps = [
+        asyncio.create_task(_StreamPump(out_file, stdout_reader).run()),
+        asyncio.create_task(_StreamPump(err_file, stderr_reader).run()),
+    ]
+    return process

@@ -146,6 +146,65 @@ async def get_task(
     )
 
 
+async def retry_task(
+    session: AsyncSession,
+    *,
+    user_id: str,
+    task_id: str,
+    token_id: str | None,
+) -> tuple[AgentTask, list[AgentTask]]:
+    """Re-run a failed team as a *new* team; history is never rewritten.
+
+    A leaf task is retried with its own role and input. A coordinator is retried
+    with its children's roles and inputs, because the coordinator holds no prompt
+    of its own. Terminal state of the old team is left untouched, so "retry" is
+    always an additive fact.
+    """
+
+    task = await session.get(AgentTask, task_id)
+    if task is None or task.user_id != user_id:
+        raise MultiAgentConflict("task not found")
+
+    if task.parent_id is None:
+        children = list(
+            await session.scalars(
+                select(AgentTask)
+                .where(AgentTask.user_id == user_id, AgentTask.parent_id == task.id)
+                .order_by(AgentTask.created_at, AgentTask.id)
+            )
+        )
+        inputs = [
+            {"role": child.role, "input": child.input}
+            for child in children
+            if child.role in ROLE_SCOPES and child.input.strip()
+        ]
+    else:
+        inputs = [{"role": task.role, "input": task.input}]
+
+    inputs = [item for item in inputs if item["role"] in ROLE_SCOPES]
+    if not inputs:
+        raise MultiAgentConflict("nothing to retry")
+
+    # create_team requires unique roles; a coordinator with duplicate roles can
+    # only happen after a schema change, so trim instead of failing outright.
+    seen: set[str] = set()
+    unique = []
+    for item in inputs:
+        if item["role"] in seen:
+            continue
+        seen.add(item["role"])
+        unique.append(item)
+
+    return await create_team(
+        session,
+        user_id=user_id,
+        workspace_id=task.workspace_id,
+        title=f"重跑：{task.title or task.id[:8]}"[:200],
+        inputs=unique,
+        token_id=token_id,
+    )
+
+
 async def list_team_tasks(
     session: AsyncSession, *, user_id: str, team_id: str
 ) -> list[AgentTask]:

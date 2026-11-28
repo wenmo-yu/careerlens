@@ -34,6 +34,9 @@
 | [0028](0028-agent-workbench-live-events.md) | Agent 工作台实时事件与计划/通知视图 | Accepted（SSE + 轮询兜底；仍非完整三栏 UI） | M6 |
 | [0029](0029-appcontainer-sandbox.md) | Agent CLI 的 AppContainer 执行边界 | Accepted（攻击矩阵实测通过；与 scheduler 管道接线未做） | M9 |
 | [0030](0030-desktop-notification-delivery.md) | 桌面通知投递 | Accepted（Windows toast；无通知中心与跳转） | M8 |
+| [0031](0031-sandboxed-cli-execution.md) | 把 scheduler 的 CLI 放进 AppContainer | Accepted（管道已实测；暂存运行时未在本机跑通） | M9 |
+| [0032](0032-task-retry-semantics.md) | 任务重跑是新增一棵树 | Accepted（不改旧记录；无合并回原团队） | M6 |
+
 
 
 

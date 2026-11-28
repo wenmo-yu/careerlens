@@ -1,5 +1,6 @@
 """M6 team trees and M8 durable schedule gates."""
 
+import pytest
 from sqlalchemy import select
 
 from app.models.evidence import Evidence
@@ -278,3 +279,57 @@ async def test_misfire_policy_skips_stale_occurrences(session_factory):
         assert occurrence.reason == "misfire_skipped"
         assert record.next_due > 10_000
         assert record.last_occurrence == 1000
+
+
+async def test_retry_clones_a_failed_team_without_touching_history(session_factory):
+    async with session_factory.begin() as session:
+        parent, children = await multi.create_team(
+            session,
+            user_id="retry-user",
+            workspace_id="default",
+            title="原始团队",
+            inputs=[
+                {"role": "researcher", "input": "查证据"},
+                {"role": "reviewer", "input": "复核引用"},
+            ],
+            token_id=None,
+        )
+        for child in children:
+            child.status = "failed"
+            child.error = "model_unavailable"
+
+    async with session_factory.begin() as session:
+        new_parent, new_children = await multi.retry_task(
+            session, user_id="retry-user", task_id=parent.id, token_id=None
+        )
+        assert new_parent.team_id != parent.team_id
+        assert new_parent.title.startswith("重跑：")
+        assert sorted(child.role for child in new_children) == ["researcher", "reviewer"]
+        assert {child.input for child in new_children} == {"查证据", "复核引用"}
+
+    async with session_factory() as session:
+        old = await session.get(multi.AgentTask, parent.id)
+        assert old.team_id == parent.team_id
+        assert old.title == "原始团队"
+        old_children = await multi.list_team_tasks(
+            session, user_id="retry-user", team_id=parent.team_id
+        )
+        assert all(child.status == "failed" for child in old_children if child.parent_id)
+
+
+async def test_retry_rejects_foreign_and_empty_tasks(session_factory):
+    async with session_factory.begin() as session:
+        parent, _children = await multi.create_team(
+            session,
+            user_id="owner-a",
+            workspace_id="default",
+            title="别人的团队",
+            inputs=[{"role": "researcher", "input": "x"}],
+            token_id=None,
+        )
+
+    async with session_factory() as session:
+        with pytest.raises(multi.MultiAgentConflict):
+            await multi.retry_task(session, user_id="owner-b", task_id=parent.id, token_id=None)
+        with pytest.raises(multi.MultiAgentConflict):
+            await multi.retry_task(session, user_id="owner-a", task_id="missing", token_id=None)

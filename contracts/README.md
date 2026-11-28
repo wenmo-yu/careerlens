@@ -24,7 +24,7 @@
 
 - 生成提交：`adf54f29d973ab24ed358bfdbf32feebbf9bbc75`（M8 角色-计划联动 / 唤醒对账 / MCP 执行接线），树 `570452715d035c506f539e172d79b75a67104ea0`；OpenAPI 由该提交的 FastAPI 应用导出。
 - 与 V4 设计基线 `43c67d3b01540ba80c00c17efd483336a08c2426` 的子树相同这一性质只对最初基线成立（见 ADR 0002）；`backend/`、`frontend/`、`docs/` 已随 M3–M8 演进，不再等价。
-- OpenAPI 快照包含 112 个路径、127 个操作和 111 个 schema（含 M5/M6/M8 新增 agent API、M8 持久角色、通知/搜索、MCP 准入与唤醒对账 API）。
+- OpenAPI 快照包含 113 个路径、128 个操作和 112 个 schema（含 M5/M6/M8 新增 agent API、持久角色、通知/搜索、MCP 准入、唤醒对账与任务重跑 API）。
 - Runtime JSONL 是 CareerLens 自定义协议：不兼容 ACP，不使用 Pi 的事件名、方法名或会话结构，也不把 JSONL 日志当作业务事实来源。
 
 ## 兼容规则

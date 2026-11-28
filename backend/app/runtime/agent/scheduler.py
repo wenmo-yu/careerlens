@@ -19,6 +19,7 @@ import time
 import uuid
 from collections import deque
 from dataclasses import dataclass
+from pathlib import Path
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -29,7 +30,7 @@ from app.models.heartbeat import RuntimeHeartbeat
 from app.models.multi import AgentTask
 from app.models.run import AgentRun
 from app.runtime import heartbeat as process_heartbeat
-from app.runtime import logs
+from app.runtime import logs, sandbox
 from app.runtime.agent import capability, multi, store
 from app.runtime.agent import schedule as schedule_service
 from app.runtime.agent import wake as wake_service
@@ -316,13 +317,17 @@ class AgentScheduler:
 
     async def _spawn_warm(self, slot) -> None:
         await self._persist_slot(slot)
-        process = await asyncio.create_subprocess_exec(
-            *self.cli_command,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=_cli_env(),
-        )
+        settings = get_settings()
+        if settings.agent_sandbox == "appcontainer":
+            process = await self._spawn_in_container(settings)
+        else:
+            process = await asyncio.create_subprocess_exec(
+                *self.cli_command,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=_cli_env(),
+            )
         cli = CliProcess(slot.slot_id, process)
         self.processes[slot.slot_id] = cli
         frame = await cli.next_event(self.config.bind_timeout)
@@ -332,6 +337,25 @@ class AgentScheduler:
             raise RuntimeError("CLI did not announce readiness")
         self.pool.mark_warm(slot, pid=process.pid)
         await self._persist_slot(slot)
+
+    async def _spawn_in_container(self, settings):
+        """Start the CLI inside the AppContainer using the staged runtime.
+
+        The staged runtime exists because the container cannot traverse the
+        development tree; ``tools/sandbox_stage.py`` copies the interpreter and
+        the app under %LOCALAPPDATA% and grants read/execute once.
+        """
+
+        runtime = str(getattr(settings, "agent_sandbox_runtime", "") or "").strip()
+        if not runtime:
+            raise RuntimeError("AGENT_SANDBOX_RUNTIME is required for appcontainer mode")
+        root = Path(runtime)
+        backend_dir = root / "backend"
+        python = root / "venv" / "Scripts" / "python.exe"
+        if not python.exists() or not backend_dir.exists():
+            raise RuntimeError(f"staged runtime is incomplete: {root}")
+        command = [str(python), "-m", settings.agent_cli_module, "--warm"]
+        return await sandbox.popen(command, cwd=backend_dir, env=_sandbox_cli_env(settings))
 
     async def _acquire_slot(self, claim: store.AgentClaim, generation: int):
         slot = self.pool.reserve(
@@ -654,6 +678,20 @@ def _cli_env() -> dict:
     env = dict(os.environ)
     env.setdefault("PYTHONUNBUFFERED", "1")
     return env
+
+
+def _sandbox_cli_env(settings) -> dict:
+    """Environment for the sandboxed CLI: nothing secret, only what it needs.
+
+    The capability token arrives over the JSONL pipe, so no API key is passed
+    here; the trusted gateway holds the credentials.
+    """
+
+    runtime = Path(str(getattr(settings, "agent_sandbox_runtime", "") or ""))
+    return {
+        "PYTHONPATH": str(runtime / "backend"),
+        "PYTHONUNBUFFERED": "1",
+    }
 
 
 def _now():

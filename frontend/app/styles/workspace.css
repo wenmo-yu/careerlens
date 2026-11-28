@@ -1276,3 +1276,34 @@
   .input-panel button[role="switch"] { width: 100%; min-width: 0; }
   .settings-command { max-height: 96px; }
 }
+
+/* Task actions and notification centre: buttons sit inside a list row, so they
+   must not stretch to the row width or inherit the 3-column grid. */
+.task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+.task-actions button {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 6px 12px;
+  font-size: var(--t-2xs);
+}
+.skill-list article.is-active {
+  background: var(--surface-2);
+}
+button.linklike {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+button.linklike:hover strong { color: var(--brand); }
+button.linklike:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }

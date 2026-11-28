@@ -242,8 +242,10 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/runtime/agent/mcp_execution.py` | M8 MCP 受控执行适配：命名空间工具走准入、fail closed 返回 execution_unavailable（无沙箱） |
 | `backend/app/runtime/agent/wake.py` | M8 唤醒对账：`[last_seen,now]` 窗口内错过 due 交给普通 schedule 触发，写可解释报告 |
 | `backend/app/runtime/heartbeat.py` | worker/scheduler 心跳写入与 stale/not_started 判断 | 只表达 liveness，不是业务事实 |
-| `backend/app/runtime/sandbox.py` | AppContainer 启动、SID/ACL/loopback 豁免、一次性执行 | 隔离由 OS 保证；未接入 scheduler 管道 |
+| `backend/app/runtime/sandbox.py` | AppContainer 启动、SID/ACL/loopback 豁免、一次性执行与 `popen()` 管道子进程 | 隔离由 OS 保证；日志泵每进程 2 线程 |
 | `backend/tools/sandbox_probe.py` | T14/T16 攻击矩阵（系统 shell 子进程，无需解释器授权） | 需管理员做 loopback 豁免 |
+| `backend/tools/sandbox_stage.py` | 把解释器与应用暂存到 %LOCALAPPDATA%，一次性授予读/执行 | 本机写入受限，未跑通 |
+| `backend/tools/sandbox_bootstrap.py` | 直接给运行时目录授权并验证 import | 大目录上不可用，只作对照 |
 | `docs/evidence/appcontainer-attack-matrix.json` | 最近一次攻击矩阵实测报告（SID 脱敏） | 证据不是长期保证，换机/换系统要重跑 |
 | `backend/app/runtime/logs.py` | 按进程挂旋转文件日志，幂等；`LOG_DIR` 为空回退 stdout | 不做日志聚合/上传 |
 | `backend/app/runtime/backup.py` | SQLite `VACUUM INTO` 快照 + `integrity_check`/`alembic_version` 校验；PostgreSQL 明确拒绝 | 不是定时备份，也不是恢复演练 |
@@ -542,6 +544,8 @@ HTTP/MCP 请求
 | 本地日志 / 备份 | `runtime/logs.py` → `worker.py`/`scheduler.py`；`runtime/backup.py` → CLI | ADR 0027、`tests/test_runtime_ops.py` |
 | 模型一致性验证 | `tools/openai_conformance_server.py` → `tests/test_agent_model_conformance.py` | ADR 0026 |
 | 执行隔离 | `runtime/sandbox.py` → `tools/sandbox_probe.py` → `docs/evidence/` | ADR 0029、`tests/test_sandbox.py` |
+| 沙箱执行接线 | `scheduler._spawn_in_container` + `sandbox.popen` + `tools/sandbox_stage.py` | ADR 0031、`tests/test_scheduler_sandbox.py` |
+| 任务重跑 | `runtime/agent/multi.retry_task` → `POST /agent/tasks/{id}/retry` → `/agent` 任务树 | ADR 0032、`tests/test_agent_multi_schedule.py` |
 | 通知投递 | `desktop/src-tauri/src/notifications.rs` → `lib/desktop.ts` → `/agent` | ADR 0030 |
 | 桌面宿主 / daemon 控制 | `desktop/src-tauri/src/main.rs` → `daemon.rs` → `tray.rs` → `tauri.conf.json` | ADR 0014、`contracts/daemon-control-v1.json`、`desktop/scripts/build-frontend.mjs` |
 | MCP 工具 | `mcp/server.py` → `services/*` → `security/auth.py` | `tests/test_mcp.py`、`07-A-MCP服务与ACP对照.md` |

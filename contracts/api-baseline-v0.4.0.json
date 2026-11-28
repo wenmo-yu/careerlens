@@ -6,9 +6,9 @@
   "source_commit": "adf54f29d973ab24ed358bfdbf32feebbf9bbc75",
   "source_tree_equivalent_to": "570452715d035c506f539e172d79b75a67104ea0",
   "openapi_snapshot": "openapi-v0.4.0.json",
-  "path_count": 112,
-  "operation_count": 127,
-  "schema_count": 111,
+  "path_count": 113,
+  "operation_count": 128,
+  "schema_count": 112,
   "operations": [
     {
       "method": "GET",
@@ -284,6 +284,15 @@
       "method": "GET",
       "path": "/api/v1/agent/tasks/{task_id}/projection",
       "operationId": "project_task_api_v1_agent_tasks__task_id__projection_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/tasks/{task_id}/retry",
+      "operationId": "retry_task_api_v1_agent_tasks__task_id__retry_post",
       "tags": [
         "agent"
       ],

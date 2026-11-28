@@ -11,8 +11,10 @@ import {
   listAgentMessages,
   listAgentNotifications,
   listAgentSchedules,
+  cancelAgentTask,
   listAgentSessions,
   listTeamTasks,
+  retryAgentTask,
   markAgentNotificationsRead,
   searchAgentFacts,
   streamRun,
@@ -31,7 +33,21 @@ import {
   type RuntimeStatus,
 } from "@/lib/api";
 import { desktopAvailable, notify } from "@/lib/desktop";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from "react";
+
+const subscribeStorage = (onChange: () => void) => {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+};
+
+const readDnd = () => window.localStorage.getItem("careerlens-dnd") === "1";
 
 export default function AgentPage() {
   const [userId, setUserId] = useState("demo-user");
@@ -55,6 +71,13 @@ export default function AgentPage() {
   const [searchResult, setSearchResult] = useState<AgentSearchResult | null>(null);
   const [teamId, setTeamId] = useState("");
   const [tasks, setTasks] = useState<AgentTask[]>([]);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  // Persisted preference read through useSyncExternalStore: no setState in an
+  // effect, and the server snapshot is always "off".
+  const storedDnd = useSyncExternalStore(subscribeStorage, readDnd, () => false);
+  const [dndOverride, setDndOverride] = useState<boolean | null>(null);
+  const dnd = dndOverride ?? storedDnd;
+  const [activeNotification, setActiveNotification] = useState("");
   const liveCursor = useRef(0);
 
   const refresh = useCallback(async (id: string) => {
@@ -109,7 +132,7 @@ export default function AgentPage() {
   // Deliver one OS toast per new unread notification. The in-app list stays the
   // source of truth; a failed toast is not retried in a loop.
   useEffect(() => {
-    if (!desktopAvailable() || !notifications.length) return;
+    if (!desktopAvailable() || !notifications.length || dnd) return;
     const seen = new Set(
       JSON.parse(window.localStorage.getItem("careerlens-toast-seen") ?? "[]") as string[],
     );
@@ -121,7 +144,7 @@ export default function AgentPage() {
       JSON.stringify([...seen].slice(-200)),
     );
     void notify(fresh.title, fresh.detail);
-  }, [notifications]);
+  }, [notifications, dnd]);
 
   useEffect(() => {
     if (!liveRunId || !userId) return;
@@ -223,6 +246,42 @@ export default function AgentPage() {
       setError("");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "读取任务树失败。");
+    }
+  }
+
+  async function markOne(factKey: string) {
+    try {
+      await markAgentNotificationsRead(userId, [factKey]);
+      setNotifications(await listAgentNotifications(userId));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "标记已读失败。");
+    }
+  }
+
+  function toggleDnd(next: boolean) {
+    setDndOverride(next);
+    window.localStorage.setItem("careerlens-dnd", next ? "1" : "0");
+    setNotice(next ? "已开启免打扰：不再弹系统通知。" : "已关闭免打扰。");
+  }
+
+  async function cancelTask(taskId: string) {
+    try {
+      await cancelAgentTask(userId, taskId);
+      await loadTasks();
+      setNotice("已取消该任务及其子任务。");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "取消失败。");
+    }
+  }
+
+  async function retryTask(taskId: string) {
+    try {
+      const created = await retryAgentTask(userId, taskId);
+      setTeamId(created.team_id);
+      setTasks(await listTeamTasks(userId, created.team_id));
+      setNotice("已创建重跑团队；原团队记录保持不变。");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "重跑失败。");
     }
   }
 
@@ -402,6 +461,11 @@ export default function AgentPage() {
                     <strong>{parent.title || parent.id.slice(0, 8)}</strong>
                     <small>{parent.role} · {parent.status} · 预算 {String(parent.budget?.attempts ?? 0)} 次尝试</small>
                     <small>Run {parent.run_id ? parent.run_id.slice(0, 8) : "未绑定"}</small>
+                    <div className="task-actions">
+                      <button type="button" className="secondary" onClick={() => void retryTask(parent.id)}>
+                        重跑整个团队
+                      </button>
+                    </div>
                   </article>
                 ))}
               {tasks
@@ -411,6 +475,18 @@ export default function AgentPage() {
                     <strong>↳ {child.title || child.id.slice(0, 8)}</strong>
                     <small>{child.role} · {child.status}</small>
                     <small>{child.error ? `错误：${child.error}` : "无错误"}</small>
+                    <div className="task-actions">
+                      {["queued", "running", "waiting"].includes(child.status) ? (
+                        <button type="button" className="secondary" onClick={() => void cancelTask(child.id)}>
+                          取消
+                        </button>
+                      ) : null}
+                      {["failed", "cancelled"].includes(child.status) ? (
+                        <button type="button" onClick={() => void retryTask(child.id)}>
+                          重跑
+                        </button>
+                      ) : null}
+                    </div>
                   </article>
                 ))}
               {!tasks.length && <p>输入团队 ID 后显示父子任务与各自状态；任务结果仍以任务详情为准。</p>}
@@ -422,15 +498,56 @@ export default function AgentPage() {
               <h3>通知</h3>
               <span>{notifications.filter((item) => !item.read).length} 未读</span>
             </div>
-            <div className="skill-list">
-              {notifications.slice(0, 8).map((item) => (
-                <article key={item.fact_key}>
-                  <strong>{item.title}</strong>
-                  <small>{item.detail}</small>
-                  <small>{item.read ? "已读" : "未读"} · {item.kind}</small>
-                </article>
-              ))}
+            <div className="task-actions">
+              <button
+                type="button"
+                className={unreadOnly ? "" : "secondary"}
+                aria-pressed={unreadOnly}
+                onClick={() => setUnreadOnly((current) => !current)}
+              >
+                只看未读
+              </button>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={dnd}
+                aria-label="免打扰"
+                className={dnd ? "" : "secondary"}
+                onClick={() => toggleDnd(!dnd)}
+              >
+                {dnd ? "免打扰已开" : "免打扰"}
+              </button>
+            </div>
+            <div className="skill-list" aria-live="polite">
+              {(unreadOnly ? notifications.filter((item) => !item.read) : notifications)
+                .slice(0, 10)
+                .map((item) => (
+                  <article key={item.fact_key} className={activeNotification === item.fact_key ? "is-active" : ""}>
+                    <button
+                      type="button"
+                      className="linklike"
+                      onClick={() => {
+                        setActiveNotification(item.fact_key);
+                        // Click-through: a run reference loads it into the live
+                        // panel; the notification itself stays in the list.
+                        if (item.ref_id && item.kind !== "schedule_skipped") {
+                          liveCursor.current = 0;
+                          setLiveEvents([]);
+                          setLiveRunId(item.ref_id);
+                        }
+                        if (!item.read) void markOne(item.fact_key);
+                      }}
+                    >
+                      <strong>{item.title}</strong>
+                    </button>
+                    <small>{item.detail}</small>
+                    <small>{item.read ? "已读" : "未读"} · {item.kind}</small>
+                  </article>
+                ))}
               {!notifications.length && <p>没有通知。通知由待审批、失败 Run、失败任务与跳过计划派生。</p>}
+              {unreadOnly && notifications.length > 0 && !notifications.some((item) => !item.read) ? (
+                <p>没有未读通知。</p>
+              ) : null}
             </div>
             <button type="button" className="secondary" onClick={() => void markAllRead()}>
               全部标记已读

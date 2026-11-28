@@ -1215,3 +1215,18 @@ export function listTeamTasks(userId: string, teamId: string) {
     `/agent/teams/${encodeURIComponent(teamId)}/tasks?${params}`,
   );
 }
+
+export function cancelAgentTask(userId: string, taskId: string) {
+  const params = new URLSearchParams({ user_id: userId });
+  return request<AgentTask>(
+    `/agent/tasks/${encodeURIComponent(taskId)}/cancel?${params}`,
+    { method: "POST" },
+  );
+}
+
+export function retryAgentTask(userId: string, taskId: string) {
+  return request<{ team_id: string; parent_task_id: string }>(
+    `/agent/tasks/${encodeURIComponent(taskId)}/retry`,
+    { method: "POST", body: JSON.stringify({ user_id: userId }) },
+  );
+}

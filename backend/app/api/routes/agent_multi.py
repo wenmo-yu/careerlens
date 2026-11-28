@@ -14,6 +14,7 @@ from app.schemas.agent_multi import (
     ScheduleRead,
     ScheduleStateUpdate,
     TaskRead,
+    TaskRetry,
     TeamCreate,
     TeamMailCreate,
     TeamMailRead,
@@ -65,6 +66,24 @@ async def list_team_tasks(
 ):
     await _authorize(session, user_id, authorization, "read")
     return await multi.list_team_tasks(session, user_id=user_id, team_id=team_id)
+
+
+@router.post("/agent/tasks/{task_id}/retry", status_code=201)
+async def retry_task(
+    task_id: str,
+    payload: TaskRetry,
+    session: Session,
+    authorization: Authorization = None,
+):
+    principal = await _authorize(session, payload.user_id, authorization, "write")
+    try:
+        parent, _children = await multi.retry_task(
+            session, user_id=payload.user_id, task_id=task_id, token_id=principal.token_id
+        )
+    except multi.MultiAgentConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    await session.commit()
+    return {"team_id": parent.team_id, "parent_task_id": parent.id}
 
 
 @router.get("/agent/tasks/{task_id}", response_model=TaskRead)

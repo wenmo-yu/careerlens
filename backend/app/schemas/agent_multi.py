@@ -31,6 +31,7 @@ class TaskRead(BaseModel):
     parent_id: str | None
     role: str
     title: str
+    input: str
     status: str
     budget: dict[str, Any]
     result: dict[str, Any]
@@ -39,6 +40,12 @@ class TaskRead(BaseModel):
     error: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class TaskRetry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: str = Field(min_length=1, max_length=128)
 
 
 class TeamMailCreate(BaseModel):
