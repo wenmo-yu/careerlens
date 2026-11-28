@@ -6,9 +6,9 @@
   "source_commit": "6669a488a682970a82e678b21870fb2a56d77212",
   "source_tree_equivalent_to": "43c67d3b01540ba80c00c17efd483336a08c2426",
   "openapi_snapshot": "openapi-v0.4.0.json",
-  "path_count": 110,
-  "operation_count": 125,
-  "schema_count": 109,
+  "path_count": 112,
+  "operation_count": 127,
+  "schema_count": 111,
   "operations": [
     {
       "method": "GET",
@@ -320,6 +320,24 @@
       "method": "GET",
       "path": "/api/v1/agent/teams/{team_id}/tasks",
       "operationId": "list_team_tasks_api_v1_agent_teams__team_id__tasks_get",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/agent/wake/reconcile",
+      "operationId": "reconcile_wake_api_v1_agent_wake_reconcile_post",
+      "tags": [
+        "agent"
+      ],
+      "deprecated": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agent/wake/reports",
+      "operationId": "list_wake_reports_api_v1_agent_wake_reports_get",
       "tags": [
         "agent"
       ],
@@ -641,18 +659,18 @@
       "deprecated": false
     },
     {
-      "method": "GET",
+      "method": "DELETE",
       "path": "/api/v1/evidence/{evidence_id}",
-      "operationId": "read_evidence_api_v1_evidence__evidence_id__get",
+      "operationId": "delete_evidence_api_v1_evidence__evidence_id__delete",
       "tags": [
         "evidence"
       ],
       "deprecated": false
     },
     {
-      "method": "DELETE",
+      "method": "GET",
       "path": "/api/v1/evidence/{evidence_id}",
-      "operationId": "delete_evidence_api_v1_evidence__evidence_id__delete",
+      "operationId": "read_evidence_api_v1_evidence__evidence_id__get",
       "tags": [
         "evidence"
       ],

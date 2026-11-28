@@ -25,12 +25,15 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import get_settings
 from app.models.agent import AgentApproval, AgentRuntimeSlot
+from app.models.heartbeat import RuntimeHeartbeat
 from app.models.multi import AgentTask
 from app.models.run import AgentRun
 from app.runtime import heartbeat as process_heartbeat
 from app.runtime.agent import capability, multi, store
 from app.runtime.agent import schedule as schedule_service
+from app.runtime.agent import wake as wake_service
 from app.runtime.agent.pool import Pool
+from app.runtime.store import now_seconds
 
 LOG = logging.getLogger(__name__)
 PROTOCOL = 1
@@ -200,7 +203,41 @@ class AgentScheduler:
                     diagnostics={"fault_reason": "scheduler_restart"},
                 )
             )
+        await self._reconcile_after_gap()
         LOG.info("agent scheduler %s started", self.owner)
+
+    async def _reconcile_after_gap(self) -> None:
+        """Explain and compensate schedules missed while the scheduler was gone.
+
+        The previous heartbeat is read before this instance writes its own, so
+        ``[last_seen, now]`` is the real downtime window. The wake service
+        delegates to the ordinary trigger, which keeps the misfire policy and
+        ``(schedule_id, due_at)`` idempotency as the single authority. A failure
+        here must never prevent the scheduler from starting.
+        """
+
+        try:
+            async with self.factory.begin() as session:
+                previous = await session.get(RuntimeHeartbeat, "scheduler")
+                if previous is None:
+                    return
+                last_seen = int(previous.heartbeat_at)
+                now = now_seconds()
+                if now <= last_seen:
+                    return
+                report = await wake_service.reconcile(
+                    session, last_seen=last_seen, now=now
+                )
+            if report.missed_due:
+                LOG.info(
+                    "wake reconcile gap=%ss missed=%s triggered=%s skipped=%s",
+                    report.observed_gap_seconds,
+                    report.missed_due,
+                    report.triggered,
+                    report.skipped,
+                )
+        except Exception:
+            LOG.exception("wake reconciliation failed")
 
     async def shutdown(self) -> None:
         self.stopping.set()

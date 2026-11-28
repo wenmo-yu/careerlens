@@ -74,6 +74,7 @@ class ScheduleCreate(BaseModel):
     interval_seconds: int = Field(default=3600, ge=60, le=2_592_000)
     misfire_policy: Literal["skip", "run_once"] = "skip"
     start_at: int | None = None
+    role_id: str | None = Field(default=None, max_length=36)
 
 
 class ScheduleRead(BaseModel):
@@ -88,6 +89,7 @@ class ScheduleRead(BaseModel):
     timezone: str
     misfire_policy: str
     state: str
+    role_id: str | None
     next_due: int
     last_occurrence: int | None
     created_at: datetime
@@ -109,5 +111,6 @@ class ScheduleOccurrenceRead(BaseModel):
     due_at: int
     status: str
     run_id: str | None
+    role_version: int | None
     reason: str | None
     created_at: datetime

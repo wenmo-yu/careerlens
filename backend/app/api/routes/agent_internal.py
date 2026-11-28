@@ -18,9 +18,10 @@ from sqlalchemy.orm import undefer
 from app.core.config import get_settings
 from app.core.database import get_session
 from app.llm.provider import ModelUnavailable
+from app.models.access_token import AccessToken
 from app.models.run import AgentRun
 from app.runtime.agent import capability as caps
-from app.runtime.agent import model, tools
+from app.runtime.agent import mcp_execution, model, tools
 
 router = APIRouter()
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -91,6 +92,22 @@ async def _capability(
     return claim, run, allowed
 
 
+async def _caller_scopes(session: AsyncSession, run: AgentRun) -> tuple[str, ...]:
+    """Derive MCP caller scopes from the trusted run identity.
+
+    A token-bound run is capped by that token's scopes. A token-less run is the
+    local user acting as themselves (daemon/CLI session), so it keeps full scope
+    over their own connectors. The model never supplies scopes.
+    """
+
+    if not run.actor_token_id:
+        return ("read", "write", "manage")
+    token = await session.get(AccessToken, run.actor_token_id)
+    if token is None or not token.active:
+        return ()
+    return tuple(sorted({str(scope) for scope in (token.scopes or [])}))
+
+
 @router.post("/internal/agent/model/complete")
 async def complete(
     payload: ModelRequest,
@@ -134,13 +151,24 @@ async def invoke_tool(
     session: Session,
     capability: CapabilityHeader = None,
 ):
-    claim, _run, role_allowed = await _capability(session, capability)
+    claim, run, role_allowed = await _capability(session, capability)
     if role_allowed is not None and payload.name not in role_allowed:
         return {
             "ok": False,
             "code": "tool_not_allowed",
             "message": "Tool is not allowed for this role",
         }
+    # Namespaced MCP tools go through connector admission, never the built-in
+    # registry. With no reviewed executor this fails closed explicitly.
+    if mcp_execution.is_mcp_tool(payload.name):
+        decision = await mcp_execution.execute(
+            session,
+            user_id=claim.user_id,
+            qualified_name=payload.name,
+            caller_scopes=await _caller_scopes(session, run),
+        )
+        await session.commit()
+        return {"ok": decision.ok, "code": decision.code, "message": decision.message}
     try:
         result = await tools.invoke(
             session,

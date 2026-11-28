@@ -26,6 +26,8 @@
 | [0020](0020-m8-role-lifecycle.md) | M8 持久角色生命周期与工具收窄 | Accepted（持久契约与服务端收窄；长期运行未验收） | M8 |
 | [0021](0021-m8-inbox-and-search.md) | M8 应用内通知与任务搜索 | Accepted（派生通知与只读搜索；系统唤醒/投递未做） | M8 |
 | [0022](0022-m8-mcp-connector-admission.md) | M8 MCP 受控接入准入策略层 | Accepted（准入策略已实现；隔离执行与网络策略需 OS 沙箱） | M8 |
+| [0023](0023-m8-role-schedule-linkage.md) | M8 角色与计划联动 | Accepted（绑定触发继承角色会话/prompt/工具快照；系统唤醒未做） | M8 |
+| [0024](0024-m8-wake-reconciliation.md) | M8 唤醒感知与错过策略对账 | Accepted（策略对账已实现；真实 OS 唤醒需真机） | M8 |
 
 ## 优先级
 

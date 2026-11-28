@@ -3673,6 +3673,18 @@
             "title": "Prompt",
             "type": "string"
           },
+          "role_id": {
+            "anyOf": [
+              {
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Id"
+          },
           "start_at": {
             "anyOf": [
               {
@@ -3731,6 +3743,17 @@
             ],
             "title": "Reason"
           },
+          "role_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Version"
+          },
           "run_id": {
             "anyOf": [
               {
@@ -3757,6 +3780,7 @@
           "due_at",
           "status",
           "run_id",
+          "role_version",
           "reason",
           "created_at"
         ],
@@ -3805,6 +3829,17 @@
             "title": "Prompt",
             "type": "string"
           },
+          "role_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Id"
+          },
           "state": {
             "title": "State",
             "type": "string"
@@ -3837,6 +3872,7 @@
           "timezone",
           "misfire_policy",
           "state",
+          "role_id",
           "next_due",
           "last_occurrence",
           "created_at",
@@ -4545,6 +4581,71 @@
           "user_id"
         ],
         "title": "ViewPreferences",
+        "type": "object"
+      },
+      "WakeReconcileRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "last_seen": {
+            "minimum": 0.0,
+            "title": "Last Seen",
+            "type": "integer"
+          },
+          "now": {
+            "minimum": 0.0,
+            "title": "Now",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "last_seen",
+          "now"
+        ],
+        "title": "WakeReconcileRequest",
+        "type": "object"
+      },
+      "WakeReportRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "missed_due": {
+            "title": "Missed Due",
+            "type": "integer"
+          },
+          "observed_gap_seconds": {
+            "title": "Observed Gap Seconds",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          },
+          "triggered": {
+            "title": "Triggered",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "observed_gap_seconds",
+          "missed_due",
+          "triggered",
+          "skipped",
+          "reason",
+          "created_at"
+        ],
+        "title": "WakeReportRead",
         "type": "object"
       },
       "WikiCompileRead": {
@@ -7325,6 +7426,141 @@
           }
         },
         "summary": "List Team Tasks",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/wake/reconcile": {
+      "post": {
+        "description": "Operational endpoint: trigger a reconciliation for a liveness gap.\n\nScoped to manage, because it enqueues runs. The scheduler can call the\nservice directly without HTTP; this route is for diagnostics and operators.",
+        "operationId": "reconcile_wake_api_v1_agent_wake_reconcile_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WakeReconcileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WakeReportRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reconcile Wake",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/wake/reports": {
+      "get": {
+        "operationId": "list_wake_reports_api_v1_agent_wake_reports_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WakeReportRead"
+                  },
+                  "title": "Response List Wake Reports Api V1 Agent Wake Reports Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Wake Reports",
         "tags": [
           "agent"
         ]

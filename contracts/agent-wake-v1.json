@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wenmo-yu/careerlens/blob/main/contracts/agent-wake-v1.json",
+  "title": "CareerLens Wake Reconciliation Contract v1",
+  "protocol": "agent-wake",
+  "version": 1,
+  "rules": [
+    "Reconciliation takes an explicit [last_seen, now] window; inverted windows are rejected.",
+    "The scheduler reconciles automatically on start, using the previous scheduler heartbeat as last_seen, before writing its own heartbeat.",
+    "Only active schedules with next_due inside the gap are reconciled; each is passed to the ordinary schedule trigger.",
+    "The schedule trigger remains the single authority: skip/run_once misfire policy and (schedule_id,due_at) idempotency are not reimplemented here.",
+    "A wake report is diagnostic evidence (gap length, missed, triggered, skipped), not a business fact.",
+    "A reconciliation failure is logged and never prevents the scheduler from starting.",
+    "Reconciliation never claims the machine actually slept or that an OS wake timer fired.",
+    "Real OS wake timers, boot autostart and DST/sleep behaviour require a real Windows machine and are unverified.",
+    "Reconciliation enqueues runs and is therefore scoped to manage permission; reports are read-scoped."
+  ],
+  "error_codes": ["invalid_window", "not_found"],
+  "report_fields": ["observed_gap_seconds", "missed_due", "triggered", "skipped", "reason"]
+}

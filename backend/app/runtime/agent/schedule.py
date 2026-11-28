@@ -13,7 +13,9 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.role import AgentRole
 from app.models.schedule import AgentSchedule, AgentScheduleOccurrence
+from app.runtime.agent import roles as role_service
 from app.runtime.agent import store
 
 
@@ -36,6 +38,7 @@ async def create_schedule(
     misfire_policy: str = "skip",
     actor_token_id: str | None,
     start_at: int | None = None,
+    role_id: str | None = None,
 ) -> AgentSchedule:
     if not name.strip() or len(name) > 200:
         raise ScheduleConflict("name must contain 1-200 characters")
@@ -45,6 +48,11 @@ async def create_schedule(
         raise ScheduleConflict("interval_seconds must be between 60 and 2592000")
     if misfire_policy not in ("skip", "run_once"):
         raise ScheduleConflict("misfire_policy must be skip or run_once")
+    role: AgentRole | None = None
+    if role_id:
+        role = await role_service.get_role(session, user_id=user_id, role_id=role_id)
+        if role is None or role.state != "active" or role.session_id is None:
+            raise ScheduleConflict("role_not_found")
     due = start_at or now_seconds()
     record = AgentSchedule(
         user_id=user_id,
@@ -54,6 +62,7 @@ async def create_schedule(
         interval_seconds=interval_seconds,
         misfire_policy=misfire_policy,
         actor_token_id=actor_token_id,
+        role_id=role.id if role else None,
         next_due=due,
     )
     session.add(record)
@@ -148,27 +157,47 @@ async def trigger(
         await session.flush()
         return occurrence
 
-    child_session = await store.create_session(
-        session,
-        user_id=user_id,
-        title=f"计划：{record.name[:80]}",
-        workspace_id=record.workspace_id,
-    )
+    role: AgentRole | None = None
+    if record.role_id:
+        role = await role_service.get_role(session, user_id=user_id, role_id=record.role_id)
+        if role is None or role.state != "active" or role.session_id is None:
+            raise ScheduleConflict("role_not_found")
+
+    if role is not None:
+        # A role-bound schedule runs in the role's persistent session using its
+        # prompt, and inherits the role's frozen tool allowlist via the snapshot.
+        child_session_id = role.session_id
+        turn_text = role.prompt
+    else:
+        child_session = await store.create_session(
+            session,
+            user_id=user_id,
+            title=f"计划：{record.name[:80]}",
+            workspace_id=record.workspace_id,
+        )
+        child_session_id = child_session.id
+        turn_text = record.prompt
     request_key = f"schedule:{record.id}:{due_at}"
     run, _created = await store.submit_turn(
         session,
         user_id=user_id,
-        session_id=child_session.id,
-        text=record.prompt,
+        session_id=child_session_id,
+        text=turn_text,
         token_id=record.actor_token_id,
         request_key=request_key,
     )
+    if role is not None and _created:
+        payload = dict(run.payload or {})
+        payload["role"] = role_service.role_snapshot(role)
+        run.payload = payload
+        await session.flush()
     occurrence = AgentScheduleOccurrence(
         schedule_id=record.id,
         user_id=user_id,
         due_at=due_at,
         status="claimed",
         run_id=run.id,
+        role_version=role.version if role else None,
     )
     session.add(occurrence)
     record.next_due = _advance(due_at, record.interval_seconds, moment)

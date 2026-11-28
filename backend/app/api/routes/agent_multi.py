@@ -165,6 +165,7 @@ async def create_schedule(
             misfire_policy=payload.misfire_policy,
             actor_token_id=principal.token_id,
             start_at=payload.start_at,
+            role_id=payload.role_id,
         )
     except schedule_service.ScheduleConflict as exc:
         raise HTTPException(409, str(exc)) from exc

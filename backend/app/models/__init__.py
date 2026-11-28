@@ -25,15 +25,19 @@ from app.models.heartbeat import RuntimeHeartbeat
 from app.models.index_generation import IndexGeneration
 from app.models.job_analysis import JobAnalysis
 from app.models.learning import LearningProgress, SavedJob
+from app.models.mcp_connector import AgentMcpConnector
 from app.models.multi import AgentTask, AgentTaskBudgetUse, AgentTeamMessage
+from app.models.notification import AgentNotificationRead
 from app.models.parsed_block import ParsedBlock
 from app.models.profile import ProfileItem
 from app.models.profile_extension import DimensionDefinition, ProfileExtension
 from app.models.profile_suppression import ProfileSuppression
 from app.models.profile_update import ProfileUpdateProposal
+from app.models.role import AgentRole
 from app.models.run import AgentRun, EvidenceIndexWork, RunEvent, RunScope, RunStep
 from app.models.schedule import AgentSchedule, AgentScheduleOccurrence
 from app.models.source_document import SourceDocument
+from app.models.wake import AgentWakeReport
 from app.models.wiki import WikiPage, WikiRevision
 
 __all__ = [
@@ -67,6 +71,10 @@ __all__ = [
     "AgentTask",
     "AgentTaskBudgetUse",
     "AgentTeamMessage",
+    "AgentMcpConnector",
+    "AgentNotificationRead",
+    "AgentRole",
+    "AgentWakeReport",
     "ParsedBlock",
     "ProfileItem",
     "ProfileSuppression",

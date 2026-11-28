@@ -81,7 +81,7 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `frontend/` | Next.js 工作台与公开页 | 界面、交互、SSE、截图 |
 | `docs-site/` | Docsify 教程站壳、侧栏、构建脚本 | 改教程站、发布 Pages、链接/锚点 |
 | `docs/` | 公开技术文档 | 架构、数据、Agent/检索、运维口径；`docs/adr/` 是 V4 决策记录 |
-| `contracts/` | V4 版本化机器可读契约：OpenAPI、API 基线、Runtime JSONL v1、daemon、agent runtime/multi/schedule/role/file broker | 改跨端/跨进程接口前先读；不要把 JSONL 日志当业务事实 |
+| `contracts/` | V4 版本化机器可读契约：OpenAPI、API 基线、Runtime JSONL v1、daemon、agent runtime/multi/schedule/role/inbox/mcp-connector/wake/file broker | 改跨端/跨进程接口前先读；不要把 JSONL 日志当业务事实 |
 | `agent-runtime/` | 自研 Agent Core M0 原型：ScriptedModel、内存端口、JSONL 双向 RPC | 只用于验证状态机/协议；不要当生产运行时或安全边界 |
 | `desktop/` | Tauri 2 Host：daemon 自动启动、命名管道控制、托盘、关窗后台、NSIS 构建脚本 | 桌面壳与进程边界；不直连业务库、不替代 daemon |
 | `frontend/app/agent/page.tsx` | Agent 工作台：会话/消息/审批/runtime 状态最小界面 | V4 Agent UI 的入口；不是完整三栏桌面 UI |
@@ -107,7 +107,7 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/migration_runner.py` | 启动时执行 Alembic 迁移的辅助逻辑 |
 | `backend/app/core/config.py` | `get_settings()`：认证模式、API 前缀、CORS、模型、检索、运行时的全部配置入口 |
 | `backend/app/core/database.py` | 异步 engine / session / `create_schema()` |
-| `backend/app/api/router.py` | 所有 `/api/v1/*` 路由汇总：`auth/evidence/profiles/jobs/chat/connectors/observability/evaluation/reports/runs/privacy/wiki/agent/agent_multi/agent_roles/agent_inbox/agent_mcp` |
+| `backend/app/api/router.py` | 所有 `/api/v1/*` 路由汇总：`auth/evidence/profiles/jobs/chat/connectors/observability/evaluation/reports/runs/privacy/wiki/agent/agent_multi/agent_roles/agent_inbox/agent_mcp/agent_wake` |
 
 ### 4.2 API 路由（`backend/app/api/routes/`）
 
@@ -154,17 +154,18 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/models/run.py` | `AgentRun` / `RunStep` / `RunEvent` / `RunScope`：后台运行、代次、租约、fencing、事件序号 |
 | `backend/app/models/agent.py` | `AgentSession` / `AgentMessage` / `AgentRuntimeSlot` / `AgentApproval` / `AgentToolLedger` / `AgentArtifact`：会话语义、审批屏障、写工具幂等账本与产物 |
 | `backend/app/models/multi.py` | `AgentTask` / `AgentTeamMessage` / `AgentTaskBudgetUse`：M6 任务树、邮箱去重、跨 attempt 预算 |
-| `backend/app/models/schedule.py` | `AgentSchedule` / `AgentScheduleOccurrence`：M8 计划与 `(schedule_id,due_at)` 幂等 occurrence |
+| `backend/app/models/schedule.py` | `AgentSchedule` / `AgentScheduleOccurrence`：M8 计划与 `(schedule_id,due_at)` 幂等 occurrence；可选 `role_id` 联动角色，occurrence 记录 `role_version` |
 | `backend/app/models/role.py` | `AgentRole`：M8 持久角色，`(user_id,name)` 唯一、配置 version、工具 allowlist 与长会话绑定 |
 | `backend/app/models/notification.py` | `AgentNotificationRead`：M8 通知已读回执；通知内容从 Run/审批/任务/计划派生，不落第二事实源 |
 | `backend/app/models/mcp_connector.py` | `AgentMcpConnector`：M8 MCP 准入记录，命名空间/工具白名单/scope/配置指纹/撤销态 |
+| `backend/app/models/wake.py` | `AgentWakeReport`：M8 唤醒对账诊断证据（窗口/错过/触发/跳过），不是业务事实 |
 | `backend/app/models/wiki.py` | `WikiPage` / `WikiRevision`：页面、版本、引用、链接关系 |
 | `backend/app/models/access_token.py` / `audit.py` / `evaluation.py` / `account_deletion.py` | 令牌、不含原文的审计、评测记录、账号删除回执 |
 | `backend/app/models/learning.py` | 画像推荐 `SavedJob` / `LearningProgress`：用户保存的 JD 与学习计划进度 |
 | `backend/app/models/assessment.py` | 画像推荐 `AssessmentResult` / `UserConstraint`：自陈测评与约束，独立于事实画像 |
 | `backend/app/models/profile_extension.py` | 画像推荐 `DimensionDefinition` / `ProfileExtension`：用户可选画像维度 |
 | `backend/app/schemas/*.py` | Pydantic 请求/响应契约：auth、chat、evidence、job、profile、report、run、wiki、evaluation、privacy；画像推荐新增 catalog、profile_overview、assessment（快测/量表/约束/维度/画像模式/故事） |
-| `backend/migrations/versions/*.py` | Alembic 迁移：初始表、会话、SourceDocument/ParsedBlock、content_hash、report version 唯一、suppression、Wiki、Run、血缘保留；agent plane 链路 `a9b8c7d6e5f4`（M3）→ `b5c6d7e8f9a0`（M5 ledger/artifacts）→ `c7d8e9f0a1b2`（M6/M8 tasks/schedules）→ `d3e4f5a6b7c8`（心跳）→ `e7f8a9b0c1d2`（M8 roles）→ `f8a9b0c1d2e3`（M8 通知已读）→ `a9b0c1d2e3f4`（M8 MCP 准入，当前 head） |
+| `backend/migrations/versions/*.py` | Alembic 迁移：初始表、会话、SourceDocument/ParsedBlock、content_hash、report version 唯一、suppression、Wiki、Run、血缘保留；agent plane 链路 `a9b8c7d6e5f4`（M3）→ `b5c6d7e8f9a0`（M5 ledger/artifacts）→ `c7d8e9f0a1b2`（M6/M8 tasks/schedules）→ `d3e4f5a6b7c8`（心跳）→ `e7f8a9b0c1d2`（M8 roles）→ `f8a9b0c1d2e3`（M8 通知已读）→ `a9b0c1d2e3f4`（M8 MCP 准入）→ `b0c1d2e3f4a5`（M8 角色-计划联动）→ `c1d2e3f4a5b6`（M8 唤醒对账，当前 head） |
 
 ### 4.4 业务服务（`backend/app/services/`）
 
@@ -230,12 +231,14 @@ D:/work/career/                     本地工作区，不是 Git 仓库
 | `backend/app/runtime/agent/model.py` | 自研模型网关：demo/scripted 兼容、OpenAI-compatible SSE、工具分片装配、重试与成本指标 |
 | `backend/app/runtime/agent/tools.py` | 工具注册表：只读 `search_evidence/get_profile` + 写工具 `save_career_note`；approval/digest/ledger 校验 |
 | `backend/app/runtime/agent/cli.py` | 每会话 CLI：JSONL v1、审批屏障、批准后单 invocation 恢复、模型流消费 |
-| `backend/app/runtime/agent/scheduler.py` | 调度器：预热/准入/租约/代际、审批恢复、schedule tick 触发、心跳 |
+| `backend/app/runtime/agent/scheduler.py` | 调度器：预热/准入/租约/代际、审批恢复、schedule tick 触发、启动时唤醒对账、心跳 |
 | `backend/app/runtime/agent/multi.py` | M6 任务树、邮箱去重、预算累计、结果投影与父取消级联 |
-| `backend/app/runtime/agent/schedule.py` | M8 计划创建、occurence 幂等、misfire 策略与 due 触发 |
+| `backend/app/runtime/agent/schedule.py` | M8 计划创建、occurrence 幂等、misfire 策略与 due 触发；绑定角色时用角色会话/prompt 并写工具快照 |
 | `backend/app/runtime/agent/roles.py` | M8 持久角色配置、版本快照、工具 allowlist 收窄与触发；权限取交集、不提权 |
 | `backend/app/runtime/agent/inbox.py` | M8 通知派生（待审批/失败 Run/失败任务/跳过计划）+ 已读回执 + 用户隔离任务搜索 |
 | `backend/app/runtime/agent/mcp_connectors.py` | M8 MCP 准入策略：默认禁用、命名空间、配置指纹、默认 deny；纯判定不执行 |
+| `backend/app/runtime/agent/mcp_execution.py` | M8 MCP 受控执行适配：命名空间工具走准入、fail closed 返回 execution_unavailable（无沙箱） |
+| `backend/app/runtime/agent/wake.py` | M8 唤醒对账：`[last_seen,now]` 窗口内错过 due 交给普通 schedule 触发，写可解释报告 |
 | `backend/app/runtime/heartbeat.py` | worker/scheduler 心跳写入与 stale/not_started 判断 | 只表达 liveness，不是业务事实 |
 | `backend/app/runtime/agent/file_broker.py` | 工作区文件读写、路径白名单、符号链接拒绝、审批账本与原子写入 | 应用层边界，不是完整 OS 沙箱 |
 | `desktop/src-tauri/src/daemon.rs` | Tauri Host 的 daemon 启动与命名管道 v1 客户端（同一连接完成 hello + 命令） |
@@ -373,6 +376,8 @@ HTTP/MCP 请求
 | `docs/adr/0020-m8-role-lifecycle.md` | M8 持久角色、版本快照、工具收窄与防提权边界 |
 | `docs/adr/0021-m8-inbox-and-search.md` | M8 应用内通知派生、已读回执与用户隔离任务搜索 |
 | `docs/adr/0022-m8-mcp-connector-admission.md` | M8 MCP 受控接入准入策略层；隔离执行需 OS 沙箱 |
+| `docs/adr/0023-m8-role-schedule-linkage.md` | M8 角色与计划联动：绑定触发继承角色会话/prompt/工具快照 |
+| `docs/adr/0024-m8-wake-reconciliation.md` | M8 唤醒感知与错过策略对账；真实 OS 唤醒需真机 |
 | `docs/adr/0017-m5-workspace-file-broker.md` | 工作区文件授权、路径白名单与原子写入边界 |
 | `docs/adr/0018-runtime-heartbeat-health.md` | worker/scheduler liveness 与 readiness 语义边界 |
 | `docs/adr/0019-agent-workbench-ui.md` | `/agent` 最小界面与轮询边界 |
@@ -517,7 +522,8 @@ HTTP/MCP 请求
 | 多任务 / 团队邮箱 / 计划 | `runtime/agent/multi.py` / `schedule.py` → `api/routes/agent_multi.py` → `models/multi.py` / `schedule.py` | ADR 0015/0016、`tests/test_agent_multi_schedule.py` |
 | 持久角色 / 工具收窄 | `runtime/agent/roles.py` → `api/routes/agent_roles.py` → `models/role.py`；网关 `api/routes/agent_internal.py` | ADR 0020、`contracts/agent-role-v1.json`、`tests/test_agent_roles.py` |
 | 通知中心 / 任务搜索 | `runtime/agent/inbox.py` → `api/routes/agent_inbox.py` → `models/notification.py` | ADR 0021、`contracts/agent-inbox-v1.json`、`tests/test_agent_inbox.py` |
-| MCP 准入策略 | `runtime/agent/mcp_connectors.py` → `api/routes/agent_mcp.py` → `models/mcp_connector.py` | ADR 0022、`contracts/agent-mcp-connector-v1.json`、`tests/test_agent_mcp_connector.py` |
+| MCP 准入策略 / 受控执行 | `runtime/agent/mcp_connectors.py` + `mcp_execution.py` → 网关 `agent_internal.py` → `api/routes/agent_mcp.py` | ADR 0022、`contracts/agent-mcp-connector-v1.json`、`tests/test_agent_mcp_connector.py`、`tests/test_agent_mcp_execution.py` |
+| 角色-计划联动 / 唤醒对账 | `runtime/agent/schedule.py` + `wake.py` → `api/routes/agent_multi.py` + `agent_wake.py` | ADR 0023/0024、`contracts/agent-wake-v1.json`、`tests/test_agent_role_schedule.py`、`tests/test_agent_wake.py` |
 | 工作区文件 broker | `runtime/agent/file_broker.py` → `tools.py` → `contracts/agent-file-broker-v1.json` | ADR 0017、`tests/test_agent_file_broker.py` |
 | 后台健康语义 | `runtime/heartbeat.py` → `worker.py` / `scheduler.py` → `api/routes/agent.py` | ADR 0018、`tests/test_runtime_heartbeat.py` |
 | Agent 最小界面 | `frontend/app/agent/page.tsx` → `frontend/lib/api.ts` → `/api/v1/agent/*` | ADR 0019、`frontend/app/agent/page.tsx` |

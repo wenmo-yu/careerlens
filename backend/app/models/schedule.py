@@ -39,6 +39,9 @@ class AgentSchedule(Base):
     misfire_policy: Mapped[str] = mapped_column(String(16), nullable=False, default="skip")
     state: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
     actor_token_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # Optional durable role: when set, triggers run with that role's prompt and
+    # frozen tool allowlist (M8 role-schedule linkage).
+    role_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     next_due: Mapped[int] = mapped_column(Integer, nullable=False)
     last_occurrence: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -66,6 +69,8 @@ class AgentScheduleOccurrence(Base):
     due_at: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    # The exact role version used by this occurrence, for audit.
+    role_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

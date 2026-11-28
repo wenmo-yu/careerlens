@@ -25,10 +25,15 @@ All notable changes to CareerLens are documented here.
 - V4 M6 Agent 工作台：`/agent` 最小界面可创建/选择会话、提交一轮、查看持久消息与待审批、批准/拒绝并展示 runtime/status/capabilities；轮询刷新，不另建前端事实源。见 `docs/adr/0019-agent-workbench-ui.md`。构建字体改为本地 CSS 栈，移除 `next/font/google` 网络依赖，离线/受限网络构建可复现。
 - V4 M6 多任务树：团队父任务与最多三个独立子任务、角色工具范围、结果投影与引用核验、团队邮箱 `(team_id, message_key)` 去重、父取消级联；新增 `agent_tasks` / `agent_team_messages` / `agent_task_budget_use`。见 `docs/adr/0015-m6-multi-agent-task-tree.md`。
 - V4 M8 持久计划：`agent_schedules` / `agent_schedule_occurrences`，`(schedule_id,due_at)` 幂等、`skip/run_once` 错过策略、禁用/撤销令牌拒绝触发，并接入调度器 tick 内部触发。见 `docs/adr/0016-m8-durable-schedules.md`。
+- V4 M8 持久角色：`agent_roles` 保存角色版本与配置快照，长会话绑定；工具只能收窄不能提权（网关对工具报价与调用双向取交集），撤销令牌自动暂停角色。见 `docs/adr/0020-m8-role-lifecycle.md`。
+- V4 M8 角色与计划联动：计划可绑定角色，触发时在角色持久会话中运行、使用角色 prompt，并把角色版本快照写入 `run.payload.role`，occurrence 记录 `role_version`；角色失效时拒绝触发。见 `docs/adr/0023-m8-role-schedule-linkage.md`。
+- V4 M8 应用内通知与搜索：通知从待审批、失败 Run、失败任务与跳过计划派生，不建第二事实源也不外发；已读回执幂等；搜索只读、按用户隔离、每类有界。见 `docs/adr/0021-m8-inbox-and-search.md`。
+- V4 M8 MCP 受控接入：connector 注册表默认禁用，启用是独立显式动作；`admit()` 校验命名空间、工具白名单、所需 scope 与配置 SHA256 指纹，撤销即永久禁用。网关把带命名空间的工具交给准入而不是内置工具表，且即便准入也因缺少经审核执行器与 OS 沙箱返回 `execution_unavailable`（fail closed）。见 `docs/adr/0022-m8-mcp-connector-admission.md`。
+- V4 M8 唤醒对账：scheduler 启动时以上一次心跳为 `last_seen` 对 `[last_seen, now]` 窗口对账，错过的 due 交给普通 trigger 复用 `skip/run_once` 与幂等；每次对账写 `agent_wake_reports` 作为可解释诊断证据。对账失败只记日志，不阻止调度器启动。见 `docs/adr/0024-m8-wake-reconciliation.md`。真实 OS 唤醒定时器与开机自启未做。
 - Tauri 2 桌面宿主骨架：`desktop/` 提供 daemon 自动启动、命名管道 v1 控制、托盘、关窗后台与 NSIS 打包；`frontend/next.desktop.config.ts` 独立静态导出，主 `next.config.ts` 不变。见 `docs/adr/0014-tauri-host-and-daemon-control.md`。签名、自动更新与真实安装验收未做。
 - Worker/Scheduler 心跳：`runtime_heartbeats` 由 worker 与 scheduler 每 5 秒写入，`runtime/status` 返回 `ok/stale/not_started`，不再把进程存在当成健康；`/health/ready` 的数据库/检索语义保持不变。见 `docs/adr/0018-runtime-heartbeat-health.md`。
 - T27 依赖门禁：`scripts/verify_agent_runtime_dependencies.py` 在 CI 检查 Pi / OpenAI Agents SDK 依赖与 vendored 目录；Quality Gate 的 `agent-runtime-windows` 增加 M6/M8 测试；Dependabot 增加 `desktop/src-tauri` 的 Cargo 月度更新，Tauri major 不自动合并。
-- 公开 Agent API：`GET /agent/artifacts`、`GET /agent/artifacts/{id}`、团队任务/邮箱与计划任务端点；OpenAPI 快照更新为 99 路径、111 操作、94 schema。
+- 公开 Agent API：`GET /agent/artifacts`、`GET /agent/artifacts/{id}`、团队任务/邮箱、计划任务、持久角色、通知/搜索、MCP connector 与唤醒对账端点；OpenAPI 快照更新为 112 路径、127 操作、111 schema。
 
 - V4 M3 持久 Agent 运行契约：`agent_sessions`/`agent_session_messages`/`agent_runtime_slots`/`agent_approvals` 与 `agent_runs.executor_kind, session_id`；ACK、settled、committed 三阶段分离，事件 seq 与 fencing token 同事务；每会话一个 CLI 进程，capability 限定到 user/session/run/attempt/generation；只读工具 `search_evidence`、`get_profile` 与流式模型网关。新增 39 项测试（含真实 CLI 子进程 + 桩网关），后端 344 passed，覆盖率 79.52%。见 `docs/adr/0010-m3-agent-runtime-contract.md`。
 - V4 M4 Runtime Manager：预热池状态机（reserve 原子、绑定壳不回池、总进程上限）、两路并发准入、租约/fencing、旧代拒绝、崩溃退避补充与 `runtime/status`、`runtime/capabilities` 诊断；两个并发会话、6 个排队任务、崩溃重试、长任务超时均有测试。调度器入口要求 `AGENT_RUNTIME_ENABLED=true`，默认不启动。见 `docs/adr/0011-m4-runtime-manager.md`。

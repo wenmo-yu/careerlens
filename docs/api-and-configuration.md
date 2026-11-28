@@ -110,7 +110,11 @@ python -m app.runtime.worker
 - `GET /api/v1/agent/approvals`、`POST /agent/approvals/{run_id}/decision`：写工具审批；批准只表示允许一次幂等执行。
 - `GET /api/v1/agent/artifacts`、`GET /agent/artifacts/{id}`：读取 `save_career_note` 产物。
 - `POST /api/v1/agent/teams`、`GET /agent/teams/{team_id}/tasks`、`POST /agent/tasks/{id}/cancel`：M6 子任务、结果投影与父取消级联。
-- `POST/GET /api/v1/agent/schedules`、`POST /agent/schedules/{id}/state`、`POST /agent/schedules/{id}/trigger`：M8 持久计划；`(schedule_id,due_at)` 幂等。
+- `POST/GET /api/v1/agent/schedules`、`POST /agent/schedules/{id}/state`、`POST /agent/schedules/{id}/trigger`：M8 持久计划；`(schedule_id,due_at)` 幂等；`role_id` 可选绑定持久角色。
+- `POST/GET /api/v1/agent/roles`、`PATCH /agent/roles/{id}`、`POST /agent/roles/{id}/state|trigger`：M8 持久角色与配置版本快照；工具只可收窄，撤销令牌自动暂停。
+- `GET /api/v1/agent/notifications`、`POST /agent/notifications/read`、`GET /api/v1/agent/search`：派生通知（不外发）与只读任务搜索。
+- `POST/GET /api/v1/agent/mcp/connectors`、`POST /agent/mcp/connectors/{id}/state|revoke|admit`：M8 MCP connector 准入；默认 `registered` 不启用，撤销永久禁用。带命名空间（如 `docs.search`）的工具调用一律走准入，即便准入也返回 `execution_unavailable`，因为尚无经审核执行器与 OS 沙箱。
+- `POST /api/v1/agent/wake/reconcile`、`GET /agent/wake/reports`：M8 唤醒对账。调度器启动时会自动以上一次心跳为窗口对账，这两个端点用于运维复算与解释；报告只是诊断证据。
 - `GET /api/v1/runtime/status`、`GET /api/v1/runtime/capabilities`：池/Run/审批/租约诊断、worker/scheduler 心跳与工具能力。心跳为 `ok/stale/not_started`，只表示进程是否定期报活；`/health/ready` 仍只检查数据库与检索依赖。
 - 启动 scheduler：`AGENT_RUNTIME_ENABLED=true python -m app.runtime.agent.scheduler`。未启动时 Run 会停在 `queued`，这不是成功。
 - 真实模型需 `AGENT_MODEL_PROVIDER=openai_compatible|deepseek|local` 与 `AI_API_KEY`；Demo/scripted 离线可用。真实供应商计费与 usage 未对账。

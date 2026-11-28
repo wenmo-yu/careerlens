@@ -128,6 +128,9 @@ jobs:
           tests/test_agent_cli.py
           tests/test_agent_multi_schedule.py
           tests/test_agent_file_broker.py
+          tests/test_agent_role_schedule.py
+          tests/test_agent_mcp_execution.py
+          tests/test_agent_wake.py
           tests/test_runtime_heartbeat.py
 
   e2e:

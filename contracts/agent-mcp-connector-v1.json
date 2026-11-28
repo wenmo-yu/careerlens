@@ -13,7 +13,10 @@
     "Model-supplied user_id, workspace_id or scope are never accepted as an authority; identity comes from the trusted invocation context.",
     "An MCP connector never receives career-library manage scope automatically; it is read-scoped unless a user explicitly grants a higher scope.",
     "No external MCP client, no outbound network call and no third-party code is loaded into the daemon or the agent CLI by this contract.",
-    "Isolated execution and network policy require an OS sandbox and remain unverified; this contract governs admission only."
+    "Namespaced MCP tool calls are routed through connector admission in the trusted gateway and never reach the built-in tool registry.",
+    "Caller scopes are derived from the trusted run: a token-bound run is capped by that token's scopes, while a token-less local CLI run acts as the workspace owner. The model cannot supply scopes.",
+    "An admitted MCP tool still returns execution_unavailable until a reviewed executor and OS sandbox exist; the system fails closed rather than pretending success.",
+    "Isolated execution and network policy require an OS sandbox and remain unverified; this contract governs admission and fail-closed routing."
   ],
   "name_format": "<namespace>.<tool>",
   "error_codes": [
