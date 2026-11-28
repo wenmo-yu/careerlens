@@ -14,13 +14,13 @@
   },
   "dependencies": {
     "next": "^16.4.6",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
     "@types/node": "^24.0.0",
-    "@types/react": "^19.0.0",
+    "@types/react": "^19.3.2",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.4.6",
