@@ -1,10 +1,73 @@
 """M8 wake reconciliation: missed-due strategy, idempotency, explainable reports."""
 
+import httpx
 import pytest
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.core.database import Base, get_session
+from app.main import app
 from app.models.schedule import AgentScheduleOccurrence
 from app.runtime.agent import schedule as schedule_service
 from app.runtime.agent import wake as wake_service
+
+
+@pytest_asyncio.fixture
+async def api():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    async def override_session():
+        async with factory() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_session
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        yield client, factory
+    app.dependency_overrides.clear()
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_wake_route_rejects_inverted_window(api):
+    client, _factory = api
+    response = await client.post(
+        "/api/v1/agent/wake/reconcile?user_id=u1",
+        json={"last_seen": 200, "now": 100},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_wake_route_reconciles_and_lists_reports(api):
+    client, factory = api
+    async with factory.begin() as session:
+        await schedule_service.create_schedule(
+            session,
+            user_id="u1",
+            workspace_id="default",
+            name="route-gap",
+            prompt="x",
+            interval_seconds=60,
+            misfire_policy="run_once",
+            actor_token_id=None,
+            start_at=100,
+        )
+    response = await client.post(
+        "/api/v1/agent/wake/reconcile?user_id=u1",
+        json={"last_seen": 100, "now": 10000},
+    )
+    assert response.status_code == 201
+    assert response.json()["triggered"] == 1
+
+    listed = await client.get("/api/v1/agent/wake/reports?user_id=u1")
+    assert listed.status_code == 200
+    assert len(listed.json()) == 1
+    assert listed.json()[0]["observed_gap_seconds"] == 9900
 
 
 @pytest.mark.asyncio

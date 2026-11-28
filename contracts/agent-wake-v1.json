@@ -10,6 +10,7 @@
     "Only active schedules with next_due inside the gap are reconciled; each is passed to the ordinary schedule trigger.",
     "The schedule trigger remains the single authority: skip/run_once misfire policy and (schedule_id,due_at) idempotency are not reimplemented here.",
     "A wake report is diagnostic evidence (gap length, missed, triggered, skipped), not a business fact.",
+    "Reconciliation is instance-wide because the scheduler owns all runs; it is bounded to 100 schedules per call and the remainder is covered by the ordinary tick.",
     "A reconciliation failure is logged and never prevents the scheduler from starting.",
     "Reconciliation never claims the machine actually slept or that an OS wake timer fired.",
     "Real OS wake timers, boot autostart and DST/sleep behaviour require a real Windows machine and are unverified.",
